@@ -1,0 +1,100 @@
+# Jade Reaper
+
+A survivor game backbone that runs natively in the browser. The simulation is Rust compiled to WebAssembly, the picture is drawn with WebGPU, and everything on screen is styled as cut paper and ink.
+
+## Run it
+
+Serve the folder with any static file server and open it in a browser with WebGPU (current Chrome, Edge or Safari). WebGPU needs `http://localhost` or `https`, so opening `index.html` from disk will not work.
+
+```bash
+python3 -m http.server 5173
+```
+
+Then open http://localhost:5173.
+
+The built `wasm/jadereaper_core.wasm` is checked in, so Rust is only needed if you change the core.
+
+## Controls
+
+| Action | Keyboard | Gamepad |
+| --- | --- | --- |
+| Move | WASD or arrow keys | Left stick or d-pad |
+| Pause | Esc or P | Start |
+| Menu move | Arrow keys or WASD | Stick or d-pad |
+| Menu confirm | Enter or Space | A |
+| Back | Esc | B |
+| Pick upgrade | 1, 2, 3 | Stick, then A |
+| Mute | M | |
+
+Attacks are automatic. The game pauses itself when the window loses focus.
+
+## How the paper style works
+
+Characters are puppets made of rigid paper parts, not sprite sheets. The reaper is a robe, a hood and a scythe. A walk cycle is two poses: tilt one way, then tilt the other with a small hop. Enemies do the same, each on its own offset. This needs one still image per part and no animation frames.
+
+The renderer adds the rest to every part: an ink outline, a white cutout margin, a drop shadow, paper grain, and an outline that "boils" at 8 frames per second like stop-motion. Parts are drawn in code as signed distance shapes, and any part can be swapped for your own PNG. See [assets/parts/README.md](assets/parts/README.md).
+
+The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, a hand-written font and a vermilion seal, using two SVG filters defined in `index.html`.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `core/` | Rust simulation. No dependencies, no bindgen. |
+| `core/src/defs.rs` | Instance format, part ids, upgrade ids, enemy table |
+| `core/src/game.rs` | State, simulation step, puppet posing, instance building |
+| `core/src/lib.rs` | The `jr_*` functions exported to JavaScript, and tests |
+| `wasm/` | Built core |
+| `src/main.js` | Loads the core, frame loop, game modes |
+| `src/renderer.js` | WebGPU setup, part image atlas, drawing |
+| `src/shader.wgsl` | Paper shapes, cutout shading, paper background |
+| `src/input.js` | Keyboard and gamepad |
+| `src/audio.js` | Synthesized sound effects (no audio files) |
+| `src/ui.js` | Screens, HUD, menu focus |
+| `src/save.js` | Records and settings in localStorage |
+| `src/data.js` | Part names, upgrade text, state and event ids |
+| `assets/parts.json` | Optional image overrides for parts |
+
+## How core and host talk
+
+Each frame the host calls `jr_input`, then `jr_update(dt)`, and reads three buffers out of wasm memory:
+
+- Instances: 12 floats per paper part (`x, y, half width, half height, rotation, part id, flash, seed, r, g, b, a`). These bytes go to the GPU unchanged.
+- State: 32 floats for the HUD (health, experience, time, offered upgrades and so on). Indices are in `src/data.js` under `STATE`.
+- Events: 4 floats each (`type, x, y, value`), used for sound.
+
+When the core sets the "choosing" flag the host shows the upgrade cards and answers with `jr_choose(slot)`.
+
+## Build the core
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+```bash
+./build.sh
+```
+
+Run the simulation tests natively:
+
+```bash
+cargo test --release --manifest-path core/Cargo.toml
+```
+
+## Extending
+
+- New enemy: add a row to `KINDS` in `core/src/defs.rs` and a spawn rule in `Game::spawn`.
+- New upgrade: add an id and max level in `defs.rs`, its effect in `Game::weapons` or where the stat is read, and its card text in `src/data.js`.
+- New part shape: add a part id in `defs.rs`, a `case` in `shape()` in `src/shader.wgsl`, and a name in `PART_IDS` in `src/data.js`.
+
+## What is in the backbone
+
+- Four enemy kinds (blot, wisp, brute, elite every 90 seconds) with time-scaled health and spawn rate, capped at 500 on screen
+- Four weapons (scythe, talisman, jade beads, spirit pulse) and six passive upgrades, with level-up choices
+- Experience gems, health drops, pickup magnet, knockback, invulnerability frames, camera shake
+- Title, settings, level-up, pause and game-over screens, playable by keyboard or gamepad
+- Saved best time, kills, level and sound settings
+
+Not included yet: touch controls, damage numbers, music, meta progression between runs, and a WebGL fallback for browsers without WebGPU.
+
+The ranked plan for what comes next is in [ROADMAP.md](ROADMAP.md).

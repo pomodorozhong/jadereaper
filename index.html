@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jade Reaper</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Filters that give UI paper its hand-torn edge and ink its rough stroke. -->
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <defs>
+      <filter id="torn" x="-5%" y="-10%" width="110%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="4" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="rough" x="-5%" y="-20%" width="110%" height="140%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="9" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <canvas id="game" aria-label="Game view"></canvas>
+
+  <div id="hud" hidden>
+    <div class="xp" title="Experience">
+      <div class="xp-fill" id="xpFill"></div>
+      <span class="xp-label" id="levelText">Lv 1</span>
+    </div>
+    <div class="hud-row">
+      <div class="tag hp-tag">
+        <span class="heart">♥</span>
+        <div class="hp"><div class="hp-fill" id="hpFill"></div></div>
+        <span id="hpText">100</span>
+      </div>
+      <div class="tag time-tag" id="timeText">0:00</div>
+      <div class="tag kills-tag"><span class="seal-dot">斬</span> <span id="killsText">0</span></div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <section class="screen" id="title" hidden>
+    <div class="sheet title-sheet">
+      <div class="stamp" aria-hidden="true">玉<br>鐮</div>
+      <h1>Jade Reaper</h1>
+      <p class="sub">Cut down the ink spirits. Last as long as you can.</p>
+      <div class="buttons">
+        <button data-action="start">Begin</button>
+        <button data-action="settings">Settings</button>
+      </div>
+      <p class="records" id="records"></p>
+      <p class="hint">Move with WASD, arrow keys or a gamepad stick. Attacks are automatic. Esc or Start pauses.</p>
+    </div>
+  </section>
+
+  <section class="screen" id="settings" hidden>
+    <div class="sheet">
+      <h2>Settings</h2>
+      <div class="setting">
+        <span>Volume</span>
+        <div class="stepper">
+          <button data-action="vol-down" aria-label="Lower volume">−</button>
+          <div class="pips" id="volPips"></div>
+          <button data-action="vol-up" aria-label="Raise volume">+</button>
+        </div>
+      </div>
+      <div class="buttons">
+        <button data-action="mute" id="muteBtn">Sound: on</button>
+        <button data-action="clear-save">Erase records</button>
+        <button data-action="back">Back</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="levelup" hidden>
+    <div class="levelup-wrap">
+      <h2 class="banner">Level up — choose one</h2>
+      <div class="cards" id="cards"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="pause" hidden>
+    <div class="sheet">
+      <h2>Paused</h2>
+      <div class="buttons">
+        <button data-action="resume">Resume</button>
+        <button data-action="mute">Sound: on</button>
+        <button data-action="restart">Restart</button>
+        <button data-action="quit">Quit to title</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="over" hidden>
+    <div class="sheet">
+      <div class="stamp record-stamp" id="recordStamp" hidden>New<br>record</div>
+      <h2>The ink closes in</h2>
+      <dl class="stats" id="stats"></dl>
+      <div class="buttons">
+        <button data-action="start">Try again</button>
+        <button data-action="quit">Title</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="error" hidden>
+    <div class="sheet">
+      <h2>Cannot start</h2>
+      <p id="errorText"></p>
+      <p class="hint">Jade Reaper needs a browser with WebGPU, such as a current Chrome, Edge or Safari, opened through http://localhost or https.</p>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
