@@ -1,6 +1,7 @@
 // Paper UI: screens, HUD and menu focus. All DOM work lives here.
 import { UPGRADES } from './data.js';
 import { formatTime } from './save.js';
+import { t, getLang, setText } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['title', 'settings', 'levelup', 'pause', 'over', 'error'];
@@ -67,17 +68,17 @@ export function createUI({ onAction }) {
     set('hpFill', 'width', `${Math.max(0, Math.min(100, (hp / maxHp) * 100)).toFixed(1)}%`);
     set('hpText', 'text', String(Math.ceil(hp)));
     set('xpFill', 'width', `${Math.max(0, Math.min(100, (xp / xpNext) * 100)).toFixed(1)}%`);
-    set('levelText', 'text', `Lv ${level}`);
+    set('levelText', 'text', t('hud.level', { n: level }));
     set('timeText', 'text', formatTime(time));
     set('killsText', 'text', String(kills));
-    const sig = upgrades.join(',');
+    const sig = getLang() + upgrades.join(',');
     if (cache.chips !== sig) {
       cache.chips = sig;
       $('chips').replaceChildren(...upgrades.flatMap((lvl, id) => {
         if (!lvl) return [];
         const chip = document.createElement('div');
         chip.className = 'chip';
-        chip.title = UPGRADES[id].name;
+        chip.title = t(`upgrade.${id}.name`);
         const glyph = document.createElement('b');
         glyph.textContent = UPGRADES[id].glyph;
         chip.append(glyph, String(lvl));
@@ -102,9 +103,9 @@ export function createUI({ onAction }) {
       const parts = [
         ['key', String(slot + 1)],
         ['glyph', u.glyph],
-        ['name', u.name],
-        ['rank', lvl === 0 ? 'New' : `Level ${lvl} → ${lvl + 1}`],
-        ['desc', u.desc],
+        ['name', t(`upgrade.${id}.name`)],
+        ['rank', lvl === 0 ? t('levelup.new') : t('levelup.rank', { from: lvl, to: lvl + 1 })],
+        ['desc', t(`upgrade.${id}.desc`)],
       ];
       for (const [cls, text] of parts) {
         const span = document.createElement('span');
@@ -119,10 +120,10 @@ export function createUI({ onAction }) {
 
   function gameOver({ time, kills, level }, save, beaten) {
     const rows = [
-      ['Survived', formatTime(time), beaten.time],
-      ['Spirits cut', String(kills), beaten.kills],
-      ['Level', String(level), beaten.level],
-      ['Best time', formatTime(save.bestTime), false],
+      [t('over.survived'), formatTime(time), beaten.time],
+      [t('over.kills'), String(kills), beaten.kills],
+      [t('over.level'), String(level), beaten.level],
+      [t('over.bestTime'), formatTime(save.bestTime), false],
     ];
     $('stats').replaceChildren(...rows.flatMap(([label, value, best]) => {
       const dt = document.createElement('dt');
@@ -138,7 +139,9 @@ export function createUI({ onAction }) {
 
   function records(save) {
     $('records').textContent = save.runs
-      ? `Best: ${formatTime(save.bestTime)} · ${save.bestKills} cut · level ${save.bestLevel} · ${save.runs} ${save.runs === 1 ? 'run' : 'runs'}`
+      ? t(save.runs === 1 ? 'records.one' : 'records.other', {
+        time: formatTime(save.bestTime), kills: save.bestKills, level: save.bestLevel, runs: save.runs,
+      })
       : '';
   }
 
@@ -150,8 +153,9 @@ export function createUI({ onAction }) {
       return pip;
     }));
     for (const btn of document.querySelectorAll('button[data-action="mute"]')) {
-      btn.textContent = muted ? 'Sound: off' : 'Sound: on';
+      btn.textContent = t(muted ? 'settings.soundOff' : 'settings.soundOn');
     }
+    setText($('langBtn'), t('settings.language', { name: t('lang.name') }));
   }
 
   function error(message) {

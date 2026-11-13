@@ -1,4 +1,5 @@
 // WebGPU renderer: one background pass and one instanced draw of paper parts.
+import { t } from './i18n.js';
 import { PART_IDS } from './data.js';
 
 const INSTANCE_BYTES = 48;
@@ -51,9 +52,9 @@ async function loadPartImages() {
 }
 
 export async function createRenderer(canvas) {
-  if (!navigator.gpu) throw new Error('WebGPU is not available in this browser.');
+  if (!navigator.gpu) throw new Error(t('error.noWebgpu'));
   const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('No WebGPU adapter was found.');
+  if (!adapter) throw new Error(t('error.noAdapter'));
   const device = await adapter.requestDevice();
   const ctx = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
@@ -67,7 +68,8 @@ export async function createRenderer(canvas) {
   const info = await module.getCompilationInfo();
   const errors = info.messages.filter((m) => m.type === 'error');
   if (errors.length) {
-    throw new Error('Shader failed to compile: ' + errors.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('; '));
+    const detail = errors.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('; ');
+    throw new Error(t('error.shader', { detail }));
   }
 
   const globals = new Float32Array(12);

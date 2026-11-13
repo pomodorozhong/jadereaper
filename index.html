@@ -21,10 +21,10 @@
     </defs>
   </svg>
 
-  <canvas id="game" aria-label="Game view"></canvas>
+  <canvas id="game" aria-label="Game view" data-i18n-aria="game.view"></canvas>
 
   <div id="hud" hidden>
-    <div class="xp" title="Experience">
+    <div class="xp" title="Experience" data-i18n-title="hud.xp">
       <div class="xp-fill" id="xpFill"></div>
       <span class="xp-label" id="levelText">Lv 1</span>
     </div>
@@ -43,72 +43,73 @@
   <section class="screen" id="title" hidden>
     <div class="sheet title-sheet">
       <div class="stamp" aria-hidden="true">玉<br>鐮</div>
-      <h1>Jade Reaper</h1>
-      <p class="sub">Cut down the ink spirits. Last as long as you can.</p>
+      <h1 data-i18n="title.name">Jade Reaper</h1>
+      <p class="sub" data-i18n="title.sub">Cut down the ink spirits. Last as long as you can.</p>
       <div class="buttons">
-        <button data-action="start">Begin</button>
-        <button data-action="settings">Settings</button>
+        <button data-action="start" data-i18n="title.begin">Begin</button>
+        <button data-action="settings" data-i18n="title.settings">Settings</button>
       </div>
       <p class="records" id="records"></p>
-      <p class="hint">Move with WASD, arrow keys or a gamepad stick. Attacks are automatic. Esc or Start pauses.</p>
+      <p class="hint" data-i18n="title.hint">Move with WASD, arrow keys or a gamepad stick. Attacks are automatic. Esc or Start pauses.</p>
     </div>
   </section>
 
   <section class="screen" id="settings" hidden>
     <div class="sheet">
-      <h2>Settings</h2>
+      <h2 data-i18n="settings.title">Settings</h2>
       <div class="setting">
-        <span>Volume</span>
+        <span data-i18n="settings.volume">Volume</span>
         <div class="stepper">
-          <button data-action="vol-down" aria-label="Lower volume">−</button>
+          <button data-action="vol-down" aria-label="Lower volume" data-i18n-aria="settings.volDown">−</button>
           <div class="pips" id="volPips"></div>
-          <button data-action="vol-up" aria-label="Raise volume">+</button>
+          <button data-action="vol-up" aria-label="Raise volume" data-i18n-aria="settings.volUp">+</button>
         </div>
       </div>
       <div class="buttons">
+        <button data-action="lang" id="langBtn">Language: English</button>
         <button data-action="mute" id="muteBtn">Sound: on</button>
-        <button data-action="clear-save">Erase records</button>
-        <button data-action="back">Back</button>
+        <button data-action="clear-save" data-i18n="settings.erase">Erase records</button>
+        <button data-action="back" data-i18n="settings.back">Back</button>
       </div>
     </div>
   </section>
 
   <section class="screen" id="levelup" hidden>
     <div class="levelup-wrap">
-      <h2 class="banner">Level up — choose one</h2>
+      <h2 class="banner" data-i18n="levelup.banner">Level up — choose one</h2>
       <div class="cards" id="cards"></div>
     </div>
   </section>
 
   <section class="screen" id="pause" hidden>
     <div class="sheet">
-      <h2>Paused</h2>
+      <h2 data-i18n="pause.title">Paused</h2>
       <div class="buttons">
-        <button data-action="resume">Resume</button>
+        <button data-action="resume" data-i18n="pause.resume">Resume</button>
         <button data-action="mute">Sound: on</button>
-        <button data-action="restart">Restart</button>
-        <button data-action="quit">Quit to title</button>
+        <button data-action="restart" data-i18n="pause.restart">Restart</button>
+        <button data-action="quit" data-i18n="pause.quit">Quit to title</button>
       </div>
     </div>
   </section>
 
   <section class="screen" id="over" hidden>
     <div class="sheet">
-      <div class="stamp record-stamp" id="recordStamp" hidden>New<br>record</div>
-      <h2>The ink closes in</h2>
+      <div class="stamp record-stamp" id="recordStamp" data-i18n="over.record" hidden>New<br>record</div>
+      <h2 data-i18n="over.title">The ink closes in</h2>
       <dl class="stats" id="stats"></dl>
       <div class="buttons">
-        <button data-action="start">Try again</button>
-        <button data-action="quit">Title</button>
+        <button data-action="start" data-i18n="over.again">Try again</button>
+        <button data-action="quit" data-i18n="over.quit">Title</button>
       </div>
     </div>
   </section>
 
   <section class="screen" id="error" hidden>
     <div class="sheet">
-      <h2>Cannot start</h2>
+      <h2 data-i18n="error.title">Cannot start</h2>
       <p id="errorText"></p>
-      <p class="hint">Jade Reaper needs a browser with WebGPU, such as a current Chrome, Edge or Safari, opened through http://localhost or https.</p>
+      <p class="hint" data-i18n="error.hint">Jade Reaper needs a browser with WebGPU, such as a current Chrome, Edge or Safari, opened through http://localhost or https.</p>
     </div>
   </section>
 

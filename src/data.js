@@ -22,18 +22,19 @@ export const PART_IDS = {
   ground_shadow: 18,
 };
 
-/** Upgrades, indexed by id. `glyph` is the brush mark shown on cards and HUD chips. */
+/** Upgrades, indexed by id. `glyph` is the brush mark shown on cards and HUD chips.
+ * Names and descriptions are in src/i18n.js as upgrade.<id>.name and .desc. */
 export const UPGRADES = [
-  { glyph: '鐮', name: "Reaper's Scythe", desc: 'A sweeping arc where you face. Grows wider and hits harder.', max: 6 },
-  { glyph: '符', name: 'Paper Talisman', desc: 'Flies at the nearest spirit. More slips at higher levels.', max: 6 },
-  { glyph: '珠', name: 'Jade Beads', desc: 'Beads circle you and strike what they touch.', max: 6 },
-  { glyph: '波', name: 'Spirit Pulse', desc: 'A ring of force that hurts and shoves spirits away.', max: 6 },
-  { glyph: '命', name: 'Vitality', desc: '+20 maximum health.', max: 5 },
-  { glyph: '風', name: 'Swift Steps', desc: '+8% movement speed.', max: 5 },
-  { glyph: '引', name: 'Jade Lure', desc: '+30% pickup range.', max: 5 },
-  { glyph: '力', name: 'Might', desc: '+12% damage.', max: 5 },
-  { glyph: '速', name: 'Haste', desc: 'All attacks come 8% faster.', max: 5 },
-  { glyph: '癒', name: 'Mending', desc: 'Slowly recover health over time.', max: 5 },
+  { glyph: '鐮', max: 6 },
+  { glyph: '符', max: 6 },
+  { glyph: '珠', max: 6 },
+  { glyph: '波', max: 6 },
+  { glyph: '命', max: 5 },
+  { glyph: '風', max: 5 },
+  { glyph: '引', max: 5 },
+  { glyph: '力', max: 5 },
+  { glyph: '速', max: 5 },
+  { glyph: '癒', max: 5 },
 ];
 
 export const EVENT = {
