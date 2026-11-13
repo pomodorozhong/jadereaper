@@ -1046,3 +1046,7 @@ impl Game {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "game_tests.rs"]
+mod game_tests;
