@@ -4,12 +4,14 @@
 
 ### ci/pages-deploy
 
-- Task: roadmap step 5, starting with a GitHub Pages deploy workflow that publishes the repository as is (the game is static files plus the committed wasm and fonts). The user chose GitHub Pages and no CDN for fonts. No issue yet; roadmap issues wait on P-02. Local branch only, created from `main` at b1b522d to carry this handoff.
-- PR: none yet.
-- Code checkpoint: b1b522d (`main`, with #4 merged: bundled Chinese UI fonts and the `Fonts` CI check).
-- State: not started.
-- Next action: plan the workflow with the user per the `open-pr` skill. Open questions: Pages source (GitHub Actions deploy vs. branch), whether the deploy reruns `tools/check-fonts.sh` first, which files to leave out of the site (`tools/`, `core/`, docs), and the repository's Pages settings, which need the user's approval to change.
-- Pending: **P-05** push this branch. Why: pushing needs approval. Blocks: resuming from another computer.
+- Task: roadmap step 5, first part: a GitHub Pages deploy workflow (`.github/workflows/pages.yml`) that runs `tools/check-fonts.sh`, then publishes `index.html`, `style.css`, `src/`, `wasm/` and `assets/` as committed, on every push to `main` and by hand. The README gets a "Play it online" link. No issue; roadmap issues wait on P-02. Not linked to any issue.
+- PR: none yet; title and body drafted and awaiting publish approval (P-05).
+- Code checkpoint: b5b607f (`ci: deploy the game to github pages on push to main`), on `main` at b1b522d.
+- Repository settings: Pages already deploys from GitHub Actions, and the `github-pages` environment only allows `main`, so nothing needs changing. The real deploy can only be tested after merge.
+- Verification at b5b607f: `cargo test --release` passed; `tools/check-fonts.sh` passed; actionlint (via `uvx --from actionlint-py`) passed on both workflows; the workflow's copy step, served locally under `/jadereaper/`, loaded every file and started a run with no console errors (only `/favicon.ico` 404s, as on `main`).
+- Still to do for step 5 (later PRs): wasm drift check, cargo fmt and clippy, JavaScript check, headless smoke test.
+- Next action: on approval of P-05, push and open the PR, then check the deploy after it merges.
+- Pending: **P-05** push this branch and open the PR "ci: deploy the game to github pages on push to main". Why: pushing and opening a PR need approval. Blocks: the PR, the first deploy, and resuming from another computer.
 
 ## Ranked work
 
