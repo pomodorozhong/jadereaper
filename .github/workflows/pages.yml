@@ -1,0 +1,49 @@
+name: Pages
+
+# Publishes the game to GitHub Pages on every push to main. The site is the
+# committed files as they are (the wasm and fonts are checked in), so nothing
+# is built here. The font check runs first so a font missing a character the
+# game shows is never published.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a deploy that has started is allowed to finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check fonts
+        run: tools/check-fonts.sh
+      - name: Collect the site
+        run: |
+          mkdir _site
+          cp -R index.html style.css src wasm assets _site/
+      - uses: actions/configure-pages@v6.0.0
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1
