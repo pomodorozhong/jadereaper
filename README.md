@@ -96,3 +96,5 @@ cargo test --release --manifest-path core/Cargo.toml
 - Saved best time, kills, level and sound settings
 
 Not included yet: touch controls, damage numbers, music, meta progression between runs, and a WebGL fallback for browsers without WebGPU.
+
+The ranked plan for what comes next is in [ROADMAP.md](ROADMAP.md).
