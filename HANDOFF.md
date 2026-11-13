@@ -16,12 +16,11 @@
 ### docs/game-design
 
 - Task: add `docs/design.md` (the game design, in Chinese, from the team's Discord discussion and four rounds of questions with the user) and rewrite `ROADMAP.md` steps 1 and 4 to follow it. Not linked to any issue.
-- PR: none yet; not pushed.
+- PR: #6, open, from the fork `skymiku39/jadereaper` (remote `fork`), because this account can only read `origin`. Push this branch to `fork`, not `origin`.
 - Code checkpoint: 9a8849a (`docs: add game design document and align roadmap`), on `main` at 80ca4a1.
 - Verification: documentation only; no checks were run.
 - Open design questions are listed in `docs/design.md` section 9; decisions that differ from the original discussion are in section 11 and need the team's confirmation.
-- Next action: on approval of P-06, push and open the PR. Then split roadmap steps 1 and 4 into plan issues (they are now too large for one PR each), starting with the martial art and element axes.
-- Pending: **P-06** push this branch and open the PR "docs: add game design document and align roadmap". Why: pushing and opening a PR need approval. Blocks: teammates reading the design on GitHub.
+- Next action: wait for the team's review of #6. After it merges, split roadmap steps 1 and 4 into plan issues (they are now too large for one PR each), starting with the martial art and element axes.
 - Note: the `ci/pages-deploy` subsection above is stale; its PR merged as #5, so P-05 is obsolete.
 
 ## Ranked work
