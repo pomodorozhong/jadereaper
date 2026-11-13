@@ -13,6 +13,17 @@
 - Next action: on approval of P-05, push and open the PR, then check the deploy after it merges.
 - Pending: **P-05** push this branch and open the PR "ci: deploy the game to github pages on push to main". Why: pushing and opening a PR need approval. Blocks: the PR, the first deploy, and resuming from another computer.
 
+### docs/game-design
+
+- Task: add `docs/design.md` (the game design, in Chinese, from the team's Discord discussion and four rounds of questions with the user) and rewrite `ROADMAP.md` steps 1 and 4 to follow it. Not linked to any issue.
+- PR: none yet; not pushed.
+- Code checkpoint: 9a8849a (`docs: add game design document and align roadmap`), on `main` at 80ca4a1.
+- Verification: documentation only; no checks were run.
+- Open design questions are listed in `docs/design.md` section 9; decisions that differ from the original discussion are in section 11 and need the team's confirmation.
+- Next action: on approval of P-06, push and open the PR. Then split roadmap steps 1 and 4 into plan issues (they are now too large for one PR each), starting with the martial art and element axes.
+- Pending: **P-06** push this branch and open the PR "docs: add game design document and align roadmap". Why: pushing and opening a PR need approval. Blocks: teammates reading the design on GitHub.
+- Note: the `ci/pages-deploy` subsection above is stale; its PR merged as #5, so P-05 is obsolete.
+
 ## Ranked work
 
 Steps are detailed in `ROADMAP.md`. They become issues once P-02 is approved.
