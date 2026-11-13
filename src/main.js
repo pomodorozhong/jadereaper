@@ -6,12 +6,14 @@ import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
 import { EVENT, STATE, UPGRADES } from './data.js';
+import { pickLang, setLang, getLang, nextLang } from './i18n.js';
 
 const STATE_FLOATS = 32;
 
 async function boot() {
   const canvas = document.getElementById('game');
   const save = loadSave();
+  setLang(pickLang(save.lang));
   const audio = createAudio();
   audio.setVolume(save.volume);
   audio.setMuted(save.muted);
@@ -81,6 +83,12 @@ async function boot() {
       case 'quit': toTitle(); break;
       case 'settings': settingsFrom = ui.screen; ui.show('settings'); break;
       case 'back': ui.show(settingsFrom); break;
+      case 'lang':
+        setLang(nextLang(getLang()));
+        save.lang = getLang();
+        saveSettings();
+        ui.records(save);
+        break;
       case 'mute': audio.setMuted(!audio.muted); saveSettings(); break;
       case 'vol-up': audio.setVolume(audio.volume + 0.1); saveSettings(); audio.play('confirm'); break;
       case 'vol-down': audio.setVolume(audio.volume - 0.1); saveSettings(); audio.play('confirm'); break;
