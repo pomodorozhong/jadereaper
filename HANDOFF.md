@@ -2,16 +2,17 @@
 
 ## In progress
 
-### feat/i18n-zh
+### feat/zh-ui-fonts
 
-- Task: Traditional Chinese (zh-Hant) language support for all player-facing text, with a language button in settings. No issue.
-- PR: drafted and awaiting the user's approval to push (P-03).
-- Code checkpoint: 912daa5
-- State: all UI text, upgrade names and descriptions, and WebGPU error messages come from `src/i18n.js`. New players start in Traditional Chinese (`DEFAULT_LANG`), whatever the browser prefers; the settings button cycles 繁體中文 and English and saves the choice as `lang` in the save.
-- Verification: `cargo test --release` passed (2 tests) and `./build.sh` left the wasm unchanged. In the browser pane: a fresh save starting in Chinese on an English-first browser, a saved English choice still loading in English, title, settings, language switch, the choice surviving a reload, HUD, level-up cards, game over, records and pause all showed correct text in both languages, with no console errors. Level-up and game over were rendered by calling the UI module directly, because the hidden pane stalls the game loop.
-- Not checked: a full real run in Chinese, and the translation by a native speaker.
-- Next action: after P-03 is approved, push and open the PR; then start roadmap step 1 on a new branch from `main`.
-- Pending: **P-03** push this branch and open the PR "feat(web): add traditional chinese language support" into `main`. Why: pushing and opening a PR need approval. Blocks: merging the translation.
+- Task: bundled fonts for the Traditional Chinese UI (Bakudai for titles, buttons and brush marks; LXGW WenKai TC for body text) and Caveat Brush for numbers in both languages. Fonts were chosen with the user in a throwaway gallery (`font-gallery.html`, untracked). The English font choice is issue #3. No issue for this branch.
+- PR: drafted and awaiting the user's approval to push (P-04).
+- Code checkpoint: a49f10a
+- State: `assets/fonts/` holds the four fonts cut down to the game's characters (446 KB in total, from about 41 MB) with their OFL licenses. `tools/subset-fonts.sh` rebuilds them reproducibly from pinned, checksummed sources; `tools/check-fonts.sh` fails when a Chinese character in `src/*.js` or `index.html` is missing, and `.github/workflows/fonts.yml` runs it in CI. `style.css` adds a `--title` variable and `:lang(zh-Hant)` overrides; the English UI is unchanged apart from numbers.
+- Verification: `cargo test --release` passed (2 tests) and `./build.sh` left the wasm unchanged. The check script passed, and failed as expected with an uncovered test character. Two subset runs gave identical bytes (0.5 s with a warm cache, about 9 s with downloads). In the browser pane: title, HUD, level-up cards, game over, settings and pause in Chinese, and level-up in English, showed the intended fonts with no console errors. Level-up, game over and settings were rendered by calling the UI module directly.
+- Not checked: the CI workflow on GitHub (runs once pushed); other browsers and Windows or Android.
+- Known: Bakudai's 繼 and 續 (pause screen "繼續") are thinner and plainer than its other characters, likely among the maintainer's later additions.
+- Next action: after P-04 is approved, push and open the PR; then the GitHub Pages deploy PR, or roadmap step 1.
+- Pending: **P-04** push this branch and open the PR "feat(web): bundle fonts for the chinese ui and numbers" into `main`. Why: pushing and opening a PR need approval. Blocks: shipping the Chinese fonts, and the GitHub Pages deploy PR.
 
 ## Ranked work
 

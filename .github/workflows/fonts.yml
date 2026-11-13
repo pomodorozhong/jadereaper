@@ -1,0 +1,32 @@
+name: Fonts
+
+# Fails when the cut-down fonts in assets/fonts/ lack a Chinese character the
+# game shows. Fix it by running tools/subset-fonts.sh and committing the fonts.
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'src/**'
+      - 'assets/fonts/**'
+      - 'tools/**'
+      - '.github/workflows/fonts.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'src/**'
+      - 'assets/fonts/**'
+      - 'tools/**'
+      - '.github/workflows/fonts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: tools/check-fonts.sh
