@@ -21,7 +21,7 @@ Duplicates and invalid issues have no labels of their own. They are closed with 
 
 ## Whose turn it is
 
-Each chart has one row per person, and time runs from left to right. A box is something that person does, a purple box with a PR tag is a pull request, and a grey box is where the issue ends. The chips on an arrow show how the labels change as the issue passes to the next person: a chip in the label's own colour with + is added, and a red, struck-through chip with − is removed. Whichever row the latest arrow points into has the next turn.
+Each chart has one row per person, and time runs from left to right. A box is something that person does, a purple box with a PR tag is a pull request, and a grey box is where the issue ends. The chips on an arrow show how the labels change as the issue passes to the next person: a chip in the label's own colour with + is added, and a hatched, struck-through chip with − in the same colour is removed. Whichever row the latest arrow points into has the next turn.
 
 `waiting-for-author` is added on top of the issue's status, so the issue keeps its place. When the author has answered, they say so on the issue and the maintainer removes the label. An issue with no reply for 30 days may be closed.
 
