@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1594 484" width="1594" height="484" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2.5" stroke-opacity="0.7"/></pattern><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606a"/></marker></defs>
+<rect width="1594" height="484" fill="#ffffff"/>
+<text x="24" y="38" font-size="16" font-weight="600" fill="#1f2328">How a proposal moves</text>
+<text x="1570" y="38" text-anchor="end" fill="#57606a">time →</text>
+<rect x="0" y="64" width="1594" height="140" fill="#f6f8fa" stroke="#d0d7de"/>
+<text x="24" y="139.0" font-weight="600" fill="#1f2328">Author</text>
+<rect x="0" y="204" width="1594" height="140" fill="#ffffff" stroke="#d0d7de"/>
+<text x="24" y="279.0" font-weight="600" fill="#1f2328">Maintainer</text>
+<rect x="0" y="344" width="1594" height="140" fill="#f6f8fa" stroke="#d0d7de"/>
+<text x="24" y="419.0" font-weight="600" fill="#1f2328">Any contributor</text>
+<path d="M368.0,163.0 Q450.0,204.0 532.0,245.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M621.5,245.0 Q709.9,163.8 791.0,148.7" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M838.5,163.0 Q750.1,244.2 669.0,259.3" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M581.7,245.0 Q570.0,204.0 581.7,163.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M669.0,279.6 Q730.0,284.0 791.0,279.6" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M669.0,299.7 Q865.1,363.4 1071.0,400.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M928.0,303.0 Q1010.0,344.0 1092.0,385.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M1208.0,385.0 Q1290.0,344.0 1372.0,303.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="235.0" y="109.0" width="150" height="50" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="310.0" y="138.5" text-anchor="middle" fill="#1f2328">Files a Proposal</text>
+<rect x="515.0" y="249.0" width="150" height="50" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="590.0" y="278.5" text-anchor="middle" fill="#1f2328">Decides</text>
+<rect x="515.0" y="109.0" width="150" height="50" rx="25" fill="#eaeef2" stroke="#8c959f" stroke-width="1.5"/>
+<text x="590.0" y="130.5" text-anchor="middle" fill="#1f2328">Closed as</text>
+<text x="590.0" y="146.5" text-anchor="middle" fill="#1f2328">not planned</text>
+<rect x="795.0" y="109.0" width="150" height="50" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="870.0" y="130.5" text-anchor="middle" fill="#1f2328">Answers on</text>
+<text x="870.0" y="146.5" text-anchor="middle" fill="#1f2328">the issue</text>
+<rect x="795.0" y="249.0" width="150" height="50" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="870.0" y="270.5" text-anchor="middle" fill="#1f2328">Waits for the</text>
+<text x="870.0" y="286.5" text-anchor="middle" fill="#1f2328">named issue</text>
+<rect x="1075.0" y="389.0" width="150" height="50" rx="6" fill="#fbefff" stroke="#8250df" stroke-width="2"/>
+<rect x="1081.0" y="380.0" width="30" height="17" rx="8.5" fill="#8250df"/><text x="1096.0" y="392.5" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">PR</text>
+<text x="1150.0" y="418.5" text-anchor="middle" fill="#1f2328">Opens a PR</text>
+<rect x="1355.0" y="249.0" width="150" height="50" rx="25" fill="#eaeef2" stroke="#8c959f" stroke-width="1.5"/>
+<text x="1430.0" y="270.5" text-anchor="middle" fill="#1f2328">Merges the PR;</text>
+<text x="1430.0" y="286.5" text-anchor="middle" fill="#1f2328">issue closed</text>
+<rect x="397.8" y="184.0" width="104.4" height="18" rx="9" fill="#a2eeef"/>
+<text x="450.0" y="197.0" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ enhancement</text>
+<rect x="408.0" y="205.0" width="84.0" height="18" rx="9" fill="#c5def5"/>
+<text x="450.0" y="218.0" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ proposal</text>
+<rect x="689.9" y="160.3" width="36.4" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
+<text x="708.1" y="173.3" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">asks</text>
+<rect x="632.1" y="181.3" width="152.0" height="18" rx="9" fill="#fbca04"/>
+<text x="708.1" y="194.3" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ waiting-for-author</text>
+<rect x="723.8" y="207.7" width="56.2" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
+<text x="751.9" y="220.7" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">answers</text>
+<rect x="675.9" y="228.7" width="152.0" height="18" rx="9" fill="#fbca04"/>
+<rect x="675.9" y="228.7" width="152.0" height="18" rx="9" fill="url(#hatch)"/>
+<text x="751.9" y="241.7" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328" text-decoration="line-through">− waiting-for-author</text>
+<rect x="533.9" y="184.0" width="84.0" height="18" rx="9" fill="#c5def5"/>
+<rect x="533.9" y="184.0" width="84.0" height="18" rx="9" fill="url(#hatch)"/>
+<text x="575.9" y="197.0" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328" text-decoration="line-through">− proposal</text>
+<rect x="533.9" y="205.0" width="84.0" height="18" rx="9" fill="#b60205"/>
+<text x="575.9" y="218.0" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">+ declined</text>
+<rect x="688.0" y="261.8" width="84.0" height="18" rx="9" fill="#c5def5"/>
+<rect x="688.0" y="261.8" width="84.0" height="18" rx="9" fill="url(#hatch)"/>
+<text x="730.0" y="274.8" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328" text-decoration="line-through">− proposal</text>
+<rect x="691.4" y="282.8" width="77.2" height="18" rx="9" fill="#d93f0b"/>
+<text x="730.0" y="295.8" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">+ blocked</text>
+<rect x="825.6" y="336.6" width="84.0" height="18" rx="9" fill="#c5def5"/>
+<rect x="825.6" y="336.6" width="84.0" height="18" rx="9" fill="url(#hatch)"/>
+<text x="867.6" y="349.6" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328" text-decoration="line-through">− proposal</text>
+<rect x="825.6" y="357.6" width="84.0" height="18" rx="9" fill="#0e8a16"/>
+<text x="867.6" y="370.6" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">+ accepted</text>
+<rect x="975.3" y="313.5" width="69.4" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
+<text x="1010.0" y="326.5" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">unblocked</text>
+<rect x="971.4" y="334.5" width="77.2" height="18" rx="9" fill="#d93f0b"/>
+<rect x="971.4" y="334.5" width="77.2" height="18" rx="9" fill="url(#hatch)"/>
+<text x="1010.0" y="347.5" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff" text-decoration="line-through">− blocked</text>
+<rect x="968.0" y="355.5" width="84.0" height="18" rx="9" fill="#0e8a16"/>
+<text x="1010.0" y="368.5" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">+ accepted</text>
+<rect x="1265.2" y="334.5" width="49.6" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
+<text x="1290.0" y="347.5" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">review</text>
+</svg>

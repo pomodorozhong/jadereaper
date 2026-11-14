@@ -1,0 +1,55 @@
+name: Bug
+description: Something in the game or the tools does not work as it should
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Where it happened. Include the build, browser, operating system and anything else that might matter, such as the GPU, input device or language.
+      placeholder: |
+        Build: online, or a local build at commit abc1234
+        Browser: Chrome 131
+        OS: Windows 11
+        GPU: NVIDIA RTX 3060 (see chrome://gpu)
+        Input: keyboard, or the gamepad model
+        Language: English or 繁體中文
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, step by step, starting from the title screen.
+      placeholder: |
+        1. Start a run
+        2. Pick Vitality at the first level-up
+        3. Take damage from an enemy
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should have happened.
+      placeholder: Health stays at or below the maximum.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead. Paste console errors, or attach screenshots or a short video.
+      placeholder: Health goes above the maximum.
+    validations:
+      required: true
+  - type: textarea
+    id: cause
+    attributes:
+      label: Possible cause
+      description: Optional. Your guess at why it happens, such as a file or function that looks wrong.
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+      description: Optional. How you would fix it. Wait for the `confirmed` label before opening a PR, and if the fix changes how the game plays, open a Proposal instead.

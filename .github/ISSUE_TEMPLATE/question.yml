@@ -1,0 +1,16 @@
+name: Question
+description: Ask the maintainer or the community about the game or the project
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What you want to know.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you already tried or read
+      description: Optional. Docs you checked, things you tried, or issues that looked related.
