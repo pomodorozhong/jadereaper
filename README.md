@@ -8,15 +8,23 @@ https://pomodorozhong.github.io/jadereaper/ (needs a browser with WebGPU). Every
 
 ## Run it
 
-Serve the folder with any static file server and open it in a browser with WebGPU (current Chrome, Edge or Safari). WebGPU needs `http://localhost` or `https`, so opening `index.html` from disk will not work.
+Serve the folder with any static file server and open it in a browser with WebGPU (current Chrome, Edge or Safari). WebGPU needs `http://localhost` or `https`, so opening `index.html` from disk will not work. The repository has a small one with no dependencies (Node 26):
 
 ```bash
-python3 -m http.server 5173
+npm start
 ```
 
 Then open http://localhost:5173.
 
 The built `wasm/jadereaper_core.wasm` is checked in, so Rust is only needed if you change the core.
+
+To check that the page loads cleanly, run the smoke test. It loads the game in headless Chromium and fails on any console error or failed request; without WebGPU it checks the "Cannot start" screen instead. CI runs it on every pull request.
+
+```bash
+npm ci
+npx playwright install chromium
+npm run smoke
+```
 
 ## Controls
 
@@ -59,7 +67,7 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 | `src/data.js` | Part names, upgrade text, state and event ids |
 | `assets/parts.json` | Optional image overrides for parts |
 | `assets/fonts/` | Bundled UI fonts, cut down to the game's characters, with their licenses |
-| `tools/` | Font subset and check scripts |
+| `tools/` | Font subset and check scripts, the local server and the smoke test |
 
 ## Fonts
 

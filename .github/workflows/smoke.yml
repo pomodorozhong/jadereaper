@@ -1,0 +1,26 @@
+name: Smoke
+
+# Loads the game in headless Chromium and fails on any console error, page
+# error or failed request. CI machines usually have no WebGPU, so there the
+# test checks that the "Cannot start" screen shows the WebGPU reason cleanly.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run smoke
