@@ -2,29 +2,32 @@
 
 ## In progress
 
-### docs/contribution-flow
+### ci/smoke-comment
 
-- Task: a written contribution process, prompted by a contributor filing six issues and opening PRs before the maintainer had agreed. Four commits: a contribution flow (`CONTRIBUTING.md` plus a one-line pointer in `AGENTS.md`); a full label set in `.github/labels.yml` applied with github-label-sync 3.0.0 through `tools/sync-labels.sh`, with `.github/labels.md` charting the bug and proposal flows; a proposal form, a bug form, a question form and a PR template in `.github/`; and decision records in `docs/decisions/`. The user rejected plan issues and a list of sign-off areas for this PR, and settled the label set in a side session. No issue; not linked to any issue.
-- PR: #20, open, awaiting review and merge. The branch was rebuilt and force-pushed with the question label and form, the bug-fix wording and the labels.md fixes from a review session.
-- Code checkpoint: 7c94100 (`docs: add a home for design decisions`), on `main` at 80ca4a1.
-- Verification at 7c94100: every YAML file under `.github/` parses (PyYAML via uvx), and every label description is under GitHub's 100-character limit; `bash -n` passes on `tools/sync-labels.sh`. Not run: the sync dry run (needs the user's go-ahead, since it runs an npm package with their GitHub token); `cargo test`, `./build.sh` (no code change); shellcheck (not installed). Issue forms and the Mermaid charts can only be checked on GitHub.
-- Next action: after #20 merges, P-07.
-- Pending: **P-07** after merge, run `tools/sync-labels.sh --dry-run`, show the user its output, and run it for real only on their approval. The real run deletes `documentation`, `duplicate`, `invalid`, `help wanted`, `good first issue` and `accessibility`, and renames `wontfix` to `declined`. Then label the open issues #7 to #12, #14 and #19 `enhancement` and `proposal` (#14 and #19 only have `documentation`, which the sync deletes), and comment on #12 pointing to `CONTRIBUTING.md`. Why: changes the GitHub repository and posts a comment. Blocks: the labels being usable.
+- Task: correct the comments at the top of `.github/workflows/smoke.yml` and `tools/smoke.mjs`, which said CI usually has no WebGPU and checks the "Cannot start" screen. CI runs showed the opposite: Chromium finds a software adapter on the Ubuntu runner and plays a few seconds of a run (answered on #17, now closed). A comment-only correction, which `CONTRIBUTING.md` lets skip an issue. Local branch only, not linked to any issue. It also carries this handoff refresh after #20, #23 and #24 merged.
+- PR: none yet.
+- Code checkpoint: 9c01200 (`ci: say which path the smoke test takes on the runner`), on `main` at f739727.
+- Verification at 9c01200: `node --check tools/smoke.mjs` passes and `smoke.yml` parses (PyYAML via uvx). Not run: `npm run smoke`, `cargo test`, `./build.sh` (comments only, no behaviour change); the `Smoke` job runs on the PR.
+- Next action: P-12, then open the PR with the `open-pr` skill.
+- Pending: **P-12** push this branch and open a PR for it. Why: pushing and opening a PR need approval. Blocks: the corrected comments and this handoff reaching `main`.
 
 ## Ranked work
 
-Steps are detailed in `ROADMAP.md`. They become issues once P-02 is approved.
+Roadmap steps are detailed in `ROADMAP.md`. They become issues once P-02 is approved.
 
-1. Roadmap step 5: CI and one-command deploy; the Pages deploy merged in #5, and the wasm drift check, cargo fmt and clippy, a JavaScript check and a headless smoke test remain
-2. Decide which areas need the maintainer's sign-off before contributors build on them (the user wants this in its own PR and has not settled the structure)
-3. #3: pick English UI fonts to match the Chinese set (can run alongside item 1)
-4. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
-5. Roadmap step 2: game feel pass (can run alongside step 3)
-6. Roadmap step 3: fixed time step, replays and a headless balance tool
-7. Roadmap step 4: run structure and meta progression (after step 1)
-8. Roadmap step 6: touch controls and a WebGL2 fallback
-9. Roadmap step 7: scale to thousands of enemies
+1. Roadmap step 5, the rest of CI: the wasm drift check, cargo fmt and clippy, and a JavaScript check. The Pages deploy (#5) and the smoke test (#24) are done. Planned on the local branch `ci/core-checks`, which needs an `accepted` Proposal first (see that branch's own `HANDOFF.md`)
+2. Decide which areas need the maintainer's sign-off before contributors build on them, made on an issue and recorded in `docs/decisions/`. Blocks #14 (`blocked`)
+3. #3: pick English UI fonts to match the Chinese set (`accepted`; can run alongside item 1)
+4. #16: run the Fonts workflow only when font tools change (`accepted`, small)
+5. #18: smoke test connects to 127.0.0.1 instead of localhost (`accepted`, small)
+6. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
+7. Roadmap step 2: game feel pass (can run alongside step 3)
+8. Roadmap step 3: fixed time step, replays and a headless balance tool
+9. Roadmap step 4: run structure and meta progression (after step 1)
+10. Roadmap step 6: touch controls and a WebGL2 fallback
+11. Roadmap step 7: scale to thousands of enemies
 
 ## Pending
 
-- **P-02** File one GitHub issue per roadmap step (seven issues, titles as in `ROADMAP.md`, body copied from each step's section, label `enhancement`, step 1 to 4 in a "Playable game" milestone). Why: filing issues needs approval. Blocks: nothing else; `ROADMAP.md` covers the details until then.
+- **P-02** File one GitHub issue per roadmap step (seven issues, titles as in `ROADMAP.md`, body copied from each step's section, step 1 to 4 in a "Playable game" milestone). Under `CONTRIBUTING.md` they would go in as Proposals, labelled `enhancement` and `proposal`. Why: filing issues needs approval. Blocks: nothing else; `ROADMAP.md` covers the details until then.
+- **P-10** Delete the local backup branches `backup/contribution-flow-v1` to `-v7`, earlier rebuilds of the merged #20. Why: they hold older drafts not in any surviving branch. Blocks: nothing.

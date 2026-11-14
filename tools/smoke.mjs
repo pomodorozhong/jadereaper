@@ -3,9 +3,9 @@
 //
 //     npm run smoke
 //
-// With WebGPU, it starts a run and plays a few seconds. Without WebGPU (common
-// on CI machines with no GPU), it checks that the "Cannot start" screen shows
-// the WebGPU reason instead, which is the expected outcome there.
+// With WebGPU, it starts a run and plays a few seconds. This includes the CI
+// runner, which has no GPU but gets a software adapter from Chromium. Without
+// WebGPU, it checks that the "Cannot start" screen shows the WebGPU reason.
 
 import { chromium } from 'playwright';
 import { serve } from './serve.mjs';
