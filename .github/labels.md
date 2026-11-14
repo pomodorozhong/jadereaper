@@ -21,78 +21,72 @@ Duplicates and invalid issues have no labels of their own. They are closed with 
 
 ## Whose turn it is
 
-Each chart below shows an issue's states as boxes. The colour of a box says who has to act next, and the arrows say what they do.
-
-| Colour | Whose turn |
-| --- | --- |
-| Blue | The maintainer |
-| Yellow | The author of the issue |
-| Green | Any contributor, often the author |
-| Grey | Nobody; the issue waits on something else, or it is closed |
+Each chart has one column per person, and time runs downward. An arrow is one person handing the issue to the next, with the label change it brings. Whoever the last arrow points to has the next turn.
 
 `waiting-for-author` is added on top of the issue's status, so the issue keeps its place. When the author has answered, they say so on the issue and the maintainer removes the label. An issue with no reply for 30 days may be closed.
 
 ## How a bug moves
 
 ```mermaid
-flowchart TD
-  filed(["Author files a Bug"]) --> triage["needs-triage<br>Maintainer: reproduce it"]
-  triage -- "maintainer needs more detail" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
-  wait -- "author answers" --> triage
-  triage -- "reproduced" --> confirmed["confirmed<br>Contributor: open a fix PR"]
-  triage -- "cannot reproduce, or duplicate" --> dropped(["Closed as not planned<br>or duplicate"])
-  confirmed -- "fix would change gameplay" --> proposal(["Filed as a Proposal instead"])
-  confirmed -- "fix PR merged" --> fixed(["Closed as completed"])
-
-  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
-  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
-  classDef contributor fill:#a7e3b4,stroke:#1d6b2f,color:#000
-  classDef idle fill:#ededed,stroke:#888,color:#000
-  class triage maintainer
-  class wait,filed author
-  class confirmed contributor
-  class dropped,proposal,fixed idle
+sequenceDiagram
+  actor A as Author
+  participant M as Maintainer
+  participant C as Any contributor
+  A->>M: Files a Bug (bug + needs-triage)
+  opt More detail needed
+    M->>A: Asks on the issue (+ waiting-for-author)
+    A->>M: Answers (maintainer removes waiting-for-author)
+  end
+  M->>M: Tries to reproduce it
+  alt Reproduced
+    M->>C: needs-triage → confirmed
+    C->>M: Opens a fix PR
+    M->>M: Merges it, issue closes as completed
+  else Cannot reproduce, or a duplicate
+    M->>M: Closes it as not planned or duplicate
+  end
+  Note over C: If the fix would change gameplay, file a Proposal instead
 ```
 
 ## How a proposal moves
 
 ```mermaid
-flowchart TD
-  filed(["Author files a Proposal"]) --> proposal["proposal<br>Maintainer: decide"]
-  proposal -- "maintainer asks a question or for changes" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
-  wait -- "author answers" --> proposal
-  proposal -- "agrees" --> accepted["accepted<br>Contributor: open a PR"]
-  proposal -- "agrees, but it depends on something" --> blocked["blocked<br>Nobody: waits on the named issue"]
-  blocked -- "maintainer: it is unblocked" --> accepted
-  proposal -- "declines" --> declined(["declined<br>Closed as not planned"])
-  accepted -- "PR merged" --> done(["Closed as completed"])
-
-  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
-  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
-  classDef contributor fill:#a7e3b4,stroke:#1d6b2f,color:#000
-  classDef idle fill:#ededed,stroke:#888,color:#000
-  class proposal maintainer
-  class wait,filed author
-  class accepted contributor
-  class blocked,declined,done idle
+sequenceDiagram
+  actor A as Author
+  participant M as Maintainer
+  participant C as Any contributor
+  A->>M: Files a Proposal (enhancement + proposal)
+  opt More detail needed
+    M->>A: Asks on the issue (+ waiting-for-author)
+    A->>M: Answers (maintainer removes waiting-for-author)
+  end
+  alt Agreed
+    M->>C: proposal → accepted
+  else Agreed, but depends on another issue
+    M->>M: proposal → blocked, waits for the named issue
+    M->>C: blocked → accepted, once unblocked
+  else Not wanted
+    M->>A: proposal → declined, closed as not planned
+  end
+  C->>M: Opens a PR (after accepted)
+  M->>M: Merges it, issue closes as completed
 ```
 
 ## How a question moves
 
 ```mermaid
-flowchart TD
-  filed(["Author asks a Question"]) --> question["question<br>Maintainer or community: answer"]
-  question -- "needs more detail" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
-  wait -- "author answers" --> question
-  question -- "answered" --> closed(["Closed as completed"])
-  question -. "answer shows a bug or an idea" .-> new(["Author files a Bug or Proposal"])
-
-  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
-  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
-  classDef idle fill:#ededed,stroke:#888,color:#000
-  class question maintainer
-  class wait,filed,new author
-  class closed idle
+sequenceDiagram
+  actor A as Author
+  participant M as Maintainer or community
+  A->>M: Asks a Question (question)
+  opt More detail needed
+    M->>A: Asks on the issue (+ waiting-for-author)
+    A->>M: Answers (maintainer removes waiting-for-author)
+  end
+  M->>A: Answers, issue closes as completed
+  opt The answer shows a bug or an idea
+    A->>M: Files a Bug or a Proposal
+  end
 ```
 
 A question has no status label of its own.
