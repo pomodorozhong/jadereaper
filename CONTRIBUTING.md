@@ -19,6 +19,10 @@ Labels show what kind of issue it is and where it stands, such as `proposal`, `a
 
 When an issue has `waiting-for-author`, the maintainer is waiting on you. When you have answered, say so on the issue, and the maintainer removes the label.
 
+## Decisions
+
+Choices that shape later work, such as the toolchain or a design pillar, are decided by the maintainer on an issue and then recorded in [docs/decisions/](docs/decisions/README.md). An issue should cite the records it relies on. A choice without a record is still open, even if it was agreed in chat, so list it under "Decisions this needs" in the issue instead of deciding it yourself.
+
 ## Before you open a PR
 
 Run the checks in [AGENTS.md](AGENTS.md) and list in the PR which ones you ran, what they showed, and which ones you skipped and why. Read [docs/README.md](docs/README.md) for the gotchas, for example that the built wasm and the bundled fonts are committed.

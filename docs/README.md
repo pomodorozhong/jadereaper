@@ -1,6 +1,6 @@
 # Docs
 
-Project overview, controls, layout and how to extend the game are in the root [README.md](../README.md). The plan is in [ROADMAP.md](../ROADMAP.md).
+Project overview, controls, layout and how to extend the game are in the root [README.md](../README.md). The plan is in [ROADMAP.md](../ROADMAP.md). Settled design, plan and tooling choices are in [decisions/](decisions/README.md), and how to propose work is in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Gotchas
 
