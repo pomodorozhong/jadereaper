@@ -65,13 +65,14 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 
 The Traditional Chinese UI uses bundled fonts: [Bakudai](https://github.com/max32002/bakudaifont) (莫大毛筆) for titles, buttons and brush marks, and [LXGW WenKai TC](https://github.com/lxgw/LxgwWenkaiTC) for body text. [Caveat Brush](https://fonts.google.com/specimen/Caveat+Brush) draws numbers in every language. The English UI still uses system fonts (issue #3). All three fonts are under the SIL Open Font License 1.1; the license texts are in `assets/fonts/`.
 
-The full fonts are 12 to 16 MB each, so `assets/fonts/` holds copies cut down to only the characters the game shows, about 440 KB in total. After changing any Chinese text, rebuild them and commit `assets/fonts/`:
+The full fonts are 12 to 16 MB each, so `assets/fonts/` holds copies cut down to only the characters the game shows, about 270 KB in total. After changing any Chinese text, rebuild them and commit `assets/fonts/`:
 
 ```bash
+npm ci
 tools/subset-fonts.sh
 ```
 
-The script needs [uv](https://docs.astral.sh/uv/). It collects every Chinese character in `src/*.js` and `index.html`, downloads the pinned source fonts into `.font-cache/`, and writes the woff2 files. `tools/check-fonts.sh` checks the committed fonts against the text without downloading anything, and CI runs it on every pull request.
+The scripts need Node 26 (see `.node-version`) and the dev dependencies that `npm ci` installs into `node_modules/`; the game itself needs neither. `tools/subset-fonts.sh` collects every Chinese character in `src/*.js` and `index.html`, downloads the pinned source fonts into `.font-cache/`, and writes the woff2 files. `tools/check-fonts.sh` checks the committed fonts against the text without downloading anything, and CI runs it on every pull request.
 
 ## How core and host talk
 
