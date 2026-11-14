@@ -4,7 +4,7 @@ Thanks for helping with Jade Reaper. The maintainer is @pomodorozhong, who decid
 
 ## The flow
 
-1. **Open an issue first,** using the **Proposal**, **Bug** or **Question** form. Describe what you want or what went wrong, and how it can be checked. Search existing issues, closed ones included, before opening a new one.
+1. **Open an issue first,** using the **Proposal**, **Bug** or **Question** form. Describe what you want or what went wrong. A rough idea is enough; scope and how it will be checked get settled on the issue before it is accepted. Search existing issues, closed ones included, before opening a new one.
 2. **Wait for the maintainer to agree.** A proposal gets the `accepted` label, and a bug the `confirmed` label once it is reproduced. The maintainer may also ask for changes or decline. Discussion happens on the issue.
 3. **Open one PR per agreed issue.** Fill in the PR template, which starts with the issue it implements, and link it with `Closes #N`. A PR without an `accepted` proposal or a `confirmed` bug behind it may be closed without review, however good it is.
 4. **Keep PRs small.** One reason to change per PR. Work that needs several PRs gets one issue per PR, each saying which other issues it depends on. If the work turns out bigger than the issue said, stop and update the issue rather than growing the PR.
@@ -21,7 +21,7 @@ When an issue has `waiting-for-author`, the maintainer is waiting on you. When y
 
 ## Decisions
 
-Choices that shape later work, such as the toolchain or a design pillar, are decided by the maintainer on an issue and then recorded in [docs/decisions/](docs/decisions/README.md). An issue should cite the records it relies on. A choice without a record is still open, even if it was agreed in chat, so list it under "Decisions this needs" in the issue instead of deciding it yourself.
+Choices that shape later work, such as the toolchain or a design pillar, are decided by the maintainer on an issue and then recorded in [docs/decisions/](docs/decisions/README.md). An issue should cite the records it relies on. A choice without a record is still open, even if it was agreed in chat, so raise it on the issue instead of deciding it yourself.
 
 ## Before you open a PR
 

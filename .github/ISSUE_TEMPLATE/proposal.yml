@@ -1,44 +1,21 @@
 name: Proposal
-description: Propose one change that a single PR can deliver
+description: Suggest a change or a new idea
 labels: ["enhancement", "proposal"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Read [CONTRIBUTING.md](https://github.com/pomodorozhong/jadereaper/blob/main/CONTRIBUTING.md) first. Please wait for the `accepted` label before opening a PR for this. For work that needs several PRs, open one proposal per PR.
   - type: textarea
-    id: goal
+    id: what
     attributes:
-      label: Goal
-      description: What should be different after this change, and why it matters.
+      label: What to change
+      description: The idea in a sentence or two. It can be rough; details get worked out on the issue.
     validations:
       required: true
   - type: textarea
-    id: scope
+    id: why
     attributes:
-      label: Scope
-      description: What the change will do and, just as important, what it will not do.
-      placeholder: |
-        - Do:
-        - Don't:
-    validations:
-      required: true
+      label: Why
+      description: The problem it solves or what it would add to the game.
   - type: textarea
-    id: decisions
+    id: reference
     attributes:
-      label: Decisions this needs
-      description: Anything the maintainer has to agree to first, such as a change to the roadmap, the design, the build or the toolchain. Write "None" if there is nothing.
-    validations:
-      required: true
-  - type: textarea
-    id: done
-    attributes:
-      label: Done when
-      description: How a reviewer can tell the change is finished, and which commands check it.
-    validations:
-      required: true
-  - type: input
-    id: related
-    attributes:
-      label: Depends on or relates to
-      description: Other issues this needs first or belongs with, if any, such as "#7".
+      label: Reference
+      description: Anything that helps picture it, such as links, screenshots, similar games or related issues.
