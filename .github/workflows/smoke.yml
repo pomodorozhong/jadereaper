@@ -1,8 +1,9 @@
 name: Smoke
 
 # Loads the game in headless Chromium and fails on any console error, page
-# error or failed request. CI machines usually have no WebGPU, so there the
-# test checks that the "Cannot start" screen shows the WebGPU reason cleanly.
+# error or failed request. The Ubuntu runner has no GPU, but Chromium with
+# --enable-unsafe-webgpu finds a software adapter there, so CI plays a few
+# seconds of a run on the CPU rather than checking the "Cannot start" screen.
 
 on:
   pull_request:
