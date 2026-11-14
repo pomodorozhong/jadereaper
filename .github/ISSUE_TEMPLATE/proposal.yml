@@ -2,6 +2,10 @@ name: Proposal
 description: Suggest a change or a new idea
 labels: ["enhancement", "proposal"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [CONTRIBUTING.md](https://github.com/pomodorozhong/jadereaper/blob/main/CONTRIBUTING.md) first. Please wait for the `accepted` label before opening a PR for this.
   - type: textarea
     id: what
     attributes:

@@ -10,7 +10,7 @@ Design conclusions came from chat and from documents still under review, and pla
 
 ## Decision
 
-Design, plan and tooling decisions are recorded one per file in `docs/decisions/`. Only the maintainer decides, on the issue, and a record files the decision. Issues and PRs cite these records, and a choice with no record counts as open.
+Choices that shape later work, such as the toolchain or a design pillar, are recorded one per file in `docs/decisions/`. Only the maintainer decides, on the issue, and a record files the decision. Issues and PRs cite these records, and a choice with no record counts as open.
 
 ## Reasons
 
@@ -18,6 +18,6 @@ A short numbered file per decision is easy to link from issues and PRs, keeps it
 
 ## Consequences
 
-- Issues name the records they rely on, or list the missing decisions they need.
+- Issues name the records they rely on, or raise the missing decisions on the issue.
 - `ROADMAP.md`, and any design document added later, should link records instead of restating decisions.
 - Changing a decision means adding a new record that supersedes the old one.

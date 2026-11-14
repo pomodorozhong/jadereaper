@@ -20,7 +20,7 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: What you did, step by step, starting from the title screen. Include the seed if you know it.
+      description: What you did, step by step, starting from the title screen.
       placeholder: |
         1. Start a run
         2. Pick Vitality at the first level-up
