@@ -10,6 +10,9 @@ on:
       - 'src/**'
       - 'assets/fonts/**'
       - 'tools/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.node-version'
       - '.github/workflows/fonts.yml'
   push:
     branches: [main]
@@ -18,6 +21,9 @@ on:
       - 'src/**'
       - 'assets/fonts/**'
       - 'tools/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.node-version'
       - '.github/workflows/fonts.yml'
 
 permissions:
@@ -28,5 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
       - run: tools/check-fonts.sh

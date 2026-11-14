@@ -1,7 +1,7 @@
 /* Bundled fonts are cut down to the characters the game shows: after changing
    Chinese text, run tools/subset-fonts.sh (see docs/README.md). */
 
-/* Numbers in every language. Keep unicode-range in sync with NUMERALS in tools/fonts.py.
+/* Numbers in every language. Keep unicode-range in sync with NUMERALS in tools/fonts.mjs.
    Caveat Brush has one weight, so bold numbers are synthesized. */
 @font-face {
   font-family: "JR Numerals";

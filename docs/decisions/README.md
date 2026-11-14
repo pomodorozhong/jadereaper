@@ -21,3 +21,4 @@ Copy [0000-template.md](0000-template.md) to the next free number, such as `0002
 | Number | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-design-decisions.md) | Record design decisions in this folder | decided |
+| [0002](0002-node-for-tooling.md) | Run the repository's tools on Node, not Python | decided |

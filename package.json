@@ -1,0 +1,17 @@
+{
+  "name": "jadereaper",
+  "private": true,
+  "description": "Dev tools for Jade Reaper. The game itself needs no install or build step.",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "fonts:subset": "node tools/fonts.mjs subset",
+    "fonts:check": "node tools/fonts.mjs check"
+  },
+  "devDependencies": {
+    "fontkit": "2.0.4",
+    "subset-font": "2.9.0"
+  }
+}
