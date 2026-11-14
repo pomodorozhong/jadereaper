@@ -13,6 +13,15 @@
 - Next action: on approval of P-05, push and open the PR, then check the deploy after it merges.
 - Pending: **P-05** push this branch and open the PR "ci: deploy the game to github pages on push to main". Why: pushing and opening a PR need approval. Blocks: the PR, the first deploy, and resuming from another computer.
 
+### test/weapon-behaviour
+
+- Task: plan issue #7 (part of #12): tests that pin down how the four weapons, six passives and level-up choices behave today, in `core/src/game_tests.rs`, before the weapons are rewritten in #9.
+- PR: opened from the fork `skymiku39/jadereaper` (remote `fork`); this account can only read `origin`.
+- Code checkpoint: 76fcb0e (`test(core): cover current weapon and upgrade behaviour`), on `main` at 80ca4a1.
+- Verification at 76fcb0e: `cargo test --release --manifest-path core/Cargo.toml` passed, 42 tests, on Linux x86-64 under WSL with Rust 1.100. `./build.sh` not run; the change is test-only.
+- Open risk: `whole_run_summary` compares against numbers recorded on Linux and may fail on macOS if float results differ. If it does, keep only the two-run comparison.
+- Next action: wait for review. #9 needs this and #8 merged.
+
 ## Ranked work
 
 Steps are detailed in `ROADMAP.md`. They become issues once P-02 is approved.
