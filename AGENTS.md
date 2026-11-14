@@ -4,6 +4,10 @@ A browser survivor game: Rust simulation compiled to WebAssembly, WebGPU paper-c
 
 Checks: `cargo test --release --manifest-path core/Cargo.toml`, then `./build.sh` after any change in `core/`.
 
+## Contributing
+
+Before opening an issue or a PR, read [CONTRIBUTING.md](CONTRIBUTING.md) and follow it.
+
 <!-- handoff:start (from the handoff skill; edit the skill's template, not this copy) -->
 ## Handoff
 
