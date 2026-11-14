@@ -8,7 +8,7 @@
 <rect x="0" y="204" width="1394" height="140" fill="#ffffff" stroke="#d0d7de"/>
 <text x="24" y="279.0" font-weight="600" fill="#1f2328">Maintainer or community</text>
 <path d="M339.7,163.0 Q410.0,204.0 480.3,245.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
-<path d="M555.9,245.0 Q627.3,165.1 691.0,151.2" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M552.8,245.0 Q622.3,156.5 691.0,146.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
 <path d="M744.1,163.0 Q672.7,242.9 609.0,256.8" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
 <path d="M609.0,274.0 Q770.0,274.0 931.0,274.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
 <path d="M1059.7,245.0 Q1130.0,204.0 1200.3,163.0" fill="none" stroke="#57606a" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
@@ -27,10 +27,10 @@
 <text x="1250.0" y="146.5" text-anchor="middle" fill="#1f2328">or a Proposal</text>
 <rect x="368.0" y="194.5" width="84.0" height="18" rx="9" fill="#d876e3"/>
 <text x="410.0" y="207.5" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ question</text>
-<rect x="607.2" y="161.6" width="36.4" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
-<text x="625.4" y="174.6" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">asks</text>
-<rect x="549.4" y="182.6" width="152.0" height="18" rx="9" fill="#fbca04"/>
-<text x="625.4" y="195.6" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ waiting-for-author</text>
+<rect x="603.9" y="156.0" width="36.4" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
+<text x="622.1" y="169.0" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">asks</text>
+<rect x="546.1" y="177.0" width="152.0" height="18" rx="9" fill="#fbca04"/>
+<text x="622.1" y="190.0" text-anchor="middle" font-size="12" font-weight="600" fill="#1f2328">+ waiting-for-author</text>
 <rect x="646.5" y="206.4" width="56.2" height="18" rx="3" fill="#ffffff" fill-opacity="0.9"/>
 <text x="674.6" y="219.4" text-anchor="middle" font-size="12" font-style="italic" fill="#57606a">answers</text>
 <rect x="598.6" y="227.4" width="152.0" height="18" rx="9" fill="#fbca04"/>
