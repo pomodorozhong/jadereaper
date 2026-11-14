@@ -19,50 +19,80 @@ Every issue has a label for its kind, and bugs and proposals also have one for w
 
 Duplicates and invalid issues have no labels of their own. They are closed with GitHub's close reasons, such as "duplicate" or "not planned".
 
+## Whose turn it is
+
+Each chart below shows an issue's states as boxes. The colour of a box says who has to act next, and the arrows say what they do.
+
+| Colour | Whose turn |
+| --- | --- |
+| Blue | The maintainer |
+| Yellow | The author of the issue |
+| Green | Any contributor, often the author |
+| Grey | Nobody; the issue waits on something else, or it is closed |
+
+`waiting-for-author` is added on top of the issue's status, so the issue keeps its place. When the author has answered, they say so on the issue and the maintainer removes the label. An issue with no reply for 30 days may be closed.
+
 ## How a bug moves
 
 ```mermaid
-flowchart LR
-  opened["Opened<br>bug + needs-triage"] --> confirmed["confirmed"]
-  confirmed --> pr["Fix PR"]
-  pr --> fixed["Closed as completed"]
-  opened --> notplanned["Closed as not planned<br>or duplicate"]
-  opened -. fix changes gameplay .-> proposal["Becomes a proposal"]
-```
+flowchart TD
+  filed(["Author files a Bug"]) --> triage["needs-triage<br>Maintainer: reproduce it"]
+  triage -- "maintainer needs more detail" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
+  wait -- "author answers" --> triage
+  triage -- "reproduced" --> confirmed["confirmed<br>Contributor: open a fix PR"]
+  triage -- "cannot reproduce, or duplicate" --> dropped(["Closed as not planned<br>or duplicate"])
+  confirmed -- "fix would change gameplay" --> proposal(["Filed as a Proposal instead"])
+  confirmed -- "fix PR merged" --> fixed(["Closed as completed"])
 
-A bug fix can go straight to a PR once the bug is `confirmed`. If the fix would change how the game plays, it is handled as a proposal instead.
+  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
+  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
+  classDef contributor fill:#a7e3b4,stroke:#1d6b2f,color:#000
+  classDef idle fill:#ededed,stroke:#888,color:#000
+  class triage maintainer
+  class wait,filed author
+  class confirmed contributor
+  class dropped,proposal,fixed idle
+```
 
 ## How a proposal moves
 
 ```mermaid
-flowchart LR
-  opened["Opened<br>enhancement + proposal"] --> accepted["accepted"]
-  accepted --> pr["PR"]
-  pr --> done["Closed as completed"]
-  opened --> declined["declined<br>closed as not planned"]
-  opened --> blocked["blocked"]
-  blocked -- unblocked --> accepted
+flowchart TD
+  filed(["Author files a Proposal"]) --> proposal["proposal<br>Maintainer: decide"]
+  proposal -- "maintainer asks a question or for changes" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
+  wait -- "author answers" --> proposal
+  proposal -- "agrees" --> accepted["accepted<br>Contributor: open a PR"]
+  proposal -- "agrees, but it depends on something" --> blocked["blocked<br>Nobody: waits on the named issue"]
+  blocked -- "maintainer: it is unblocked" --> accepted
+  proposal -- "declines" --> declined(["declined<br>Closed as not planned"])
+  accepted -- "PR merged" --> done(["Closed as completed"])
+
+  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
+  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
+  classDef contributor fill:#a7e3b4,stroke:#1d6b2f,color:#000
+  classDef idle fill:#ededed,stroke:#888,color:#000
+  class proposal maintainer
+  class wait,filed author
+  class accepted contributor
+  class blocked,declined,done idle
 ```
 
 ## How a question moves
 
 ```mermaid
-flowchart LR
-  opened["Opened<br>question"] --> answered["Answered"]
-  answered --> closed["Closed as completed"]
-  answered -. leads to .-> new["New bug or proposal"]
+flowchart TD
+  filed(["Author asks a Question"]) --> question["question<br>Maintainer or community: answer"]
+  question -- "needs more detail" --> wait["+ waiting-for-author<br>Author: answer on the issue"]
+  wait -- "author answers" --> question
+  question -- "answered" --> closed(["Closed as completed"])
+  question -. "answer shows a bug or an idea" .-> new(["Author files a Bug or Proposal"])
+
+  classDef maintainer fill:#c5def5,stroke:#1f4f8a,color:#000
+  classDef author fill:#fbca04,stroke:#8a6d00,color:#000
+  classDef idle fill:#ededed,stroke:#888,color:#000
+  class question maintainer
+  class wait,filed,new author
+  class closed idle
 ```
 
-A question has no status label. If the answer shows a bug or an idea worth doing, it gets its own Bug or Proposal issue.
-
-## Waiting for the author
-
-```mermaid
-flowchart LR
-  state["Any status"] -- maintainer asks --> waiting["+ waiting-for-author"]
-  waiting -- author answers on the issue --> removed["Maintainer removes the label"]
-  removed --> state
-  waiting -. no reply for 30 days .-> closed["May be closed"]
-```
-
-`waiting-for-author` can be added to any issue, including a question, on top of its status, so the issue keeps its place in the flow. When the author has answered, they say so on the issue and the maintainer removes the label. An issue with no reply for 30 days may be closed.
+A question has no status label of its own.
