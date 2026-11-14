@@ -1,0 +1,44 @@
+name: Proposal
+description: Propose one change that a single PR can deliver
+labels: ["enhancement", "proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [CONTRIBUTING.md](https://github.com/pomodorozhong/jadereaper/blob/main/CONTRIBUTING.md) first. Please wait for the `accepted` label before opening a PR for this. For work that needs several PRs, open one proposal per PR.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be different after this change, and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What the change will do and, just as important, what it will not do.
+      placeholder: |
+        - Do:
+        - Don't:
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions this needs
+      description: Anything the maintainer has to agree to first, such as a change to the roadmap, the design, the build or the toolchain. Write "None" if there is nothing.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: How a reviewer can tell the change is finished, and which commands check it.
+    validations:
+      required: true
+  - type: input
+    id: related
+    attributes:
+      label: Depends on or relates to
+      description: Other issues this needs first or belongs with, if any, such as "#7".
