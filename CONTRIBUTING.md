@@ -11,6 +11,14 @@ Thanks for helping with Jade Reaper. The maintainer is @pomodorozhong, who decid
 
 Typo fixes and other one-line corrections can skip the issue.
 
+Bug fixes can go straight to a PR once the bug is confirmed on the issue. Changes to gameplay count as proposals.
+
+## Labels
+
+Labels show what kind of issue it is and where it stands, such as `proposal`, `accepted` or `confirmed`. What each one means, and how an issue moves between them, is in [.github/labels.md](.github/labels.md).
+
+When an issue has `waiting-for-author`, the maintainer is waiting on you. When you have answered, say so on the issue, and the maintainer removes the label.
+
 ## Before you open a PR
 
 Run the checks in [AGENTS.md](AGENTS.md) and list in the PR which ones you ran, what they showed, and which ones you skipped and why. Read [docs/README.md](docs/README.md) for the gotchas, for example that the built wasm and the bundled fonts are committed.

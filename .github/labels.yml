@@ -1,0 +1,55 @@
+# Every label on the repository, in github-label-sync's format.
+# tools/sync-labels.sh applies this file to GitHub. It is the full source of
+# truth: a label that is not listed here is deleted on sync and removed from
+# every issue and PR that has it. A label listed under `aliases` is renamed to
+# the entry it belongs to instead.
+# What each label means, and how issues move between them: labels.md.
+
+# Kind of issue
+
+- name: bug
+  color: "d73a4a"
+  description: Something does not work as it should
+
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or change
+
+- name: question
+  color: "d876e3"
+  description: A question for the maintainer or the community
+
+# Bug status
+
+- name: needs-triage
+  color: "ededed"
+  description: Not yet reproduced by the maintainer
+
+- name: confirmed
+  color: "0e8a16"
+  description: Reproduced; a fix PR can be opened
+
+# Proposal status
+
+- name: proposal
+  color: "c5def5"
+  description: Waiting for the maintainer to decide
+
+- name: accepted
+  color: "0e8a16"
+  description: Agreed; a PR can be opened
+
+- name: declined
+  color: "b60205"
+  description: The maintainer decided not to do this
+  aliases: [wontfix]
+
+- name: blocked
+  color: "d93f0b"
+  description: Agreed, but waiting on another issue or decision
+
+# Any issue
+
+- name: waiting-for-author
+  color: "fbca04"
+  description: The maintainer asked a question or for changes; the author's turn
