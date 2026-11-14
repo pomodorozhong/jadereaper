@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1344 390" width="1344" height="390" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57606a"/></marker></defs>
+<rect width="1344" height="390" fill="#ffffff"/>
+<text x="24" y="34" font-size="16" font-weight="600" fill="#1f2328">How a proposal moves</text>
+<text x="1320" y="34" text-anchor="end" fill="#57606a">time →</text>
+<rect x="0" y="60" width="1344" height="110" fill="#f6f8fa" stroke="#d0d7de"/>
+<text x="24" y="120.0" font-weight="600" fill="#1f2328">Author</text>
+<rect x="0" y="170" width="1344" height="110" fill="#ffffff" stroke="#d0d7de"/>
+<text x="24" y="230.0" font-weight="600" fill="#1f2328">Maintainer</text>
+<rect x="0" y="280" width="1344" height="110" fill="#f6f8fa" stroke="#d0d7de"/>
+<text x="24" y="340.0" font-weight="600" fill="#1f2328">Any contributor</text>
+<line x1="160" y1="60" x2="160" y2="390" stroke="#d0d7de"/>
+<path d="M343.5,143.0 Q400.0,170.0 456.5,197.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M545.0,197.0 Q612.7,133.9 671.0,125.6" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M715.0,143.0 Q647.3,206.1 589.0,214.4" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M515.0,197.0 Q515.0,170.0 515.0,143.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M589.0,225.0 Q630.0,225.0 671.0,225.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M589.0,242.7 Q745.0,280.0 901.0,317.3" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M803.5,253.0 Q860.0,280.0 916.5,307.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M1033.5,307.0 Q1090.0,280.0 1146.5,253.0" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="215.0" y="91.0" width="140" height="48" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="285.0" y="119.0" text-anchor="middle" fill="#1f2328">Files a Proposal</text>
+<rect x="445.0" y="201.0" width="140" height="48" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="515.0" y="229.0" text-anchor="middle" fill="#1f2328">Decides</text>
+<rect x="675.0" y="91.0" width="140" height="48" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="745.0" y="111.0" text-anchor="middle" fill="#1f2328">Answers on</text>
+<text x="745.0" y="127.0" text-anchor="middle" fill="#1f2328">the issue</text>
+<rect x="675.0" y="201.0" width="140" height="48" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="745.0" y="221.0" text-anchor="middle" fill="#1f2328">Waits for the</text>
+<text x="745.0" y="237.0" text-anchor="middle" fill="#1f2328">named issue</text>
+<rect x="445.0" y="91.0" width="140" height="48" rx="24" fill="#eaeef2" stroke="#8c959f" stroke-width="1.5"/>
+<text x="515.0" y="111.0" text-anchor="middle" fill="#1f2328">Closed as</text>
+<text x="515.0" y="127.0" text-anchor="middle" fill="#1f2328">not planned</text>
+<rect x="905.0" y="311.0" width="140" height="48" rx="6" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+<text x="975.0" y="339.0" text-anchor="middle" fill="#1f2328">Opens a PR</text>
+<rect x="1135.0" y="201.0" width="140" height="48" rx="24" fill="#eaeef2" stroke="#8c959f" stroke-width="1.5"/>
+<text x="1205.0" y="221.0" text-anchor="middle" fill="#1f2328">Merges the PR;</text>
+<text x="1205.0" y="237.0" text-anchor="middle" fill="#1f2328">issue closed</text>
+<rect x="355.5" y="152.0" width="89" height="36" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="400.0" y="167.0" text-anchor="middle" font-size="12" fill="#1f2328">enhancement</text>
+<text x="400.0" y="182.0" text-anchor="middle" font-size="12" fill="#1f2328">+ proposal</text>
+<rect x="534.4" y="137.1" width="152" height="21" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="610.4" y="152.1" text-anchor="middle" font-size="12" fill="#1f2328">+ waiting-for-author</text>
+<rect x="598.1" y="174.4" width="103" height="36" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="649.6" y="189.4" text-anchor="middle" font-size="12" fill="#1f2328">answered;</text>
+<text x="649.6" y="204.4" text-anchor="middle" font-size="12" fill="#1f2328">label removed</text>
+<rect x="481.0" y="159.5" width="68" height="21" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="515.0" y="174.5" text-anchor="middle" font-size="12" fill="#1f2328">declined</text>
+<rect x="599.5" y="214.5" width="61" height="21" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="630.0" y="229.5" text-anchor="middle" font-size="12" fill="#1f2328">blocked</text>
+<rect x="711.0" y="269.5" width="68" height="21" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="745.0" y="284.5" text-anchor="middle" font-size="12" fill="#1f2328">accepted</text>
+<rect x="819.0" y="262.0" width="82" height="36" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="860.0" y="277.0" text-anchor="middle" font-size="12" fill="#1f2328">unblocked:</text>
+<text x="860.0" y="292.0" text-anchor="middle" font-size="12" fill="#1f2328">accepted</text>
+<rect x="1077.0" y="269.5" width="26" height="21" rx="4" fill="#fff8c5" stroke="#d4a72c"/>
+<text x="1090.0" y="284.5" text-anchor="middle" font-size="12" fill="#1f2328">PR</text>
+</svg>

@@ -21,72 +21,20 @@ Duplicates and invalid issues have no labels of their own. They are closed with 
 
 ## Whose turn it is
 
-Each chart has one column per person, and time runs downward. An arrow is one person handing the issue to the next, with the label change it brings. Whoever the last arrow points to has the next turn.
+Each chart has one row per person, and time runs from left to right. A box is something that person does, and the yellow tag on an arrow is the label the issue carries as it passes to the next person. Grey boxes are where the issue ends. Whichever row the latest arrow points into has the next turn.
 
 `waiting-for-author` is added on top of the issue's status, so the issue keeps its place. When the author has answered, they say so on the issue and the maintainer removes the label. An issue with no reply for 30 days may be closed.
 
 ## How a bug moves
 
-```mermaid
-sequenceDiagram
-  actor A as Author
-  participant M as Maintainer
-  participant C as Any contributor
-  A->>M: Files a Bug (bug + needs-triage)
-  opt More detail needed
-    M->>A: Asks on the issue (+ waiting-for-author)
-    A->>M: Answers (maintainer removes waiting-for-author)
-  end
-  M->>M: Tries to reproduce it
-  alt Reproduced
-    M->>C: needs-triage → confirmed
-    C->>M: Opens a fix PR
-    M->>M: Merges it, issue closes as completed
-  else Cannot reproduce, or a duplicate
-    M->>M: Closes it as not planned or duplicate
-  end
-  Note over C: If the fix would change gameplay, file a Proposal instead
-```
+![A bug moves from the author, who files it, to the maintainer, who tries to reproduce it. The maintainer may add waiting-for-author and wait for the author's answer. If the bug is confirmed, any contributor opens a fix PR, which the maintainer merges; if the fix would change gameplay, a Proposal is filed instead. If it cannot be reproduced or is a duplicate, it is closed.](label-flows/bug.svg)
 
 ## How a proposal moves
 
-```mermaid
-sequenceDiagram
-  actor A as Author
-  participant M as Maintainer
-  participant C as Any contributor
-  A->>M: Files a Proposal (enhancement + proposal)
-  opt More detail needed
-    M->>A: Asks on the issue (+ waiting-for-author)
-    A->>M: Answers (maintainer removes waiting-for-author)
-  end
-  alt Agreed
-    M->>C: proposal → accepted
-  else Agreed, but depends on another issue
-    M->>M: proposal → blocked, waits for the named issue
-    M->>C: blocked → accepted, once unblocked
-  else Not wanted
-    M->>A: proposal → declined, closed as not planned
-  end
-  C->>M: Opens a PR (after accepted)
-  M->>M: Merges it, issue closes as completed
-```
+![A proposal moves from the author, who files it, to the maintainer, who decides. The maintainer may add waiting-for-author and wait for the author's answer. If declined, it is closed as not planned. If accepted, any contributor opens a PR, which the maintainer merges. If blocked, it waits for the named issue and is then accepted.](label-flows/proposal.svg)
 
 ## How a question moves
 
-```mermaid
-sequenceDiagram
-  actor A as Author
-  participant M as Maintainer or community
-  A->>M: Asks a Question (question)
-  opt More detail needed
-    M->>A: Asks on the issue (+ waiting-for-author)
-    A->>M: Answers (maintainer removes waiting-for-author)
-  end
-  M->>A: Answers, issue closes as completed
-  opt The answer shows a bug or an idea
-    A->>M: Files a Bug or a Proposal
-  end
-```
+![A question moves from the author to the maintainer or community, who answer it. They may add waiting-for-author and wait for more detail. Once answered it is closed as completed, and if the answer shows a bug or an idea, the author files a Bug or a Proposal.](label-flows/question.svg)
 
 A question has no status label of its own.
