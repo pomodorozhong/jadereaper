@@ -2,29 +2,28 @@
 
 ## In progress
 
-### ci/pages-deploy
+### docs/contribution-flow
 
-- Task: roadmap step 5, first part: a GitHub Pages deploy workflow (`.github/workflows/pages.yml`) that runs `tools/check-fonts.sh`, then publishes `index.html`, `style.css`, `src/`, `wasm/` and `assets/` as committed, on every push to `main` and by hand. The README gets a "Play it online" link. No issue; roadmap issues wait on P-02. Not linked to any issue.
-- PR: none yet; title and body drafted and awaiting publish approval (P-05).
-- Code checkpoint: b5b607f (`ci: deploy the game to github pages on push to main`), on `main` at b1b522d.
-- Repository settings: Pages already deploys from GitHub Actions, and the `github-pages` environment only allows `main`, so nothing needs changing. The real deploy can only be tested after merge.
-- Verification at b5b607f: `cargo test --release` passed; `tools/check-fonts.sh` passed; actionlint (via `uvx --from actionlint-py`) passed on both workflows; the workflow's copy step, served locally under `/jadereaper/`, loaded every file and started a run with no console errors (only `/favicon.ico` 404s, as on `main`).
-- Still to do for step 5 (later PRs): wasm drift check, cargo fmt and clippy, JavaScript check, headless smoke test.
-- Next action: on approval of P-05, push and open the PR, then check the deploy after it merges.
-- Pending: **P-05** push this branch and open the PR "ci: deploy the game to github pages on push to main". Why: pushing and opening a PR need approval. Blocks: the PR, the first deploy, and resuming from another computer.
+- Task: a written contribution process, prompted by a contributor filing six issues and opening PRs before the maintainer had agreed. Four commits: a contribution flow (`CONTRIBUTING.md` plus a one-line pointer in `AGENTS.md`); a full label set in `.github/labels.yml` applied with github-label-sync 3.0.0 through `tools/sync-labels.sh`, with `.github/labels.md` charting the bug and proposal flows; a proposal form, a bug form, a question form and a PR template in `.github/`; and decision records in `docs/decisions/`. The user rejected plan issues and a list of sign-off areas for this PR, and settled the label set in a side session. No issue; not linked to any issue.
+- PR: #20, open, awaiting review and merge. The branch was rebuilt and force-pushed with the question label and form, the bug-fix wording and the labels.md fixes from a review session.
+- Code checkpoint: 7c94100 (`docs: add a home for design decisions`), on `main` at 80ca4a1.
+- Verification at 7c94100: every YAML file under `.github/` parses (PyYAML via uvx), and every label description is under GitHub's 100-character limit; `bash -n` passes on `tools/sync-labels.sh`. Not run: the sync dry run (needs the user's go-ahead, since it runs an npm package with their GitHub token); `cargo test`, `./build.sh` (no code change); shellcheck (not installed). Issue forms and the Mermaid charts can only be checked on GitHub.
+- Next action: after #20 merges, P-07.
+- Pending: **P-07** after merge, run `tools/sync-labels.sh --dry-run`, show the user its output, and run it for real only on their approval. The real run deletes `documentation`, `duplicate`, `invalid`, `help wanted`, `good first issue` and `accessibility`, and renames `wontfix` to `declined`. Then label the open issues #7 to #12, #14 and #19 `enhancement` and `proposal` (#14 and #19 only have `documentation`, which the sync deletes), and comment on #12 pointing to `CONTRIBUTING.md`. Why: changes the GitHub repository and posts a comment. Blocks: the labels being usable.
 
 ## Ranked work
 
 Steps are detailed in `ROADMAP.md`. They become issues once P-02 is approved.
 
-1. Roadmap step 5: CI and one-command deploy, starting with a GitHub Pages deploy workflow that publishes the repository as is and may rerun `tools/check-fonts.sh` first (the user chose GitHub Pages and wants this as the PR after #4)
-2. #3: pick English UI fonts to match the Chinese set (can run alongside item 1)
-3. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
-4. Roadmap step 2: game feel pass (can run alongside step 3)
-5. Roadmap step 3: fixed time step, replays and a headless balance tool
-6. Roadmap step 4: run structure and meta progression (after step 1)
-7. Roadmap step 6: touch controls and a WebGL2 fallback
-8. Roadmap step 7: scale to thousands of enemies
+1. Roadmap step 5: CI and one-command deploy; the Pages deploy merged in #5, and the wasm drift check, cargo fmt and clippy, a JavaScript check and a headless smoke test remain
+2. Decide which areas need the maintainer's sign-off before contributors build on them (the user wants this in its own PR and has not settled the structure)
+3. #3: pick English UI fonts to match the Chinese set (can run alongside item 1)
+4. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
+5. Roadmap step 2: game feel pass (can run alongside step 3)
+6. Roadmap step 3: fixed time step, replays and a headless balance tool
+7. Roadmap step 4: run structure and meta progression (after step 1)
+8. Roadmap step 6: touch controls and a WebGL2 fallback
+9. Roadmap step 7: scale to thousands of enemies
 
 ## Pending
 
