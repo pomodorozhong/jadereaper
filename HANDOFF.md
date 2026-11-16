@@ -2,14 +2,15 @@
 
 ## In progress
 
-### ci/smoke-comment
+### ci/auto-label
 
-- Task: correct the comments at the top of `.github/workflows/smoke.yml` and `tools/smoke.mjs`, which said CI usually has no WebGPU and checks the "Cannot start" screen. CI runs showed the opposite: Chromium finds a software adapter on the Ubuntu runner and plays a few seconds of a run (answered on #17, now closed). A comment-only correction, which `CONTRIBUTING.md` lets skip an issue. Local branch only, not linked to any issue. It also carries this handoff refresh after #20, #23 and #24 merged.
+- Task: #30 (`accepted`), label issues filed without the forms. Branch linked to #30; the PR fully resolves it.
 - PR: none yet.
-- Code checkpoint: 9c01200 (`ci: say which path the smoke test takes on the runner`), on `main` at f739727.
-- Verification at 9c01200: `node --check tools/smoke.mjs` passes and `smoke.yml` parses (PyYAML via uvx). Not run: `npm run smoke`, `cargo test`, `./build.sh` (comments only, no behaviour change); the `Smoke` job runs on the PR.
-- Next action: P-12, then open the PR with the `open-pr` skill.
-- Pending: **P-12** push this branch and open a PR for it. Why: pushing and opening a PR need approval. Blocks: the corrected comments and this handoff reaching `main`.
+- Code checkpoint: 4c32111 (`ci: label issues filed without the forms`), on `main` at a0d53d1.
+- Answers to #30's open questions, taken as the recommended defaults because the maintainer accepted the issue without answering them: an issue matching no form gets `needs-triage`, and the workflow uses only GitHub's own actions with `GITHUB_TOKEN`.
+- Verification at 4c32111: `npm test` passes (6 tests against the real forms), and the workflow's script ran against a mocked GitHub client for a proposal body, an unmatched body and an already-labelled issue. Not run: `cargo test`, `./build.sh`, `npm run smoke` (no change to the game); actionlint (not installed). The `label` job only runs on a real new issue on `main`, so it is untested on GitHub until it merges.
+- Next action: P-15.
+- Pending: **P-15** open a PR for this branch with the `open-pr` skill. Why: opening a PR needs approval. Blocks: #30.
 
 ## Ranked work
 
@@ -20,12 +21,13 @@ Roadmap steps are detailed in `ROADMAP.md`. They become issues once P-02 is appr
 3. #3: pick English UI fonts to match the Chinese set (`accepted`; can run alongside item 1)
 4. #16: run the Fonts workflow only when font tools change (`accepted`, small)
 5. #18: smoke test connects to 127.0.0.1 instead of localhost (`accepted`, small)
-6. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
-7. Roadmap step 2: game feel pass (can run alongside step 3)
-8. Roadmap step 3: fixed time step, replays and a headless balance tool
-9. Roadmap step 4: run structure and meta progression (after step 1)
-10. Roadmap step 6: touch controls and a WebGL2 fallback
-11. Roadmap step 7: scale to thousands of enemies
+6. #27: restructure the README and roadmap into focused pages (`accepted`)
+7. Roadmap step 1: data-driven content and puppet rigs (unblocks most later steps)
+8. Roadmap step 2: game feel pass (can run alongside step 3)
+9. Roadmap step 3: fixed time step, replays and a headless balance tool
+10. Roadmap step 4: run structure and meta progression (after step 1)
+11. Roadmap step 6: touch controls and a WebGL2 fallback
+12. Roadmap step 7: scale to thousands of enemies
 
 ## Pending
 
