@@ -2,14 +2,13 @@
 
 ## In progress
 
-### docs/character-art-pipeline
+### feat/lightbox
 
-- Task: record decision 0003 (how character art goes from paper to the game) and add `docs/character-art-pipeline.md`. No issue: the maintainer chose to skip one for this PR. Not linked to any issue.
+- Task: add `tools/lightbox.html`, the tool for tracing paper drawings into character JSON described in `docs/character-art-pipeline.md` and decision 0003 (#32). No issue: the maintainer chose to skip one. Not linked to any issue.
 - PR: opened with the `open-pr` skill, awaiting review and merge.
-- Code checkpoint: the record commit on `main` at 60eafc4.
-- Verification: `npm run smoke` ok. Not run: `cargo test`, `./build.sh` (no change to `core/`).
-- Related: the local branch `feat/lightbox` holds `tools/lightbox.html`, which the doc describes. The maintainer wants it opened as its own PR after this one, also without an issue.
-- Next action: after this PR merges, open the `feat/lightbox` PR.
+- Code checkpoint: the Lightbox commit on `main` at 16a530e.
+- Verification: `npm run smoke` ok; headless Chrome scripts (not committed) ran all 7 steps on the three first-batch drawings, brushes with undo and redo, a two-part export and a preset round trip, with no errors. Not run: `cargo test`, `./build.sh` (no change to `core/`); a pass with a real mouse or tablet.
+- Next action: after this PR merges, the load-time bake in `src/renderer.js` from decision 0003 is the next piece of the pipeline.
 
 ## Ranked work
 
