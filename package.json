@@ -10,7 +10,8 @@
     "fonts:subset": "node tools/fonts.mjs subset",
     "fonts:check": "node tools/fonts.mjs check",
     "start": "node tools/serve.mjs",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "test": "node --test tools/*.test.mjs"
   },
   "devDependencies": {
     "fontkit": "2.0.4",

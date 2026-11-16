@@ -1,0 +1,61 @@
+name: Auto-label
+
+# Issue forms label an issue only when it is filed through the web form. An
+# issue filed with `gh issue create` or the API arrives with no labels, so this
+# gives it the labels of the form whose sections its body has, or needs-triage
+# when it matches none. See tools/issue-labels.mjs and .github/labels.md.
+#
+# On a pull request that changes the forms or the matching code, it runs the
+# tests instead, so a form edit cannot quietly break the matching.
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    paths:
+      - .github/ISSUE_TEMPLATE/**
+      - .github/workflows/auto-label.yml
+      - tools/issue-labels.mjs
+      - tools/issue-labels.test.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  label:
+    if: github.event_name == 'issues' && github.event.issue.labels[0] == null
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: |
+            .github/ISSUE_TEMPLATE
+            tools/issue-labels.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const { labelsFor, readForms } = await import(`${process.env.GITHUB_WORKSPACE}/tools/issue-labels.mjs`);
+            const issue = context.payload.issue;
+            const { data: current } = await github.rest.issues.get({ ...context.repo, issue_number: issue.number });
+            if (current.labels.length) {
+              core.info(`#${issue.number} already has labels; leaving it alone.`);
+              return;
+            }
+            const forms = readForms(`${process.env.GITHUB_WORKSPACE}/.github/ISSUE_TEMPLATE`);
+            const labels = labelsFor(current.body, forms);
+            core.info(`Labelling #${issue.number}: ${labels.join(', ')}`);
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: issue.number, labels });
+
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: npm test
