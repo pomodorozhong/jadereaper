@@ -46,7 +46,10 @@ ol.steps button.cur .n{color:inherit}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .check{display:flex;gap:6px;align-items:center}
 main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
-#view{position:relative;max-width:100%;max-height:100%}
+#view{position:relative;max-width:100%;max-height:100%;transform-origin:0 0}
+#zoombar{position:absolute;right:12px;bottom:10px;display:flex;gap:4px}
+#zoombar button{background:var(--panel);font-family:var(--mono);font-size:12px;min-width:30px}
+main.panning,main.panning canvas{cursor:grab}
 #view canvas{display:block;touch-action:none}
 #view svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .empty{text-align:center;color:var(--muted);max-width:40ch;padding:24px;border:2px dashed var(--line);border-radius:10px}
@@ -78,6 +81,7 @@ main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;a
     <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left: clean up and trace the whole character first, then split it into parts.</div>
     <div id="view" hidden><canvas id="cv"></canvas></div>
     <div id="status"></div>
+    <div id="zoombar" hidden><button id="zOut" title="Zoom out (-)">−</button><button id="zFit" title="Fit to the view (0)">100%</button><button id="zIn" title="Zoom in (=)">+</button></div>
   </main>
 </div>
 <div id="brushCursor"></div>
@@ -1242,6 +1246,56 @@ const endDrag = () => {
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 cv.addEventListener('pointerleave', () => { cursor.style.display = 'none'; });
 
+// ---- zoom and pan. Pinch or Ctrl/⌘-scroll zooms at the pointer (a mouse wheel zooms too); two-finger
+// scroll pans; Space-drag or middle-drag pans. Pointer positions go through getBoundingClientRect, so every
+// tool keeps working while zoomed.
+let zoom = 1, panX = 0, panY = 0, spaceDown = false, pan = null;
+function applyZoom() {
+  $('view').style.transform = zoom === 1 ? '' : `translate(${panX.toFixed(1)}px,${panY.toFixed(1)}px) scale(${zoom})`;
+  $('zFit').textContent = Math.round(zoom * 100) + '%';
+  if (sel && STEPS[step].id === 'strokes') draw();   // keep the line editor's handles the same size on screen
+}
+function resetZoom() { zoom = 1; panX = panY = 0; applyZoom(); }
+function zoomAt(z, cx, cy) {
+  z = clamp(z, 1, 16);
+  if (z === 1) { resetZoom(); return; }
+  const r = $('view').getBoundingClientRect(), bx = r.left - panX, by = r.top - panY;   // where the view sits unzoomed
+  const ux = (cx - r.left) / zoom, uy = (cy - r.top) / zoom;                         // the point under the pointer
+  zoom = z; panX = cx - bx - ux * z; panY = cy - by - uy * z; applyZoom();
+}
+const mainCentre = () => { const r = $('main').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+$('zIn').onclick = () => zoomAt(zoom * 1.5, ...mainCentre());
+$('zOut').onclick = () => zoomAt(zoom / 1.5, ...mainCentre());
+$('zFit').onclick = resetZoom;
+$('main').addEventListener('wheel', (ev) => {
+  if (!img) return;
+  ev.preventDefault();
+  // A trackpad pinch arrives as Ctrl+wheel with small steps; a mouse wheel as one big vertical step per notch.
+  if (ev.ctrlKey || ev.metaKey) zoomAt(zoom * Math.exp(-clamp(ev.deltaY, -50, 50) * 0.01), ev.clientX, ev.clientY);
+  else if (!ev.deltaX && (ev.deltaMode === 1 || Math.abs(ev.deltaY) >= 50)) zoomAt(zoom * (ev.deltaY < 0 ? 1.25 : 0.8), ev.clientX, ev.clientY);
+  else if (zoom > 1) { panX -= ev.deltaX; panY -= ev.deltaY; applyZoom(); }
+}, { passive: false });
+$('main').addEventListener('pointerdown', (ev) => { // capture phase: a pan never reaches the drawing tools
+  if (!img || !(spaceDown || ev.button === 1)) return;
+  ev.preventDefault(); ev.stopPropagation();
+  try { $('main').setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+  pan = { x: ev.clientX, y: ev.clientY, px: panX, py: panY };
+}, true);
+$('main').addEventListener('pointermove', (ev) => { if (!pan) return; panX = pan.px + ev.clientX - pan.x; panY = pan.py + ev.clientY - pan.y; if (zoom > 1) applyZoom(); });
+const endPan = () => { pan = null; };
+$('main').addEventListener('pointerup', endPan); $('main').addEventListener('pointercancel', endPan);
+const typing = (t) => t && ((t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number')) || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+window.addEventListener('keydown', (ev) => {
+  if (!img || typing(ev.target) || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; $('main').classList.add('panning'); } }
+  else if (ev.key === '=' || ev.key === '+') zoomAt(zoom * 1.5, ...mainCentre());
+  else if (ev.key === '-') zoomAt(zoom / 1.5, ...mainCentre());
+  else if (ev.key === '0') resetZoom();
+});
+window.addEventListener('keyup', (ev) => { if (ev.key === ' ') { if (img && !typing(ev.target)) ev.preventDefault(); spaceDown = false; $('main').classList.remove('panning'); } });   // no button click on Space
+$('main').addEventListener('mousedown', (ev) => { if (ev.button === 1) ev.preventDefault(); });   // no auto-scroll on middle-drag
+window.addEventListener('blur', () => { spaceDown = false; $('main').classList.remove('panning'); });
+
 // ---- line editor on the strokes step: click a line, then drag its bezier anchors and handles
 let sel = null;   // {ci} for an edited line (index into S.curves), or {ci: -1, line, nodes, closed} for a traced one
 const curveUndo = [], curveRedo = [];
@@ -1358,7 +1412,7 @@ function loadFile(f) {
   if (!f || !f.type.startsWith('image/')) return;
   const url = URL.createObjectURL(f), im = new Image();
   im.onload = () => {
-    img = im; $('empty').hidden = true; $('view').hidden = false; sel = null;
+    img = im; $('empty').hidden = true; $('view').hidden = false; $('zoombar').hidden = false; sel = null; resetZoom();
     if (!$('presetName').value) $('presetName').value = f.name.replace(/\.[^.]+$/, '');
     valid = -1;
     if (!S.crop && S.lo === DEFAULTS.lo && S.hi === DEFAULTS.hi) { ensure(1); autoLevels(); }
