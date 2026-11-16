@@ -14,7 +14,7 @@ How a character goes from the artist's paper drawing to the screen. Why it works
 
 ## Tracing in the Lightbox
 
-Open `tools/lightbox.html` straight from disk in a browser; it needs no server or install. Open the photo, type the character's name, and work through the steps on the left: crop, paper, ink, paper fill, solid ink, strokes, boil and export. Each step has its own sliders, and the ink, paper fill and solid ink steps have a paint and erase brush for what the automatic part gets wrong (⌘Z and ⌘⇧Z undo and redo).
+Run `npm start` and open http://localhost:5173/tools/lightbox.html. Opening the file straight from disk is not supported; decision [0004](decisions/0004-serve-the-lightbox-locally.md) explains why. Open the photo, type the character's name, and work through the steps on the left: crop, paper, ink, paper fill, solid ink, strokes, boil and export. Each step has its own sliders, and the ink, paper fill and solid ink steps have a paint and erase brush for what the automatic part gets wrong (⌘Z and ⌘⇧Z undo and redo).
 
 A character is made of parts, listed in the bar above the view. Each part has its own crop and settings, an id, a draw order and a pivot (click "Set pivot" on the last step, then click the view). Trace every part from the same photo so they line up.
 

@@ -1,7 +1,9 @@
-// A small static file server for local play and the smoke test, with no
-// dependencies. WebGPU needs a secure origin, which http://localhost is.
+// A small static file server for local play, the Lightbox and the smoke test,
+// with no dependencies. WebGPU needs a secure origin, which http://localhost is.
 //
 //     node tools/serve.mjs [port]   (default 5173; `npm start` runs it)
+//
+// The Lightbox is then at http://localhost:5173/tools/lightbox.html.
 
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -10,12 +12,20 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Only what the Pages site publishes is served, so a file the game loads but
-// the deploy leaves out fails here too. Must match the copy step in
+// Apart from LOCAL_ONLY below, only what the Pages site publishes is served,
+// so a file the game loads but the deploy leaves out fails here too. Must match the copy step in
 // .github/workflows/pages.yml. Entries ending in '/' are folders.
 const PUBLISHED = ['index.html', 'style.css', 'src/', 'wasm/', 'assets/'];
 
-const isPublished = (rel) => PUBLISHED.some((p) => (p.endsWith('/') ? rel.startsWith(p) : rel === p));
+// Served here but not published: tools for working on the game. Decision 0004
+// keeps them static, so publishing one later only means moving it to PUBLISHED
+// and to the copy step. The game must never load these; the smoke test fails
+// if it does.
+const LOCAL_ONLY = ['tools/lightbox.html'];
+
+const listed = (list, rel) => list.some((p) => (p.endsWith('/') ? rel.startsWith(p) : rel === p));
+export const isLocalOnly = (rel) => listed(LOCAL_ONLY, rel);
+const isServed = (rel) => listed(PUBLISHED, rel) || isLocalOnly(rel);
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -52,7 +62,7 @@ export function serve(port = 5173) {
     }
     const inside = file.startsWith(ROOT + sep);
     const rel = inside ? file.slice(ROOT.length + 1).split(sep).join('/') : '';
-    if (!inside || !isPublished(rel) || !stat || !stat.isFile()) {
+    if (!inside || !isServed(rel) || !stat || !stat.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }
