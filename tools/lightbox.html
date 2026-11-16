@@ -331,6 +331,27 @@ function joinPaths(paths) { // join strokes that continue straight through a jun
   return paths;
 }
 
+// Direction a polyline is heading as it leaves its start (atStart) or its end, over the last `span` pixels.
+function heading(p, atStart, span) {
+  const q = atStart ? p : p.slice().reverse(), e = q[0];
+  let L = 0, k = 1;
+  for (; k < q.length - 1; k++) { L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); if (L >= span) break; }
+  const vx = e[0] - q[k][0], vy = e[1] - q[k][1], n = Math.hypot(vx, vy) || 1;
+  return [vx / n, vy / n];
+}
+// Append b to a. Where they carry on in the same direction, cut back any overlap to the midpoint of the
+// two ends first, so the joined line does not zigzag back and forth.
+function splice(a, b, width, cosMax) {
+  const u = heading(a, false, width * 3), v = heading(b, true, width * 3);
+  if (a.length < 2 || b.length < 2 || -(u[0] * v[0] + u[1] * v[1]) < cosMax) return a.concat(b);
+  const p = a[a.length - 1], q = b[0], m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  const ahead = (r) => (r[0] - m[0]) * u[0] + (r[1] - m[1]) * u[1];
+  let i = a.length, j = 0;
+  while (i > 2 && ahead(a[i - 1]) > 0) i--;
+  while (j < b.length - 2 && ahead(b[j]) < 0) j++;
+  return a.slice(0, i).concat([m], b.slice(j));
+}
+
 // One drawn line often comes out as several strokes: pencil fades for a moment, a junction splits it,
 // or a doubled stretch was cut out. Join line ends that are close and carry on in the same direction,
 // best match first, and close a stroke whose own ends meet that way. Ends that touch (within one line
@@ -341,17 +362,13 @@ function joinGaps(lines, width, gapMul, maxDeg) {
   const cosMax = Math.cos((maxDeg * Math.PI) / 180), cosTouch = Math.min(cosMax, Math.cos((120 * Math.PI) / 180)), span = Math.max(gap, width * 3);
   const out = lines.map((l) => ({ pts: l.pts.slice(), closed: l.closed }));
   const tip = (p, atStart) => (atStart ? p[0] : p[p.length - 1]);
-  const outward = (p, atStart) => { // direction the line is heading as it leaves this end
-    const q = atStart ? p : p.slice().reverse(), e = q[0];
-    let L = 0, k = 1;
-    for (; k < q.length - 1; k++) { L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); if (L >= span) break; }
-    const vx = e[0] - q[k][0], vy = e[1] - q[k][1], n = Math.hypot(vx, vy) || 1;
-    return [vx / n, vy / n];
-  };
+  const outward = (p, atStart) => heading(p, atStart, span);   // direction the line is heading as it leaves this end
   const fits = (pa, ta, pb, tb, d) => { // end a heads into end b
     const turn = -(ta[0] * tb[0] + ta[1] * tb[1]);
     if (turn < (d <= width ? cosTouch : cosMax)) return -1;
-    if (d > width) {
+    // Ends that overlap side by side, where the pencil started a new stroke a little before the last one ended.
+    const side = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
+    if (d > width && !(turn >= cosMax && side <= width)) {
       const ux = (pb[0] - pa[0]) / d, uy = (pb[1] - pa[1]) / d;
       if (ta[0] * ux + ta[1] * uy < cosMax || -(tb[0] * ux + tb[1] * uy) < cosMax) return -1;
     }
@@ -385,7 +402,8 @@ function joinGaps(lines, width, gapMul, maxDeg) {
     for (let cur = e; cur >= 0 && !seen[cur >> 1];) {
       const i = cur >> 1; seen[i] = 1;
       const p = cur & 1 ? out[i].pts.slice().reverse() : out[i].pts;
-      for (const q of p) pts.push(q);
+      const joined = pts.length ? splice(pts, p, width, cosMax) : p.slice();
+      pts.length = 0; for (const q of joined) pts.push(q);
       cur = partner[cur ^ 1];
     }
     return pts;
@@ -686,7 +704,10 @@ function stage5() { // strokes
     c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
     flush();
   }
-  lines = pruneBurrs(joinGaps(lines, width, S.joinGap, S.joinAngle), width, S.burrLen);
+  // Join pieces and drop burrs, then join again: a burr or overshoot taken out at a junction frees the line
+  // ends it was holding apart.
+  const join = (ls) => joinGaps(ls, width, S.joinGap, S.joinAngle), prune = (ls) => pruneBurrs(ls, width, S.burrLen);
+  lines = prune(join(prune(join(lines))));
   const strokes = lines.map((l) => ({ pts: fmt(rdp(l.pts, S.simplify)), w: +width.toFixed(2), closed: l.closed }));
   W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: shape(solid, w, h, 1.2, 0.4), strokes, rLine, width };
   W.lines = lines;
