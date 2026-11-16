@@ -2,14 +2,14 @@
 
 ## In progress
 
-### ci/auto-label
+### docs/character-art-pipeline
 
-- Task: #30 (`accepted`), label issues filed without the forms. Branch linked to #30; the PR fully resolves it.
-- PR: #31, open and awaiting review and merge. Auto-fix is on for it in the desktop app.
-- Code checkpoint: 4c32111 (`ci: label issues filed without the forms`), on `main` at a0d53d1.
-- Answers to #30's open questions, taken as the recommended defaults because the maintainer accepted the issue without answering them: an issue matching no form gets `needs-triage`, and the workflow uses only GitHub's own actions with `GITHUB_TOKEN`.
-- Verification at 4c32111: `npm test` passes (6 tests against the real forms), and the workflow's script ran against a mocked GitHub client for a proposal body, an unmatched body and an already-labelled issue. Not run: `cargo test`, `./build.sh`, `npm run smoke` (no change to the game); actionlint (not installed). The `label` job only runs on a real new issue on `main`, so it is untested on GitHub until it merges.
-- Next action: once #31 merges, run its "How to verify" steps 1 to 3 on `main` and close the test issues.
+- Task: record decision 0003 (how character art goes from paper to the game) and add `docs/character-art-pipeline.md`. No issue: the maintainer chose to skip one for this PR. Not linked to any issue.
+- PR: opened with the `open-pr` skill, awaiting review and merge.
+- Code checkpoint: the record commit on `main` at 60eafc4.
+- Verification: `npm run smoke` ok. Not run: `cargo test`, `./build.sh` (no change to `core/`).
+- Related: the local branch `feat/lightbox` holds `tools/lightbox.html`, which the doc describes. The maintainer wants it opened as its own PR after this one, also without an issue.
+- Next action: after this PR merges, open the `feat/lightbox` PR.
 
 ## Ranked work
 
@@ -32,3 +32,4 @@ Roadmap steps are detailed in `ROADMAP.md`. They become issues once P-02 is appr
 
 - **P-02** File one GitHub issue per roadmap step (seven issues, titles as in `ROADMAP.md`, body copied from each step's section, step 1 to 4 in a "Playable game" milestone). Under `CONTRIBUTING.md` they would go in as Proposals, labelled `enhancement` and `proposal`. Why: filing issues needs approval. Blocks: nothing else; `ROADMAP.md` covers the details until then.
 - **P-10** Delete the local backup branches `backup/contribution-flow-v1` to `-v7`, earlier rebuilds of the merged #20. Why: they hold older drafts not in any surviving branch. Blocks: nothing.
+- **P-16** Check the Auto-label workflow from #31 on `main`: file two test issues with `gh issue create` and no labels, one with a `### What to change` body (expect `enhancement` and `proposal`) and one with a plain body (expect `needs-triage`), then close both as not planned. Why: filing issues needs approval. Blocks: confirming #30 works on GitHub.
