@@ -14,9 +14,9 @@ How a character goes from the artist's paper drawing to the screen. Why it works
 
 ## Tracing in the Lightbox
 
-Run `npm start` and open http://localhost:5173/tools/lightbox.html. Opening the file straight from disk is not supported; decision [0004](decisions/0004-serve-the-lightbox-locally.md) explains why. Open the photo, type the character's name, and work through the steps on the left: crop, paper, ink, paper fill, solid ink, strokes, boil and export. Each step has its own sliders, and the ink, paper fill and solid ink steps have a paint and erase brush for what the automatic part gets wrong (⌘Z and ⌘⇧Z undo and redo).
+Run `npm start` and open http://localhost:5173/tools/lightbox.html. Opening the file straight from disk is not supported; decision [0004](decisions/0004-serve-the-lightbox-locally.md) explains why. Open the photo, type the character's name, and work through the steps on the left: crop, paper, ink, paper fill, solid ink, strokes, parts, boil and export. Each step has its own sliders, and the ink, paper fill and solid ink steps have a paint and erase brush for what the automatic part gets wrong (⌘Z and ⌘⇧Z undo and redo).
 
-A character is made of parts, listed in the bar above the view. Each part has its own crop and settings, an id, a draw order and a pivot (click "Set pivot" on the last step, then click the view). Trace every part from the same photo so they line up.
+The first six steps clean up and trace the whole character at once. The parts step then splits the clean drawing into parts that move on their own. Add a part, then drag a lasso around it; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where one part covers another, such as an arm over the body, use the fill brush to paint extra paper fill for the part underneath, so no hole shows when the top part moves. Each part has an id, a draw order (where lassos overlap, the higher one wins) and a pivot, set on the last step with "Set pivot" and a click on the view.
 
 "Save character" keeps the work in this browser. "Download character JSON" and "Download preset" write the two files to commit. To change a character later, open the same photo, then "Open preset" with its `<name>.preset.json`.
 
@@ -25,7 +25,7 @@ A character is made of parts, listed in the bar above the view. Each part has it
 Each character has two committed files in `assets/characters/`:
 
 - **`<name>.json`**, exported by the Lightbox. The game loads only this.
-- **`<name>.preset.json`**, the Lightbox settings for every part: crop, rotation, levels, brush edits, id, pivot and draw order. It does not contain the photo, so keep the photo with the artist's originals.
+- **`<name>.preset.json`**, the Lightbox settings: crop, rotation, levels and brush edits for the whole character, and each part's id, draw order, pivot, lassos and fill brush strokes. It does not contain the photo, so keep the photo with the artist's originals.
 
 The Lightbox can also export one part as SVG, but only to preview or share. The game never parses SVG.
 
@@ -38,7 +38,7 @@ The Lightbox can also export one part as SVG, but only to preview or share. The 
     "strokes": [{ "pts": [[x, y], ...], "closed": false }], "width": 4.0 } ] }
 ```
 
-- **`size`:** width and height of the character's coordinate space, in pixels of the original photo. Its top-left corner is the top-left corner of the smallest box around all the parts' crops. All parts and pivots use this space.
+- **`size`:** width and height of the character's coordinate space, in pixels of the original photo. Its top-left corner is the top-left corner of the crop. All parts and pivots use this space.
 - **`paper`:** the white cutout fill, as closed loops filled with the even-odd rule.
 - **`solid`:** filled ink areas, such as shoes and ear insides, also as closed loops.
 - **`strokes`:** centerlines. Every stroke in a part has the same `width`.

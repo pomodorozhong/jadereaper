@@ -25,8 +25,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .wrap{flex:1;display:flex;min-height:0}
 aside{width:320px;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:14px}
 .parts{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.parts[hidden]{display:none}
 .parts .tabs{display:flex;flex-wrap:wrap;gap:4px}
 .parts .tabs button.cur{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.parts .tabs button .sw{display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .parts .fields{display:grid;grid-template-columns:auto 1fr auto 4.5em;gap:6px;align-items:center}
 .parts .fields input{min-width:0;width:100%}
 ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
@@ -62,18 +64,18 @@ main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;a
     <input type="text" id="presetName" placeholder="e.g. reaper" size="12">
     <button id="savePreset" title="Keep this character's parts and settings in this browser">Save character</button>
     <select id="presetList" aria-label="Saved characters"><option value="">Load saved…</option></select>
-    <button id="exportPreset" title="Download <name>.preset.json, the settings for every part">Download preset</button>
+    <button id="exportPreset" title="Download <name>.preset.json: the settings, and each part's lassos, fill brush and pivot">Download preset</button>
     <button id="importPresetBtn" title="Open a <name>.preset.json">Open preset</button><input type="file" id="importPreset" accept=".json" hidden>
   </div>
 </header>
 <div class="wrap">
   <aside>
-    <div class="parts" id="parts"></div>
     <ol class="steps" id="steps"></ol>
+    <div class="parts" id="parts" hidden></div>
     <div class="params" id="params"></div>
   </aside>
   <main id="main">
-    <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left. Each part of a character has its own crop and settings.</div>
+    <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left: clean up and trace the whole character first, then split it into parts.</div>
     <div id="view" hidden><canvas id="cv"></canvas></div>
     <div id="status"></div>
   </main>
@@ -83,7 +85,7 @@ main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;a
 'use strict';
 // ====================================================================
 // Settings. Each parameter knows which pipeline stage it invalidates.
-// Stages: 0 source, 1 paper, 2 ink, 3 fill, 4 solid, 5 strokes (6 = view only)
+// Stages: 0 source, 1 paper, 2 ink, 3 fill, 4 solid, 5 strokes, 6 parts (7 = view only)
 // ====================================================================
 const DEFAULTS = {
   rotate: 0, crop: null, maxSize: 900,
@@ -94,8 +96,13 @@ const DEFAULTS = {
   boilAmp: 1.2, boilFps: 8, boilPoses: 3,
   edits: [],   // brush edits: {layer:'ink'|'fill', mode:'add'|'erase', r, pts:[[x,y]...]} in rotated-source pixels
 };
-let S = structuredClone(DEFAULTS);
-let CH = { parts: [{ id: 'body', z: 0, pivot: null, settings: S }] }, cur = 0;   // the character being traced
+let S = structuredClone(DEFAULTS);   // one set of settings for the whole character
+// Parts split the traced character. marks: {kind:'lasso', pts} regions and {kind:'fill', mode, r, pts} paper brush
+// strokes, in rotated-source pixels. Pixels outside every lasso belong to the first part.
+const newPart = (id, z) => ({ id, z, pivot: null, marks: [] });
+let CH = { parts: [newPart('body', 0)] }, cur = 0;   // the character being traced
+const PART_COLORS = ['#d9822b', '#3f7ab8', '#5f9e3a', '#b8487a', '#8a62c4', '#2b9c94', '#c4a92b', '#a0522d'];
+const partColor = (i) => PART_COLORS[i % PART_COLORS.length];
 const PART = () => CH.parts[cur];
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
@@ -112,8 +119,10 @@ const STEPS = [
     params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
   { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back. With the photo underneath, strokes are blue.',
     params: [['lineBlur', 'Merge pencil grain', 0.5, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['spur', 'Trim spurs shorter than', 0, 40, 1, 5], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 3, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view']] },
-  { id: 'boil', name: 'Boil & export', stage: 5, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set this part\'s pivot, then export the whole character.',
-    params: [['boilAmp', 'Boil strength', 0, 4, 0.1, 6], ['boilFps', 'Frames per second', 2, 24, 1, 6], ['boilPoses', 'Poses in cycle', 2, 6, 1, 6], ['pivot', '', 'pivot'], ['export', '', 'export']] },
+  { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
+    params: [['parttools', '', 'parttools']] },
+  { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
+    params: [['boilAmp', 'Boil strength', 0, 4, 0.1, 7], ['boilFps', 'Frames per second', 2, 24, 1, 7], ['boilPoses', 'Poses in cycle', 2, 6, 1, 7], ['pivot', '', 'pivot'], ['export', '', 'export']] },
 ];
 const STAGE_OF = {};
 for (const st of STEPS) for (const p of st.params) if (typeof p[2] === 'number') STAGE_OF[p[0]] = p[5]; else if (p[2] === 'bool') STAGE_OF[p[0]] = p[3];
@@ -384,9 +393,9 @@ function stamp(arr, w, h, x, y, r, val) {
   const y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(h - 1, Math.ceil(y + r));
   for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) if ((xx - x) ** 2 + (yy - y) ** 2 <= r * r) arr[yy * w + xx] = val;
 }
-function applyEdits(arr, layer, w, h, val) {
-  for (const e of S.edits) {
-    if (e.layer !== layer) continue;
+function applyEdits(arr, layer, w, h, val) { paintEdits(arr, S.edits.filter((e) => e.layer === layer), w, h, val); }
+function paintEdits(arr, edits, w, h, val) {
+  for (const e of edits) {
     const v = e.mode === 'add' ? val : 0;
     const pts = e.pts.map(([x, y]) => toWork(x, y)), r = e.r * W.scale;
     for (let i = 0; i < pts.length; i++) {
@@ -539,7 +548,7 @@ function stage5() { // strokes
     }
   };
   const runLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
-  const strokes = [], fmt = (r) => r.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]);
+  const strokes = [], lines = [];   // lines: the same strokes before simplifying, for the parts step
   for (const c of cands) {
     const cov = c.pts.map(([x, y]) => near(x, y));
     // Short covered runs are joints and crossings: keep them so lines stay connected.
@@ -550,19 +559,82 @@ function stage5() { // strokes
       if (runLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
       i = j;
     }
-    if (!cov.some(Boolean)) { addPts(c.pts); strokes.push({ pts: fmt(rdp(c.pts, S.simplify)), w: +width.toFixed(2), closed: c.loop }); continue; }
+    if (!cov.some(Boolean)) { addPts(c.pts); strokes.push({ pts: fmt(rdp(c.pts, S.simplify)), w: +width.toFixed(2), closed: c.loop }); lines.push({ pts: c.pts, closed: c.loop }); continue; }
     let run = [];
     const flush = () => {
-      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); strokes.push({ pts: fmt(rdp(run, S.simplify)), w: +width.toFixed(2), closed: false }); }
+      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); strokes.push({ pts: fmt(rdp(run, S.simplify)), w: +width.toFixed(2), closed: false }); lines.push({ pts: run, closed: false }); }
       run = [];
     };
     c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
     flush();
   }
-  const shape = (mask, sm, eps) => contours(mask, w, h).map((l) => rdp(smoothPoly(l, sm, true), eps)).filter((l) => l.length >= 4).map((l) => l.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]));
-  W.fig = { w, h, paper: shape(sil, S.fillSmooth, 0.8), solid: shape(solid, 1.2, 0.4), strokes, rLine, width };
+  W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: shape(solid, w, h, 1.2, 0.4), strokes, rLine, width };
+  W.lines = lines;
 }
-const STAGES = [stage0, stage1, stage2, stage3, stage4, stage5];
+const fmt = (r) => r.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]);
+const shape = (mask, w, h, sm, eps) => contours(mask, w, h).map((l) => rdp(smoothPoly(l, sm, true), eps)).filter((l) => l.length >= 4).map(fmt);
+const polyLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
+
+// Which part each working pixel belongs to: the topmost part whose lasso covers it, else the first part.
+function partLabels() {
+  const { w, h } = W, lab = new Uint8Array(w * h);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  const order = CH.parts.map((_, i) => i).sort((a, b) => CH.parts[a].z - CH.parts[b].z || a - b);
+  for (const i of order) {
+    const regions = CH.parts[i].marks.filter((m) => m.kind === 'lasso');
+    if (!regions.length) continue;
+    x.clearRect(0, 0, w, h); x.beginPath();
+    for (const r of regions) { r.pts.forEach((pt, k) => { const [px, py] = toWork(...pt); k ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); }
+    x.fill();
+    const d = x.getImageData(0, 0, w, h).data;
+    for (let p = 0; p < w * h; p++) if (d[p * 4 + 3] >= 128) lab[p] = i;
+  }
+  return lab;
+}
+function densify(pts, step) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let t = 1; t <= n; t++) out.push([ax + ((bx - ax) * t) / n, ay + ((by - ay) * t) / n]);
+  }
+  return out;
+}
+function stage6() { // split the traced character into parts
+  const { w, h, sil, solid, lines, fig } = W, lab = partLabels(), n = CH.parts.length, width = fig.width;
+  const at = ([x, y]) => lab[clamp(Math.floor(y), 0, h - 1) * w + clamp(Math.floor(x), 0, w - 1)];
+  const strokesOf = Array.from({ length: n }, () => []);
+  for (const ln of lines) {
+    // Cut each stroke where it crosses into another part. Neighbouring pieces share their end point.
+    let runs = [];
+    for (const pt of densify(ln.pts, 1)) {
+      const l = at(pt), last = runs[runs.length - 1];
+      if (last && last.part === l) last.pts.push(pt);
+      else runs.push({ part: l, pts: last ? [last.pts[last.pts.length - 1], pt] : [pt] });
+    }
+    if (ln.closed && runs.length > 1 && runs[0].part === runs[runs.length - 1].part) { const first = runs.shift(); runs[runs.length - 1].pts.push(...first.pts.slice(1)); }
+    // A piece too short to read as a line joins its neighbour, so a lasso edge never leaves a dot.
+    for (let i; runs.length > 1 && (i = runs.findIndex((r) => polyLen(r.pts) < width * 1.5)) >= 0;) {
+      const r = runs[i];
+      if (i > 0) runs[i - 1].pts.push(...r.pts.slice(1)); else runs[1].pts = r.pts.concat(runs[1].pts.slice(1));
+      runs.splice(i, 1);
+      for (let j = runs.length - 1; j > 0; j--) if (runs[j].part === runs[j - 1].part) { runs[j - 1].pts.push(...runs[j].pts.slice(1)); runs.splice(j, 1); }
+    }
+    for (const r of runs) strokesOf[r.part].push({ pts: fmt(rdp(r.pts, S.simplify)), w: +width.toFixed(2), closed: ln.closed && runs.length === 1 });
+  }
+  W.lab = lab;
+  W.parts = CH.parts.map((p, i) => {
+    // Each part's share of the paper fill, grown a little into the fill so neighbouring parts overlap
+    // instead of leaving a hairline gap, then the part's own fill brush strokes.
+    const own = new Uint8Array(w * h), sol = new Uint8Array(w * h);
+    for (let q = 0; q < w * h; q++) { own[q] = lab[q] === i ? 1 : 0; sol[q] = own[q] && solid[q] ? 1 : 0; }
+    const paper = dilate(own, w, h, 1.5);
+    for (let q = 0; q < w * h; q++) paper[q] &= sil[q];
+    paintEdits(paper, p.marks.filter((m) => m.kind === 'fill'), w, h, 1);
+    return { w, h, paper: shape(paper, w, h, S.fillSmooth, 0.8), solid: shape(sol, w, h, 1.2, 0.4), strokes: strokesOf[i], width };
+  });
+}
+const STAGES = [stage0, stage1, stage2, stage3, stage4, stage5, stage6];
 function ensure(stage) {
   for (let s = valid + 1; s <= stage; s++) { STAGES[s](); valid = s; }
 }
@@ -593,8 +665,10 @@ function jitter(pts, closed, seed, amp) {
   return pts.map(([x, y], i) => { let dx = 0, dy = 0; for (const v of waves) { dx += v.w * Math.sin(len[i] * v.fr + v.px); dy += v.w * Math.sin(len[i] * v.fr + v.py); } return [x + ox + dx * amp * 0.8, y + oy + dy * amp * 0.8]; });
 }
 const INK = '#2b2622', PAPER = '#fffdf6';
-function svgMarkup(fig, pose, amp, standalone) {
-  const seed = (part, i) => (part * 104729 + i * 31 + pose * 15485863) | 0;
+// opts: pi (part index, so parts boil apart), tint and tintOpacity (a coloured wash over the paper),
+// paperOpacity, strokeColor. The defaults give the plain drawing.
+function svgMarkup(fig, pose, amp, standalone, opts = {}) {
+  const pi = opts.pi || 0, seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
   const paper = fig.paper.map((l, i) => bez(jitter(l, true, seed(1, i), amp * 0.6), true)).join('');
   const solid = fig.solid.map((l, i) => bez(jitter(l, true, seed(2, i), amp * 0.6), true)).join('');
   const strokes = fig.strokes.map((s, i) => {
@@ -602,9 +676,10 @@ function svgMarkup(fig, pose, amp, standalone) {
     return `<path stroke-width="${sw.toFixed(2)}" d="${bez(jitter(s.pts, s.closed, seed(3, i), amp), s.closed)}"/>`;
   }).join('\n');
   const head = standalone ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${fig.w} ${fig.h}" width="${fig.w}" height="${fig.h}">` : '';
-  return `${head}<g id="paper"><path fill="${PAPER}" fill-rule="evenodd" d="${paper}"/></g>
+  const tint = opts.tint ? `<path fill="${opts.tint}" fill-opacity="${opts.tintOpacity ?? 0.4}" fill-rule="evenodd" d="${paper}"/>` : '';
+  return `${head}<g id="paper"><path fill="${PAPER}" fill-opacity="${opts.paperOpacity ?? 1}" fill-rule="evenodd" d="${paper}"/>${tint}</g>
 <g id="solid"><path fill="${INK}" fill-rule="evenodd" d="${solid}"/></g>
-<g id="ink" fill="none" stroke="${INK}" stroke-linecap="round" stroke-linejoin="round">
+<g id="ink" fill="none" stroke="${opts.strokeColor || INK}" stroke-linecap="round" stroke-linejoin="round">
 ${strokes}
 </g>${standalone ? '</svg>\n' : ''}`;
 }
@@ -615,11 +690,15 @@ ${strokes}
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
 let pivotMode = false, step = 0, showOverlay = true, brushMode = 'add', brushSize = 8, boilTimer = null, boilFrame = 0;
+let partTool = 'lasso';   // on the parts step: 'lasso' or 'fill'
+const usesParts = () => ['parts', 'boil'].includes(STEPS[step].id);
 let svgEl = null;
 
 function renderSteps() {
   $('steps').innerHTML = STEPS.map((s, i) => `<li><button data-i="${i}" class="${i === step ? 'cur' : ''}"><span class="n">${i + 1}</span>${s.name}</button></li>`).join('');
-  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; renderSteps(); renderParams(); draw(); });
+  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; pivotMode = false; renderSteps(); renderParams(); draw(); });
+  $('parts').hidden = !usesParts();
+  if (usesParts()) renderParts();
 }
 function renderParams() {
   const st = STEPS[step];
@@ -630,7 +709,14 @@ function renderParams() {
     else if (a === 'bool') h += `<label class="check"><input type="checkbox" data-k="${k}" ${S[k] ? 'checked' : ''}> ${label}</label>`;
     else if (a === 'btn') h += `<div class="row"><button id="autoBtn">${label}</button><span class="hint">Sets the two levels from this image.</span></div>`;
     else if (a === 'view') h += `<label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> ${label}</label>`;
-    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of crop'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
+    else if (a === 'parttools') {
+      const fill = partTool === 'fill';
+      h += `<div class="p"><label>Tool for "${esc(PART().id)}"</label><div class="row"><button id="tLasso" class="${fill ? '' : 'on'}">Lasso</button><button id="tFill" class="${fill ? 'on' : ''}">Fill brush</button></div>
+        <span class="hint">${fill ? 'Paint paper fill this part needs under the parts that cover it, or erase fill it should not have.' : 'Drag around the part. Each lasso adds to it; where lassos of two parts overlap, the higher draw order wins.'}</span></div>`;
+      if (fill) h += `<div class="p"><label>Brush (paper fill of "${esc(PART().id)}")<output id="o_brush">${brushSize}px</output></label><div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button></div><input type="range" id="brushSize" min="1" max="80" step="1" value="${brushSize}"></div>`;
+      h += `<div class="row"><button id="mUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="mRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="mClear">Clear ${fill ? 'fill brush' : 'lassos'}</button></div>`;
+    }
+    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of part'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
     else if (a === 'export') h += `<div class="row"><button class="primary" id="dlChar">Download character JSON</button></div><span class="hint">All ${CH.parts.length} part(s) as <code>${esc(fileBase())}.json</code> for <code>assets/characters/</code>. Also download the preset to keep the settings.</span><div class="row"><button id="dlSvg">Download part SVG</button><button id="cpSvg">Copy part SVG</button></div><span class="hint" id="figStats"></span>`;
     else h += `<div class="p"><label for="r_${k}">${label}<output id="o_${k}">${S[k]}</output></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
   }
@@ -642,7 +728,12 @@ function renderParams() {
     const k = el.dataset.k; S[k] = +el.value; $('o_' + k).textContent = el.value; changed(STAGE_OF[k]);
   });
   $('params').querySelectorAll('input[type=checkbox][data-k]').forEach((el) => el.onchange = () => { S[el.dataset.k] = el.checked; changed(STAGE_OF[el.dataset.k]); });
-  $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => { S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; redo.ink = []; redo.fill = []; redo.solid = []; changed(0); renderParams(); });
+  $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => {
+    // Brush edits, lassos and pivots are in rotated-photo pixels, so a new rotation drops them.
+    S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; redo.ink = []; redo.fill = []; redo.solid = [];
+    for (const p of CH.parts) { p.marks = []; p.pivot = null; } partRedo.length = 0;
+    changed(0); renderParams();
+  });
   const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
   on('resetCrop', () => { S.crop = null; changed(0); });
   on('autoBtn', () => { ensure(1); autoLevels(); changed(2); renderParams(); });
@@ -651,11 +742,16 @@ function renderParams() {
   on('bUndo', () => undoBrush(st.brush));
   on('bRedo', () => redoBrush(st.brush));
   on('bClear', () => { S.edits = S.edits.filter((e) => e.layer !== st.brush); redo[st.brush] = []; changed(LAYER_STAGE[st.brush]); });
-  on('dlSvg', () => download(fileBase() + '.' + PART().id + '.svg', svgMarkup(W.fig, 0, 0, true), 'image/svg+xml'));
+  on('tLasso', () => { partTool = 'lasso'; renderParams(); });
+  on('tFill', () => { partTool = 'fill'; renderParams(); });
+  on('mUndo', undoMark);
+  on('mRedo', redoMark);
+  on('mClear', () => { const kind = partTool; PART().marks = PART().marks.filter((m) => m.kind !== kind); partRedo.length = 0; changed(6); });
+  on('dlSvg', () => download(fileBase() + '.' + PART().id + '.svg', svgMarkup(W.parts[cur], 0, 0, true, { pi: cur }), 'image/svg+xml'));
   on('dlChar', () => { try { const c = buildCharacter(); download(fileBase() + '.json', JSON.stringify(c), 'application/json'); status(`Exported ${c.parts.length} part(s), ${c.size[0]}×${c.size[1]}`); } catch (e) { status(e.message); } });
   on('pivotBtn', () => { pivotMode = !pivotMode; renderParams(); });
   on('pivotReset', () => { PART().pivot = null; pivotMode = false; renderParams(); draw(); });
-  on('cpSvg', async () => { try { await navigator.clipboard.writeText(svgMarkup(W.fig, 0, 0, true)); status('SVG copied'); } catch { status('Copy was blocked by the browser'); } });
+  on('cpSvg', async () => { try { await navigator.clipboard.writeText(svgMarkup(W.parts[cur], 0, 0, true, { pi: cur })); status('SVG copied'); } catch { status('Copy was blocked by the browser'); } });
   const bs = $('brushSize'); if (bs) bs.oninput = () => { brushSize = +bs.value; $('o_brush').textContent = brushSize + 'px'; };
   const ov = $('overlay'); if (ov) ov.onchange = () => { showOverlay = ov.checked; draw(); };
 }
@@ -673,12 +769,25 @@ function redoBrush(layer) {
   if (!e) { status('Nothing to redo'); return; }
   S.edits.push(e); changed(LAYER_STAGE[layer]); status(`Redid ${LAYER_NAME[layer]} brush stroke`);
 }
+// Undo/redo for the current part's lassos and fill brush strokes. Redo is not saved with settings.
+const partRedo = [];
+function undoMark() {
+  const m = PART().marks.pop();
+  if (!m) { status('Nothing to undo'); return; }
+  partRedo.push(m); changed(6); status(`Undid ${m.kind === 'lasso' ? 'lasso' : 'fill brush stroke'}`);
+}
+function redoMark() {
+  const m = partRedo.pop();
+  if (!m) { status('Nothing to redo'); return; }
+  PART().marks.push(m); changed(6); status(`Redid ${m.kind === 'lasso' ? 'lasso' : 'fill brush stroke'}`);
+}
 window.addEventListener('keydown', (ev) => {
   if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.key.toLowerCase() !== 'z') return;
-  const t = ev.target; if (t && (t.tagName === 'INPUT' && t.type === 'text' || t.tagName === 'TEXTAREA')) return; // keep text-field undo
-  const layer = STEPS[step].brush; if (!layer || !img || drag) return;
-  ev.preventDefault();
-  ev.shiftKey ? redoBrush(layer) : undoBrush(layer);
+  const t = ev.target; if (t && (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number') || t.tagName === 'TEXTAREA')) return; // keep text-field undo
+  if (!img || drag) return;
+  const layer = STEPS[step].brush;
+  if (layer) { ev.preventDefault(); ev.shiftKey ? redoBrush(layer) : undoBrush(layer); }
+  else if (STEPS[step].id === 'parts') { ev.preventDefault(); ev.shiftKey ? redoMark() : undoMark(); }
 });
 const fileBase = () => ($('presetName').value.trim() || 'character').replace(/[^\w-]+/g, '_');
 function download(name, text, type) {
@@ -767,28 +876,55 @@ function draw() {
     let n = 0; { const c = components(so, W.w, W.h); n = c.n; }
     status(`${n} solid area(s) · drawn line ≈ ${(W.rLine * 2).toFixed(1)}px wide · ${ms} ms`);
     return;
-  } else if (st.id === 'strokes' || st.id === 'boil') {
+  } else if (st.id === 'strokes') {
     ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
-    if (st.id === 'strokes' && showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    if (showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
     const fig = W.fig;
-    const stats = `${fig.strokes.length} strokes · ${fig.solid.length} solid shapes · ${fig.paper.length} fill outline(s) · line width ${fig.width.toFixed(1)}px`;
-    if (st.id === 'strokes') {
-      // tint the paper translucent so the photo stays visible under it
-      setSvg(svgMarkup(fig, 0, 0, false).replace(`fill="${PAPER}"`, `fill="${PAPER}" fill-opacity="${showOverlay ? 0.55 : 1}"`).replace(/stroke="#2b2622"/, `stroke="${showOverlay ? '#1f4fbf' : INK}"`));
-    } else {
-      const pv = toWork(...(PART().pivot || [W.cx + W.cw / 2, W.cy + W.ch / 2])), k = Math.max(W.w, W.h) / 60;
-      const mark = `<g stroke="#d23c1e" stroke-width="${(k / 4).toFixed(2)}"><path d="M${pv[0] - k} ${pv[1]}H${pv[0] + k}M${pv[0]} ${pv[1] - k}V${pv[1] + k}"/><circle cx="${pv[0]}" cy="${pv[1]}" r="${(k / 2).toFixed(2)}" fill="none"/></g>`;
-      const tick = () => { boilFrame++; setSvg(svgMarkup(fig, boilFrame % S.boilPoses, S.boilAmp, false) + mark); };
-      tick(); boilTimer = setInterval(tick, 1000 / S.boilFps);
-      const fs = $('figStats'); if (fs) fs.textContent = stats;
-    }
+    // tint the paper translucent so the photo stays visible under it
+    setSvg(svgMarkup(fig, 0, 0, false, showOverlay ? { paperOpacity: 0.55, strokeColor: '#1f4fbf' } : {}));
+    status(`${fig.strokes.length} strokes · ${fig.solid.length} solid shapes · ${fig.paper.length} fill outline(s) · line width ${fig.width.toFixed(1)}px · ${ms} ms`);
+    return;
+  } else if (st.id === 'parts') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    setSvg(partsMarkup());
+    const f = W.parts[cur];
+    status(`${CH.parts.length} part(s) · "${PART().id}": ${f.strokes.length} strokes, ${f.solid.length} solid shapes, ${f.paper.length} fill outline(s) · ${ms} ms`);
+    return;
+  } else if (st.id === 'boil') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    const pv = toWork(...partPivot(cur)), k = Math.max(W.w, W.h) / 60;
+    const mark = `<g stroke="#d23c1e" stroke-width="${(k / 4).toFixed(2)}"><path d="M${pv[0] - k} ${pv[1]}H${pv[0] + k}M${pv[0]} ${pv[1] - k}V${pv[1] + k}"/><circle cx="${pv[0]}" cy="${pv[1]}" r="${(k / 2).toFixed(2)}" fill="none"/></g>`;
+    const tick = () => { boilFrame++; setSvg(byZ().map((i) => svgMarkup(W.parts[i], boilFrame % S.boilPoses, S.boilAmp, false, { pi: i })).join('\n') + mark); };
+    tick(); boilTimer = setInterval(tick, 1000 / S.boilFps);
+    const n = (key) => W.parts.reduce((a, f) => a + f[key].length, 0);
+    const stats = `${CH.parts.length} part(s) · ${n('strokes')} strokes · ${n('solid')} solid shapes · line width ${W.fig.width.toFixed(1)}px`;
+    const fs = $('figStats'); if (fs) fs.textContent = stats;
     status(stats + ` · ${ms} ms`);
     return;
   }
   status(`working ${W.w}×${W.h} · ${ms} ms`);
 }
 
-// ---- pointer: crop on step 1, brush on ink/fill
+// Parts in draw order, lowest first.
+const byZ = () => CH.parts.map((_, i) => i).sort((a, b) => CH.parts[a].z - CH.parts[b].z || a - b);
+// The part's pivot in rotated-photo pixels: the one set by hand, else the centre of the part's paper fill.
+function partPivot(i) {
+  if (CH.parts[i].pivot) return CH.parts[i].pivot;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const l of W.parts[i].paper) for (const [x, y] of l) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return x0 <= x1 ? toSrc((x0 + x1) / 2, (y0 + y1) / 2) : [W.cx + W.cw / 2, W.cy + W.ch / 2];
+}
+// The parts step: every part in its own colour, the current one stronger, with its lassos dashed on top.
+function partsMarkup() {
+  const k = Math.max(W.w, W.h) / 400, path = (pts) => 'M' + pts.map((pt) => toWork(...pt).map((v) => v.toFixed(1)).join(' ')).join('L') + 'Z';
+  const body = byZ().map((i) => svgMarkup(W.parts[i], 0, 0, false, { pi: i, tint: partColor(i), tintOpacity: i === cur ? 0.55 : 0.2 })).join('\n');
+  const lassos = PART().marks.filter((m) => m.kind === 'lasso').map((m) => path(m.pts)).join('');
+  const live = drag && drag.kind === 'lasso' && drag.pts.length > 1 ? path(drag.pts) : '';
+  const outline = (d) => d ? `<path d="${d}" fill="none" stroke="${partColor(cur)}" stroke-width="${(2 * k).toFixed(2)}" stroke-dasharray="${(6 * k).toFixed(1)} ${(4 * k).toFixed(1)}"/>` : '';
+  return body + outline(lassos) + outline(live);
+}
+
+// ---- pointer: crop on step 1, brush on ink/fill/solid, lasso and fill brush on parts
 const cursor = $('brushCursor');
 function canvasXY(ev) { const r = cv.getBoundingClientRect(); return [((ev.clientX - r.left) / r.width) * cv.width, ((ev.clientY - r.top) / r.height) * cv.height]; }
 let drag = null;
@@ -798,6 +934,11 @@ cv.addEventListener('pointerdown', (ev) => {
   cv.setPointerCapture(ev.pointerId);
   if (st.id === 'boil' && pivotMode) { PART().pivot = toSrc(x, y); pivotMode = false; renderParams(); draw(); return; }
   if (st.id === 'source') { const s = +cv.dataset.s; drag = { kind: 'crop', x0: x / s, y0: y / s, s }; }
+  else if (st.id === 'parts' && partTool === 'lasso') drag = { kind: 'lasso', pts: [toSrc(x, y)] };
+  else if (st.id === 'parts') {
+    const m = { kind: 'fill', mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
+    PART().marks.push(m); partRedo.length = 0; drag = { kind: 'mark', m }; changed(6);
+  }
   else if (st.brush) {
     const e = { layer: st.brush, mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
     S.edits.push(e); redo[st.brush] = []; drag = { kind: 'brush', e }; changed(LAYER_STAGE[st.brush]);
@@ -805,7 +946,7 @@ cv.addEventListener('pointerdown', (ev) => {
 });
 cv.addEventListener('pointermove', (ev) => {
   const st = STEPS[step];
-  if (st.brush) {
+  if (st.brush || (st.id === 'parts' && partTool === 'fill')) {
     cursor.style.display = 'block'; const d = brushSize; cursor.style.width = cursor.style.height = d + 'px';
     cursor.style.left = ev.clientX - d / 2 + 'px'; cursor.style.top = ev.clientY - d / 2 + 'px';
   }
@@ -815,9 +956,19 @@ cv.addEventListener('pointermove', (ev) => {
     const x1 = x / drag.s, y1 = y / drag.s;
     S.crop = [Math.min(drag.x0, x1), Math.min(drag.y0, y1), Math.abs(x1 - drag.x0), Math.abs(y1 - drag.y0)];
     if (S.crop[2] > 8 && S.crop[3] > 8) changed(0);
-  } else { drag.e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[drag.e.layer]); }
+  } else if (drag.kind === 'lasso') { drag.pts.push(toSrc(x, y)); setSvg(partsMarkup()); }
+  else if (drag.kind === 'mark') { drag.m.pts.push(toSrc(x, y)); changed(6); }
+  else { drag.e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[drag.e.layer]); }
 });
-const endDrag = () => { if (drag && drag.kind === 'crop' && (!S.crop || S.crop[2] < 8 || S.crop[3] < 8)) S.crop = null; drag = null; };
+const endDrag = () => {
+  if (drag && drag.kind === 'crop' && (!S.crop || S.crop[2] < 8 || S.crop[3] < 8)) S.crop = null;
+  const lasso = drag && drag.kind === 'lasso' ? drag : null;
+  drag = null;
+  if (lasso) {
+    if (lasso.pts.length >= 3) { PART().marks.push({ kind: 'lasso', pts: lasso.pts.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]) }); partRedo.length = 0; changed(6); }
+    else draw();
+  }
+};
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 cv.addEventListener('pointerleave', () => { cursor.style.display = 'none'; });
 
@@ -840,19 +991,26 @@ $('main').addEventListener('drop', (e) => { e.preventDefault(); loadFile(e.dataT
 window.addEventListener('paste', (e) => { const it = [...e.clipboardData.items].find((i) => i.type.startsWith('image/')); if (it) loadFile(it.getAsFile()); });
 
 // ---- characters: parts, saved in this browser, and preset files
-// Preset file: { name, parts: [{ id, z, pivot, settings }] }. pivot is in rotated-photo pixels.
+// Preset file: { name, settings, parts: [{ id, z, pivot, marks }] }. pivot and marks are in rotated-photo pixels.
 const PKEY = 'lightbox.characters';
 const readSaved = () => { try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch { return {}; } };
 function refreshPresetList() {
   $('presetList').innerHTML = '<option value="">Load saved…</option>' + Object.keys(readSaved()).sort().map((n) => `<option>${esc(n)}</option>`).join('');
 }
-const presetOf = () => ({ name: $('presetName').value.trim(), parts: CH.parts.map((p) => ({ id: p.id, z: p.z, pivot: p.pivot, settings: p.settings })) });
+const presetOf = () => ({ name: $('presetName').value.trim(), settings: S, parts: CH.parts.map((p) => ({ id: p.id, z: p.z, pivot: p.pivot, marks: p.marks })) });
+// Returns a note when the file is in an older format.
 function applyPreset(j) {
-  let parts = j.parts;
-  if (!parts) parts = [{ id: 'body', z: 0, pivot: null, settings: j.settings || j }];   // older single-part settings files
-  CH = { parts: parts.map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, settings: Object.assign(structuredClone(DEFAULTS), p.settings) })) };
+  let settings = j.settings, parts = j.parts, note = '';
+  if (parts && !settings) {   // older presets: every part had its own crop and settings
+    settings = parts[0] && parts[0].settings;
+    note = ' (older preset: kept the first part\'s settings; draw the part lassos again)';
+  } else if (!parts && !settings) settings = j;   // oldest: a bare settings object
+  S = Object.assign(structuredClone(DEFAULTS), settings);
+  CH = { parts: (parts && parts.length ? parts : [{ id: 'body' }]).map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, marks: p.marks || [] })) };
   if (j.name) $('presetName').value = j.name;
-  selectPart(0);
+  redo.ink = []; redo.fill = []; redo.solid = [];
+  invalidate(0); renderParams(); selectPart(0);
+  return note;
 }
 $('savePreset').onclick = () => {
   const n = $('presetName').value.trim(); if (!n) { status('Type a character name first'); return; }
@@ -860,61 +1018,53 @@ $('savePreset').onclick = () => {
   try { localStorage.setItem(PKEY, JSON.stringify(all)); status(`Saved "${n}" in this browser`); } catch { status('This browser blocked saving; use Download preset'); }
   refreshPresetList();
 };
-$('presetList').onchange = () => { const n = $('presetList').value; if (!n) return; applyPreset(readSaved()[n]); $('presetName').value = n; status(`Loaded "${n}"`); };
+$('presetList').onchange = () => { const n = $('presetList').value; if (!n) return; const note = applyPreset(readSaved()[n]); $('presetName').value = n; status(`Loaded "${n}"${note}`); };
 $('exportPreset').onclick = () => download(fileBase() + '.preset.json', JSON.stringify(presetOf(), null, 1), 'application/json');
 $('importPresetBtn').onclick = () => $('importPreset').click();
 $('importPreset').onchange = async () => {
   const f = $('importPreset').files[0]; if (!f) return;
-  try { applyPreset(JSON.parse(await f.text())); status(`Opened ${f.name}${img ? '' : '. Now open the photo it was traced from.'}`); } catch { status('That file is not a Lightbox preset'); }
+  try { const note = applyPreset(JSON.parse(await f.text())); status(`Opened ${f.name}${note}${img ? '' : '. Now open the photo it was traced from.'}`); } catch { status('That file is not a Lightbox preset'); }
   $('importPreset').value = '';
 };
 
 function renderParts() {
   const p = PART();
   $('parts').innerHTML = `<div class="row" style="justify-content:space-between"><b>Parts</b><span class="hint">${CH.parts.length} in this character</span></div>
-    <div class="tabs">${CH.parts.map((q, i) => `<button data-part="${i}" class="${i === cur ? 'cur' : ''}">${esc(q.id)}</button>`).join('')}<button id="addPart" title="New part, starting from this part's settings without its crop or brush edits">+ Part</button></div>
+    <div class="tabs">${CH.parts.map((q, i) => `<button data-part="${i}" class="${i === cur ? 'cur' : ''}"><span class="sw" style="background:${partColor(i)}"></span>${esc(q.id)}</button>`).join('')}<button id="addPart" title="New part; draw its lasso on the parts step">+ Part</button></div>
     <div class="fields"><label for="partId">Id</label><input type="text" id="partId" value="${esc(p.id)}"><label for="partZ">Order</label><input type="number" id="partZ" value="${p.z}" step="1" title="Draw order; higher is drawn on top"></div>
     ${CH.parts.length > 1 ? '<div class="row"><button id="delPart">Remove this part</button></div>' : ''}`;
   $('parts').querySelectorAll('[data-part]').forEach((b) => b.onclick = () => selectPart(+b.dataset.part));
   $('addPart').onclick = () => {
-    const settings = Object.assign(structuredClone(S), { crop: null, edits: [] });
     let n = CH.parts.length + 1; while (CH.parts.some((q) => q.id === `part${n}`)) n++;
-    CH.parts.push({ id: `part${n}`, z: Math.max(...CH.parts.map((q) => q.z)) + 1, pivot: null, settings });
-    selectPart(CH.parts.length - 1); step = 0; renderSteps(); renderParams(); draw();
+    CH.parts.push(newPart(`part${n}`, Math.max(...CH.parts.map((q) => q.z)) + 1));
+    invalidate(6); selectPart(CH.parts.length - 1);
   };
   $('partId').onchange = () => {
     const v = $('partId').value.trim().replace(/[^\w-]+/g, '_');
     if (!v || CH.parts.some((q, i) => i !== cur && q.id === v)) { status('Part ids must be unique and not empty'); $('partId').value = p.id; return; }
-    p.id = v; renderParts(); renderParams();
+    p.id = v; renderParts(); renderParams(); draw();
   };
-  $('partZ').onchange = () => { p.z = Math.round(+$('partZ').value) || 0; };
-  const del = $('delPart'); if (del) del.onclick = () => { CH.parts.splice(cur, 1); selectPart(Math.max(0, cur - 1)); };
+  $('partZ').onchange = () => { p.z = Math.round(+$('partZ').value) || 0; changed(6); };
+  const del = $('delPart'); if (del) del.onclick = () => { CH.parts.splice(cur, 1); invalidate(6); selectPart(Math.max(0, cur - 1)); };
 }
 function selectPart(i) {
-  cur = i; S = CH.parts[i].settings; redo.ink = []; redo.fill = []; redo.solid = []; pivotMode = false;
-  invalidate(0); renderParts(); renderParams(); draw();
+  cur = i; partRedo.length = 0; pivotMode = false;
+  renderParts(); renderParams(); draw();
 }
 
-// All parts traced in turn and placed in one coordinate space (photo pixels, shifted so the parts' crops start at 0,0).
+// Every part in one coordinate space: photo pixels, with the crop's top-left corner at 0,0.
 function buildCharacter() {
   if (!img) throw new Error('Open the photo first');
-  const rots = new Set(CH.parts.map((p) => p.settings.rotate));
-  if (rots.size > 1) throw new Error('All parts must use the same rotation to share one coordinate space');
-  const keep = cur, out = [];
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  try {
-    for (const p of CH.parts) {
-      S = p.settings; valid = -1; ensure(5);
-      const { scale: sc, cx, cy, cw, ch } = W, f = W.fig, m = ([x, y]) => [x / sc + cx, y / sc + cy];
-      x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx + cw); y1 = Math.max(y1, cy + ch);
-      out.push({ id: p.id, pivot: p.pivot || [cx + cw / 2, cy + ch / 2], z: p.z, paper: f.paper.map((l) => l.map(m)), solid: f.solid.map((l) => l.map(m)), strokes: f.strokes.map((st) => ({ pts: st.pts.map(m), closed: st.closed })), width: f.width / sc });
-    }
-  } finally { S = CH.parts[keep].settings; valid = -1; draw(); }
-  const r = (v) => Math.round(v * 10) / 10, sh = ([x, y]) => [r(x - x0), r(y - y0)];
-  out.sort((a, b) => a.z - b.z);
+  ensure(6);
+  const { scale: sc, cx, cy, cw, ch } = W, r = (v) => Math.round(v * 10) / 10, m = ([x, y]) => [r(x / sc), r(y / sc)];
+  const empty = CH.parts.find((p, i) => !W.parts[i].paper.length && !W.parts[i].strokes.length);
+  if (empty) throw new Error(`Part "${empty.id}" is empty: draw its lasso on the parts step, or remove it`);
   return {
-    name: $('presetName').value.trim() || 'character', size: [Math.ceil(x1 - x0), Math.ceil(y1 - y0)],
-    parts: out.map((p) => ({ id: p.id, pivot: sh(p.pivot), z: p.z, paper: p.paper.map((l) => l.map(sh)), solid: p.solid.map((l) => l.map(sh)), strokes: p.strokes.map((st) => ({ pts: st.pts.map(sh), closed: st.closed })), width: r(p.width) })),
+    name: $('presetName').value.trim() || 'character', size: [cw, ch],
+    parts: byZ().map((i) => {
+      const p = CH.parts[i], f = W.parts[i], [px, py] = partPivot(i);
+      return { id: p.id, pivot: [r(px - cx), r(py - cy)], z: p.z, paper: f.paper.map((l) => l.map(m)), solid: f.solid.map((l) => l.map(m)), strokes: f.strokes.map((st) => ({ pts: st.pts.map(m), closed: st.closed })), width: r(f.width / sc) };
+    }),
   };
 }
 
