@@ -1,17 +1,17 @@
 # Labels
 
-Every issue has a label for its kind, and bugs and proposals also have one for where they stand. The issue forms add the first ones, and the maintainer changes them after that. When an issue moves on, the maintainer replaces its status label rather than adding a new one, for example `proposal` → `accepted` or `needs-triage` → `confirmed`. The labels are defined in [labels.yml](labels.yml) and applied to GitHub with `tools/sync-labels.sh`.
+Every issue has a label for its kind, and bugs and proposals also have one for where they stand. The issue forms add the first ones, and the maintainer changes them after that. An issue filed without a form, such as with `gh issue create` or the API, gets the same first labels from the `Auto-label` workflow (`.github/workflows/auto-label.yml`): it reads which form's required sections the body has, as `### <field label>` headings, and adds that form's labels, or `needs-triage` alone when the body matches no form. The labels each kind gets are set only by the `labels:` line of its form in `.github/ISSUE_TEMPLATE/`. When an issue moves on, the maintainer replaces its status label rather than adding a new one, for example `proposal` → `accepted` or `needs-triage` → `confirmed`. The labels are defined in [labels.yml](labels.yml) and applied to GitHub with `tools/sync-labels.sh`.
 
 ## What each label means
 
 | Label | Kind | Meaning | Set by |
 | --- | --- | --- | --- |
-| `bug` | kind | Something does not work as it should | Bug form |
-| `enhancement` | kind | A new feature or a change | Proposal form |
-| `question` | kind | A question for the maintainer or the community | Question form |
-| `needs-triage` | bug status | The maintainer has not reproduced the bug yet | Bug form |
+| `bug` | kind | Something does not work as it should | Bug form or Auto-label |
+| `enhancement` | kind | A new feature or a change | Proposal form or Auto-label |
+| `question` | kind | A question for the maintainer or the community | Question form or Auto-label |
+| `needs-triage` | bug status | The maintainer has not reproduced the bug yet, or sorted an issue that matched no form | Bug form or Auto-label |
 | `confirmed` | bug status | The maintainer reproduced the bug; a fix PR can be opened | maintainer |
-| `proposal` | proposal status | Waiting for the maintainer to decide | Proposal form |
+| `proposal` | proposal status | Waiting for the maintainer to decide | Proposal form or Auto-label |
 | `accepted` | proposal status | Agreed; a PR can be opened | maintainer |
 | `declined` | proposal status | The maintainer decided not to do this; the issue is closed | maintainer |
 | `blocked` | proposal status | Agreed, but waiting on another issue or decision named on the issue | maintainer |
