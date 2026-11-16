@@ -97,7 +97,7 @@ const DEFAULTS = {
   bgOn: true, bgClose: 30, bgBlur: 150,
   lo: 20, hi: 60, cut: 0.35, speck: 20,   // lo and hi at these values mean "not set yet": auto levels runs on load
   fillClose: 10, fillOpen: 0,
-  lineBlur: 0.5, lineT: 0.15, minLen: 7, burrLen: 5, smooth: 6, simplify: 3, widthScale: 1, overlapLen: 6.5, joinGap: 3, joinAngle: 40, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 4.5,
+  lineBlur: 0.5, lineT: 0.15, minLen: 7, burrLen: 5, extendLen: 6, smooth: 6, simplify: 3, widthScale: 1, overlapLen: 6.5, joinGap: 3, joinAngle: 40, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 4.5,
   boilAmp: 0.9, boilFps: 4, boilPoses: 6,
   edits: [],   // brush edits: {layer:'ink'|'fill', mode:'add'|'erase', r, pts:[[x,y]...]} in rotated-source pixels
   // line edits on the strokes step, in rotated-source pixels: {from: the traced line it replaces, nodes:
@@ -126,7 +126,7 @@ const STEPS = [
   { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
     params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
   { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue. Click a line to reshape it as a bezier curve; your line edits stay when you change the sliders.',
-    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 6, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
+    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 6, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
   { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
     params: [['parttools', '', 'parttools']] },
   { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
@@ -356,7 +356,15 @@ function splice(a, b, width, cosMax) {
   let i = a.length, j = 0;
   while (i > 2 && ahead(a[i - 1]) > 0) i--;
   while (j < b.length - 2 && ahead(b[j]) < 0) j++;
-  return a.slice(0, i).concat([m], b.slice(j));
+  const out = a.slice(0, i).concat([m], b.slice(j));
+  // ease the step where the two lines sat a little apart, over a few line widths either side of the joint
+  const k = Math.max(2, Math.round(width * 2)), src = out.map((q) => q.slice());
+  for (let x = Math.max(1, i - 2 * k); x <= Math.min(out.length - 2, i + 2 * k); x++) {
+    let sx = 0, sy = 0, n = 0;
+    for (let y = Math.max(0, x - k); y <= Math.min(out.length - 1, x + k); y++) { sx += src[y][0]; sy += src[y][1]; n++; }
+    out[x] = [sx / n, sy / n];
+  }
+  return out;
 }
 
 // One drawn line often comes out as several strokes: pencil fades for a moment, a junction splits it,
@@ -370,8 +378,18 @@ function joinGaps(lines, width, gapMul, maxDeg) {
   const out = lines.map((l) => ({ pts: l.pts.slice(), closed: l.closed }));
   const tip = (p, atStart) => (atStart ? p[0] : p[p.length - 1]);
   const outward = (p, atStart) => heading(p, atStart, span);   // direction the line is heading as it leaves this end
-  const fits = (pa, ta, pb, tb, d) => { // end a heads into end b
+  const cosLap = Math.cos((25 * Math.PI) / 180);
+  const fits = (pa, ta, pb, tb, d, la, lb) => { // end a heads into end b; la, lb: the two lines' lengths
     const turn = -(ta[0] * tb[0] + ta[1] * tb[1]);
+    const ahead = ta[0] * (pb[0] - pa[0]) + ta[1] * (pb[1] - pa[1]);
+    // A new pencil stroke started a little before the last one ended, up to 2.5 widths to the side: the ends
+    // overlap side by side for a short stretch. Join them; splice() cuts the overlap out and eases the step.
+    if (d > width && ahead < 0) {
+      const sideL = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
+      if (turn >= cosLap && sideL <= width * 2.5 && -ahead <= Math.min(width * 15, la * 0.5, lb * 0.5)) return (sideL + width) * (2 - turn);
+      if (d > gap) return -1;
+    }
+    if (d > gap) return -1;
     if (turn < (d <= width ? cosTouch : cosMax)) return -1;
     // Ends that overlap side by side, where the pencil started a new stroke a little before the last one ended.
     const side = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
@@ -385,11 +403,11 @@ function joinGaps(lines, width, gapMul, maxDeg) {
   // An end's direction only depends on the line near it, so every pair can be scored up front.
   const n = out.length, ends = [];
   for (let i = 0; i < n; i++) if (!out[i].closed) for (const s of [0, 1]) ends.push({ e: 2 * i + s, p: tip(out[i].pts, !s), t: outward(out[i].pts, !s) });
-  const pairs = [];
+  const pairs = [], lens = out.map((l) => polyLen(l.pts));
   for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
     const A = ends[a], B = ends[b], d = Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1]);
-    if (d > gap) continue;
-    const c = fits(A.p, A.t, B.p, B.t, d);
+    if (d > Math.max(gap, width * 15)) continue;
+    const c = fits(A.p, A.t, B.p, B.t, d, lens[A.e >> 1], lens[B.e >> 1]);
     if (c >= 0) pairs.push([c, A.e, B.e]);
   }
   pairs.sort((x, y) => x[0] - y[0]);
@@ -444,6 +462,13 @@ function pruneBurrs(lines, width, lenMul) {
     }
     return -1;
   };
+  const continues = (d, j, self) => { // does the start of d run the same way as line j where it touches it?
+    if (j < 0 || !D[j]) return false;
+    const e = d[0], f = d[Math.min(d.length - 1, Math.round(width * 3))], u = [f[0] - e[0], f[1] - e[1]], un = Math.hypot(u[0], u[1]) || 1;
+    const L = D[j]; let bk = 0, bd = 1e9; L.forEach((q, k) => { const dd = (q[0] - e[0]) ** 2 + (q[1] - e[1]) ** 2; if (dd < bd) { bd = dd; bk = k; } });
+    const a = L[Math.max(0, bk - 4)], b = L[Math.min(L.length - 1, bk + 4)], v = [b[0] - a[0], b[1] - a[1]], vn = Math.hypot(v[0], v[1]) || 1;
+    return Math.abs((u[0] * v[0] + u[1] * v[1]) / (un * vn)) > Math.cos((30 * Math.PI) / 180);
+  };
   const dense = (pts) => { const o = []; for (let i = 0; i < pts.length; i++) { if (!i) { o.push(pts[0]); continue; } const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay))); for (let t = 1; t <= n; t++) o.push([ax + ((bx - ax) * t) / n, ay + ((by - ay) * t) / n]); } return o; };
   const order = lines.map((l, i) => [polyLen(l.pts), i]).sort((a, b) => b[0] - a[0]);
   const keep = new Uint8Array(lines.length), D = [];
@@ -451,8 +476,10 @@ function pruneBurrs(lines, width, lenMul) {
     const d = D[i] = dense(lines[i].pts);
     if (!lines[i].closed) {
       const hit = d.map(([x, y]) => near(x, y)), hits = hit.filter((h) => h >= 0).length, a = hit[0], b = hit[hit.length - 1];
-      // Touching a line at both ends, either two different lines or one line with a gap between, makes it a connector.
-      const bridge = a >= 0 && b >= 0 && (a !== b || hit.some((h) => h < 0));
+      // Touching a line at both ends, either two different lines or one line with a gap between, makes it a
+      // connector, but a short one only if it carries on the way a line it touches runs; a short strut across
+      // between two lines is a stray mark.
+      const bridge = a >= 0 && b >= 0 && (a !== b || hit.some((h) => h < 0)) && (len >= maxLen || continues(d, a, i) || continues(d.slice().reverse(), b, i));
       if (!bridge && ((hits && len < maxLen) || hits > d.length * 0.6)) continue;
     }
     keep[i] = 1;
@@ -471,6 +498,45 @@ function pruneBurrs(lines, width, lenMul) {
     return d === D[i] ? l : { pts: d, closed: false };
   });
   return trimmed.filter((_, i) => keep[i]);
+}
+
+// A line that stops just short of the line it heads for leaves a gap the artist meant to close. Carry a free
+// end straight on, along the way it is heading, to the first line it would reach within lenMul line widths.
+// An end that already touches a line, or heads into empty paper, stays as it is.
+function extendEnds(lines, width, lenMul) {
+  if (lenMul <= 0) return lines;
+  const maxLen = width * lenMul, out = lines.map((l) => ({ ...l, pts: l.pts.slice() }));
+  const segsOf = out.map((l) => l.pts);
+  const touching = (e, self, skipNear) => segsOf.some((p, j) => { for (let k = 1; k < p.length; k++) { if (j === self && skipNear(k)) continue; if (distSeg(e, p[k - 1], p[k]) < width) return true; } return false; });
+  for (let i = 0; i < out.length; i++) {
+    if (out[i].closed || out[i].pts.length < 2) continue;
+    for (const atStart of [true, false]) {
+      const P = out[i].pts, e = atStart ? P[0] : P[P.length - 1], t = heading(P, atStart, width * 3);
+      // parts of this same line near the end do not count as something to reach
+      let acc = 0; const nearIdx = new Set();
+      for (let q = 1; q < P.length && acc < width * 6; q++) { const k = atStart ? q : P.length - q; acc += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]); nearIdx.add(k); }
+      const skipNear = (k) => nearIdx.has(k);
+      if (touching(e, i, skipNear)) continue;
+      let best = null;
+      segsOf.forEach((p, j) => {
+        for (let k = 1; k < p.length; k++) {
+          if (j === i && skipNear(k)) continue;
+          const [ax, ay] = p[k - 1], [bx, by] = p[k], sx = bx - ax, sy = by - ay, den = t[0] * sy - t[1] * sx;
+          if (Math.abs(den) < 1e-9) continue;
+          const u = ((ax - e[0]) * sy - (ay - e[1]) * sx) / den, v = ((ax - e[0]) * t[1] - (ay - e[1]) * t[0]) / den;   // ray e + u t meets segment at v
+          if (u > 0 && u <= maxLen && v >= 0 && v <= 1 && (!best || u < best.u)) best = { u };
+        }
+      });
+      let q = best ? [e[0] + t[0] * best.u, e[1] + t[1] * best.u] : null;
+      if (!q) { // the line heads just past the other one: take the nearest point on a line within 20° of the heading
+        let bd = maxLen;
+        segsOf.forEach((p, j) => { p.forEach((r, k) => { if (j === i && skipNear(Math.max(1, k))) return; const vx = r[0] - e[0], vy = r[1] - e[1], dd = Math.hypot(vx, vy); if (dd > 0 && dd < bd && (vx * t[0] + vy * t[1]) / dd > Math.cos((20 * Math.PI) / 180)) { bd = dd; q = r.slice(); } }); });
+      }
+      if (!q) continue;
+      if (atStart) P.unshift(q); else P.push(q);
+    }
+  }
+  return out;
 }
 
 function smoothPoly(a, sigma, closed) {
@@ -717,7 +783,7 @@ function stage5() { // strokes
   // Join pieces and drop burrs, then join again: a burr or overshoot taken out at a junction frees the line
   // ends it was holding apart.
   const join = (ls) => joinGaps(ls, width, S.joinGap, S.joinAngle), prune = (ls) => pruneBurrs(ls, width, S.burrLen);
-  W.traced = prune(join(prune(join(lines))));
+  W.traced = extendEnds(prune(join(prune(join(lines)))), width, S.extendLen);
   if (sel && sel.ci < 0) sel = null;   // a selected traced line may not exist after re-tracing
   W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: shape(solid, w, h, 1.2, 0.4), strokes: [], rLine, width };
   applyCurves();
@@ -1353,7 +1419,22 @@ function curveDown(x, y, ev) {
 }
 let curveFrame = 0;
 function curveMove(x, y, ev) {
-  const { k, part, nodes, base } = drag, n = nodes[k], b = base[k], dx = x - drag.x0, dy = y - drag.y0;
+  const { k, part, nodes, base } = drag, n = nodes[k], b = base[k];
+  let dx = x - drag.x0, dy = y - drag.y0;
+  if (part === 'p' && !selClosed() && (k === 0 || k === nodes.length - 1) && !ev.shiftKey) {
+    // an end anchor snaps onto a nearby line, so closing a gap needs no precise aim (hold Shift to place it freely)
+    const p = [b.p[0] + dx, b.p[1] + dy], own = sel.ci >= 0 ? sel.ci : null;
+    let best = null, bd = 10 * pxToWork();
+    for (const l of W.lines) {
+      if ((own != null && l.curve === own) || l === sel.line) continue;   // not onto the line being edited
+      for (let i = 1; i < l.pts.length; i++) {
+        const [ax, ay] = l.pts[i - 1], [bx, by] = l.pts[i], sx = bx - ax, sy = by - ay, L = sx * sx + sy * sy;
+        const t = L ? clamp(((p[0] - ax) * sx + (p[1] - ay) * sy) / L, 0, 1) : 0, q = [ax + t * sx, ay + t * sy], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+        if (d < bd && d > 0.01) { bd = d; best = q; }
+      }
+    }
+    if (best) { dx = best[0] - b.p[0]; dy = best[1] - b.p[1]; }
+  }
   if (part === 'p') { for (const q of ['p', 'i', 'o']) n[q] = [b[q][0] + dx, b[q][1] + dy]; }
   else {
     n[part] = [b[part][0] + dx, b[part][1] + dy];
@@ -1401,7 +1482,7 @@ function editorMarkup() {
 function curvePanel() {
   const n = S.curves.length, edits = n ? ` · ${n} line edit(s) kept through re-tracing` : '';
   const help = sel
-    ? 'Drag a square to move an anchor, a circle to bend the line. Alt-drag a circle for a sharp corner, Alt-click a square to remove it, double-click the line to add one. Delete removes the line, Esc deselects.'
+    ? 'Drag a square to move an anchor (an end snaps onto a nearby line; hold Shift to place it freely), a circle to bend the line. Alt-drag a circle for a sharp corner, Alt-click a square to remove it, double-click the line to add one. Delete removes the line, Esc deselects.'
     : 'Click a line to edit its curve.';
   return `<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? 'edited line' : 'traced line') : ''}</output></label><span class="hint">${help}${edits}</span>
     <div class="row"><button id="cReset" ${sel && sel.ci >= 0 ? '' : 'disabled'}>Reset line</button><button id="cDelete" ${sel ? '' : 'disabled'}>Delete line</button><button id="cUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="cRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="cClear" ${n ? '' : 'disabled'}>Reset all lines</button></div></div>`;
