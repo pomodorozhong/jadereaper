@@ -5,12 +5,11 @@
 ### ci/auto-label
 
 - Task: #30 (`accepted`), label issues filed without the forms. Branch linked to #30; the PR fully resolves it.
-- PR: none yet.
+- PR: #31, open and awaiting review and merge. Auto-fix is on for it in the desktop app.
 - Code checkpoint: 4c32111 (`ci: label issues filed without the forms`), on `main` at a0d53d1.
 - Answers to #30's open questions, taken as the recommended defaults because the maintainer accepted the issue without answering them: an issue matching no form gets `needs-triage`, and the workflow uses only GitHub's own actions with `GITHUB_TOKEN`.
 - Verification at 4c32111: `npm test` passes (6 tests against the real forms), and the workflow's script ran against a mocked GitHub client for a proposal body, an unmatched body and an already-labelled issue. Not run: `cargo test`, `./build.sh`, `npm run smoke` (no change to the game); actionlint (not installed). The `label` job only runs on a real new issue on `main`, so it is untested on GitHub until it merges.
-- Next action: P-15.
-- Pending: **P-15** open a PR for this branch with the `open-pr` skill. Why: opening a PR needs approval. Blocks: #30.
+- Next action: once #31 merges, run its "How to verify" steps 1 to 3 on `main` and close the test issues.
 
 ## Ranked work
 
