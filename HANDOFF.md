@@ -4,12 +4,12 @@
 
 ### feat/lightbox
 
-- Task: add `tools/lightbox.html`, the tool for tracing paper drawings into character JSON described in `docs/character-art-pipeline.md` and decision 0003 (#32). No issue: the maintainer chose to skip one. Not linked to any issue.
+- Task: add `tools/lightbox.html`, the tool for tracing paper drawings into character JSON described in `docs/character-art-pipeline.md` and decision 0003 (#32). The maintainer wants to iterate on it more before #34 merges. Decision 0004 (on this branch) serves it from the local server at `/tools/lightbox.html` via `LOCAL_ONLY` in `tools/serve.mjs`, and keeps it static so it can be published on Pages later. No issue: the maintainer chose to skip one. Not linked to any issue.
 - PR: #34, open and awaiting review and merge. Auto-fix is on for it in the desktop app.
-- Code checkpoint: 3f50c70 (`feat(tools): add the lightbox for tracing paper drawings`), on `main` at 16a530e.
-- Verification at 3f50c70: `npm run smoke` ok; headless Chrome scripts (Playwright, not committed) ran all 7 steps on the three first-batch drawings, brushes with undo and redo, a two-part export and a preset round trip (identical JSON), with no errors. Not run: `cargo test`, `./build.sh` (no change to `core/`); a pass with a real mouse or tablet.
+- Code checkpoint: 0f65b00 (`feat(tools): serve the lightbox from the local server`), on `main` at 16a530e.
+- Verification at 0f65b00: `npm test` and `npm run smoke` ok; the smoke test now also opens the Lightbox, and fails when it is not served (checked). Earlier, at 3f50c70: `npm run smoke` ok; headless Chrome scripts (Playwright, not committed) ran all 7 steps on the three first-batch drawings, brushes with undo and redo, a two-part export and a preset round trip (identical JSON), with no errors. Not run: `cargo test`, `./build.sh` (no change to `core/`); a pass with a real mouse or tablet.
 - Learned: automatic background removal on phone photos is not reliable, which is why every mask step has a brush. Solid ink is decided before tracing, from the sharp ink mask, and must be clearly deeper than a line; otherwise thick joints and doubled pencil lines turn into blobs. Removing doubled strokes must leave short joint and crossing overlaps alone, or lines break into dashes. The artist's first batch (three photos) is not in the repository.
-- Next action: once #34 merges, file P-17 and start the load-time bake.
+- Next action: keep iterating on the Lightbox with the maintainer; once #34 merges, file P-17 and start the load-time bake. P-17 should move the jitter into `src/` and have the Lightbox import it (decision 0004).
 
 ## Ranked work
 
@@ -39,4 +39,3 @@ Roadmap steps are detailed in `ROADMAP.md`. They become issues once P-02 is appr
   - `### What to change`: Load each character JSON from `assets/characters/` at start-up and, in `src/renderer.js`, draw each part's boil poses (3 by default) with Canvas2D into the existing part atlas: paper fill, solid ink, then strokes of the part's single width, each stroke with its own seeded wobble per pose, using the same jitter as `tools/lightbox.html`. Add a rect per part per pose, and let the core pick the pose on an 8 fps cycle with `part_id = base + pose`, so the 12-float instance format does not change.
   - `### Why`: Decision 0003 (#32) chose this so hand-traced characters get a per-stroke line boil while each part stays one textured quad per frame. Nothing in the game reads character JSON yet.
   - `### Reference`: `docs/character-art-pipeline.md`, `docs/decisions/0003-character-art-pipeline.md`, #34 (the Lightbox). Puppet rigs and per-part pivots come with roadmap step 1.
-- **P-18** Delete the remote branch `docs/handoff-refresh` (`git push origin --delete docs/handoff-refresh`). It never had a PR, and its handoff changes are now on `main` (#32) or carried into this branch. Why: deleting a remote branch needs approval. Blocks: nothing.
