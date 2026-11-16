@@ -89,11 +89,12 @@ main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;a
 // ====================================================================
 const DEFAULTS = {
   rotate: 0, crop: null, maxSize: 900,
-  bgOn: true, bgClose: 7, bgBlur: 40,
-  lo: 20, hi: 60, cut: 0.35, speck: 20,
-  fillClose: 14, fillOpen: 2,
-  lineBlur: 1.2, lineT: 0.22, minLen: 8, spur: 10, smooth: 2.5, simplify: 0.6, widthScale: 1, overlapLen: 4, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 3,
-  boilAmp: 1.2, boilFps: 8, boilPoses: 3,
+  // Tuned on the artist's pencil photos: clean, smooth lines rather than a copy of every pencil wobble.
+  bgOn: true, bgClose: 30, bgBlur: 150,
+  lo: 20, hi: 60, cut: 0.35, speck: 20,   // lo and hi at these values mean "not set yet": auto levels runs on load
+  fillClose: 10, fillOpen: 0,
+  lineBlur: 0.5, lineT: 0.15, minLen: 7, spur: 8, smooth: 6, simplify: 3, widthScale: 1, overlapLen: 6.5, joinGap: 3, joinAngle: 40, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 4.5,
+  boilAmp: 0.9, boilFps: 4, boilPoses: 6,
   edits: [],   // brush edits: {layer:'ink'|'fill', mode:'add'|'erase', r, pts:[[x,y]...]} in rotated-source pixels
 };
 let S = structuredClone(DEFAULTS);   // one set of settings for the whole character
@@ -110,15 +111,15 @@ const STEPS = [
   { id: 'source', name: 'Source', stage: 0, help: 'Rotate the page and drag a box around ONE character. Everything after works on that box.',
     params: [['rotate', 'Rotate', 'rot'], ['maxSize', 'Working size (px, long side)', 300, 1600, 50, 0]] },
   { id: 'paper', name: 'Paper', stage: 1, help: 'Removes uneven lighting and paper colour. The view should look like even white paper with grey lines.',
-    params: [['bgOn', 'Flatten lighting', 'bool', 1], ['bgClose', 'Line removal size', 1, 30, 1, 1, 'Larger than the thickest line. Too small leaves lines in the light estimate.'], ['bgBlur', 'Lighting smoothness', 5, 150, 1, 1]] },
+    params: [['bgOn', 'Flatten lighting', 'bool', 1], ['bgClose', 'Line removal size', 1, 60, 1, 1, 'Larger than the thickest line. Too small leaves lines in the light estimate.'], ['bgBlur', 'Lighting smoothness', 5, 300, 1, 1]] },
   { id: 'ink', name: 'Ink', stage: 2, brush: 'ink', help: 'Picks which pixels are pencil. Paint with the brush to add missed lines or erase smudges, specks and stray marks.',
     params: [['lo', 'Paper level (below = paper)', 0, 120, 1, 2], ['hi', 'Full ink level', 1, 200, 1, 2], ['cut', 'Line cut-off', 0.05, 0.9, 0.01, 2], ['speck', 'Remove specks smaller than (px)', 0, 400, 1, 2], ['auto', 'Auto levels', 'btn']] },
   { id: 'fill', name: 'Paper fill', stage: 3, brush: 'fill', help: 'The white cutout under the drawing. Raise gap closing if it leaks inside, or paint/erase the fill directly.',
     params: [['fillClose', 'Gap closing (px)', 1, 60, 1, 3], ['fillOpen', 'Trim thin bits (px)', 0, 10, 1, 3]] },
   { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
     params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
-  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back. With the photo underneath, strokes are blue.',
-    params: [['lineBlur', 'Merge pencil grain', 0.5, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['spur', 'Trim spurs shorter than', 0, 40, 1, 5], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 3, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view']] },
+  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue.',
+    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['spur', 'Trim spurs shorter than', 0, 40, 1, 5], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 6, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view']] },
   { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
     params: [['parttools', '', 'parttools']] },
   { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
@@ -328,6 +329,78 @@ function joinPaths(paths) { // join strokes that continue straight through a jun
     paths = paths.filter((_, x) => x !== i && x !== j); paths.push(merged);
   }
   return paths;
+}
+
+// One drawn line often comes out as several strokes: pencil fades for a moment, a junction splits it,
+// or a doubled stretch was cut out. Join line ends that are close and carry on in the same direction,
+// best match first, and close a stroke whose own ends meet that way. Ends that touch (within one line
+// width) join even at a sharp corner, as long as the line does not double back on itself.
+function joinGaps(lines, width, gapMul, maxDeg) {
+  const gap = width * gapMul;
+  if (gap <= 0) return lines;
+  const cosMax = Math.cos((maxDeg * Math.PI) / 180), cosTouch = Math.min(cosMax, Math.cos((120 * Math.PI) / 180)), span = Math.max(gap, width * 3);
+  const out = lines.map((l) => ({ pts: l.pts.slice(), closed: l.closed }));
+  const tip = (p, atStart) => (atStart ? p[0] : p[p.length - 1]);
+  const outward = (p, atStart) => { // direction the line is heading as it leaves this end
+    const q = atStart ? p : p.slice().reverse(), e = q[0];
+    let L = 0, k = 1;
+    for (; k < q.length - 1; k++) { L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); if (L >= span) break; }
+    const vx = e[0] - q[k][0], vy = e[1] - q[k][1], n = Math.hypot(vx, vy) || 1;
+    return [vx / n, vy / n];
+  };
+  const fits = (pa, ta, pb, tb, d) => { // end a heads into end b
+    const turn = -(ta[0] * tb[0] + ta[1] * tb[1]);
+    if (turn < (d <= width ? cosTouch : cosMax)) return -1;
+    if (d > width) {
+      const ux = (pb[0] - pa[0]) / d, uy = (pb[1] - pa[1]) / d;
+      if (ta[0] * ux + ta[1] * uy < cosMax || -(tb[0] * ux + tb[1] * uy) < cosMax) return -1;
+    }
+    return (d + width) * (2 - turn);   // closer and straighter is better
+  };
+  // Ends are numbered 2i (start of line i) and 2i+1 (its end). Each end joins at most once, best pairs first.
+  // An end's direction only depends on the line near it, so every pair can be scored up front.
+  const n = out.length, ends = [];
+  for (let i = 0; i < n; i++) if (!out[i].closed) for (const s of [0, 1]) ends.push({ e: 2 * i + s, p: tip(out[i].pts, !s), t: outward(out[i].pts, !s) });
+  const pairs = [];
+  for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
+    const A = ends[a], B = ends[b], d = Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1]);
+    if (d > gap) continue;
+    const c = fits(A.p, A.t, B.p, B.t, d);
+    if (c >= 0) pairs.push([c, A.e, B.e]);
+  }
+  pairs.sort((x, y) => x[0] - y[0]);
+  const partner = new Int32Array(2 * n).fill(-1), root = Array.from({ length: n }, (_, i) => i), len = out.map((l) => polyLen(l.pts));
+  const find = (i) => { while (root[i] !== i) i = root[i] = root[root[i]]; return i; };
+  const loop = new Uint8Array(n);
+  for (const [, ea, eb] of pairs) {
+    if (partner[ea] >= 0 || partner[eb] >= 0) continue;
+    const ra = find(ea >> 1), rb = find(eb >> 1);
+    if (ra === rb) { if (len[ra] < gap * 4) continue; loop[ra] = 1; }   // closes a loop; a short one is not a loop
+    else { root[rb] = ra; len[ra] += len[rb]; }
+    partner[ea] = eb; partner[eb] = ea;
+  }
+  const res = [], seen = new Uint8Array(n);
+  const chain = (e) => { // walk from free end e (or any end of a loop) through the joined lines
+    const pts = [];
+    for (let cur = e; cur >= 0 && !seen[cur >> 1];) {
+      const i = cur >> 1; seen[i] = 1;
+      const p = cur & 1 ? out[i].pts.slice().reverse() : out[i].pts;
+      for (const q of p) pts.push(q);
+      cur = partner[cur ^ 1];
+    }
+    return pts;
+  };
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    if (out[i].closed) { seen[i] = 1; res.push(out[i]); continue; }
+    let e = 2 * i;   // walk back to the chain's free end
+    for (let p = partner[e]; p >= 0 && (p >> 1) !== i; p = partner[e]) e = p ^ 1;
+    const closed = !!loop[find(i)];
+    const pts = chain(closed ? 2 * i : e);
+    if (closed) pts.push(pts[0].slice());
+    res.push({ pts, closed });
+  }
+  return res;
 }
 
 function smoothPoly(a, sigma, closed) {
@@ -548,7 +621,7 @@ function stage5() { // strokes
     }
   };
   const runLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
-  const strokes = [], lines = [];   // lines: the same strokes before simplifying, for the parts step
+  let lines = [];   // strokes before simplifying; the parts step cuts these
   for (const c of cands) {
     const cov = c.pts.map(([x, y]) => near(x, y));
     // Short covered runs are joints and crossings: keep them so lines stay connected.
@@ -559,15 +632,17 @@ function stage5() { // strokes
       if (runLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
       i = j;
     }
-    if (!cov.some(Boolean)) { addPts(c.pts); strokes.push({ pts: fmt(rdp(c.pts, S.simplify)), w: +width.toFixed(2), closed: c.loop }); lines.push({ pts: c.pts, closed: c.loop }); continue; }
+    if (!cov.some(Boolean)) { addPts(c.pts); lines.push({ pts: c.pts, closed: c.loop }); continue; }
     let run = [];
     const flush = () => {
-      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); strokes.push({ pts: fmt(rdp(run, S.simplify)), w: +width.toFixed(2), closed: false }); lines.push({ pts: run, closed: false }); }
+      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); lines.push({ pts: run, closed: false }); }
       run = [];
     };
     c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
     flush();
   }
+  lines = joinGaps(lines, width, S.joinGap, S.joinAngle);
+  const strokes = lines.map((l) => ({ pts: fmt(rdp(l.pts, S.simplify)), w: +width.toFixed(2), closed: l.closed }));
   W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: shape(solid, w, h, 1.2, 0.4), strokes, rLine, width };
   W.lines = lines;
 }
