@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lightbox</title>
+<style>
+/* Layout: header bar, then a step rail with that step's controls on the left and the working view on the right */
+:root{--bg:#e4e6dc;--panel:#f3f4ee;--stage:#cfd4c2;--fg:#24261f;--muted:#5d6153;--accent:#3f7a5e;--accent-fg:#fff;--line:#c2c7b4;--warn:#a2462e;
+--body:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1e19;--panel:#24281f;--stage:#30352b;--fg:#e6e8de;--muted:#a3a896;--accent:#7cc39e;--accent-fg:#13241b;--line:#3d4237;--warn:#e08a6c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1e19;--panel:#24281f;--stage:#30352b;--fg:#e6e8de;--muted:#a3a896;--accent:#7cc39e;--accent-fg:#13241b;--line:#3d4237;--warn:#e08a6c;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--body);display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:15px;margin:0 8px 0 0}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+button,select,input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px 9px}
+button{cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.wrap{flex:1;display:flex;min-height:0}
+aside{width:320px;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+.parts{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.parts .tabs{display:flex;flex-wrap:wrap;gap:4px}
+.parts .tabs button.cur{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.parts .fields{display:grid;grid-template-columns:auto 1fr auto 4.5em;gap:6px;align-items:center}
+.parts .fields input{min-width:0;width:100%}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+ol.steps button{width:100%;text-align:left;border:none;background:none;padding:6px 8px;border-radius:5px;display:flex;gap:8px}
+ol.steps button .n{color:var(--muted);font-variant-numeric:tabular-nums;width:1.4em}
+ol.steps button.cur{background:var(--accent);color:var(--accent-fg)}
+ol.steps button.cur .n{color:inherit}
+.params{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.params h2{font-size:13px;margin:0}
+.params p.help{margin:0;color:var(--muted)}
+.p label{display:flex;justify-content:space-between;gap:8px}
+.p label output{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.p input[type=range]{width:100%;accent-color:var(--accent)}
+.p .hint{color:var(--muted);font-size:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.check{display:flex;gap:6px;align-items:center}
+main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
+#view{position:relative;max-width:100%;max-height:100%}
+#view canvas{display:block;touch-action:none}
+#view svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.empty{text-align:center;color:var(--muted);max-width:40ch;padding:24px;border:2px dashed var(--line);border-radius:10px}
+#status{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);padding:3px 8px;border-radius:4px}
+#brushCursor{position:fixed;pointer-events:none;border:1.5px solid var(--warn);border-radius:50%;display:none;z-index:5}
+@media (max-width:760px){.wrap{flex-direction:column}aside{width:auto;border-right:none;border-bottom:1px solid var(--line);max-height:50vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lightbox</h1>
+  <div class="grp"><label for="file">Photo</label><input type="file" id="file" accept="image/*"></div>
+  <div class="grp">
+    <label for="presetName">Character</label>
+    <input type="text" id="presetName" placeholder="e.g. reaper" size="12">
+    <button id="savePreset" title="Keep this character's parts and settings in this browser">Save character</button>
+    <select id="presetList" aria-label="Saved characters"><option value="">Load saved…</option></select>
+    <button id="exportPreset" title="Download <name>.preset.json, the settings for every part">Download preset</button>
+    <button id="importPresetBtn" title="Open a <name>.preset.json">Open preset</button><input type="file" id="importPreset" accept=".json" hidden>
+  </div>
+</header>
+<div class="wrap">
+  <aside>
+    <div class="parts" id="parts"></div>
+    <ol class="steps" id="steps"></ol>
+    <div class="params" id="params"></div>
+  </aside>
+  <main id="main">
+    <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left. Each part of a character has its own crop and settings.</div>
+    <div id="view" hidden><canvas id="cv"></canvas></div>
+    <div id="status"></div>
+  </main>
+</div>
+<div id="brushCursor"></div>
+<script>
+'use strict';
+// ====================================================================
+// Settings. Each parameter knows which pipeline stage it invalidates.
+// Stages: 0 source, 1 paper, 2 ink, 3 fill, 4 solid, 5 strokes (6 = view only)
+// ====================================================================
+const DEFAULTS = {
+  rotate: 0, crop: null, maxSize: 900,
+  bgOn: true, bgClose: 7, bgBlur: 40,
+  lo: 20, hi: 60, cut: 0.35, speck: 20,
+  fillClose: 14, fillOpen: 2,
+  lineBlur: 1.2, lineT: 0.22, minLen: 8, spur: 10, smooth: 2.5, simplify: 0.6, widthScale: 1, overlapLen: 4, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 3,
+  boilAmp: 1.2, boilFps: 8, boilPoses: 3,
+  edits: [],   // brush edits: {layer:'ink'|'fill', mode:'add'|'erase', r, pts:[[x,y]...]} in rotated-source pixels
+};
+let S = structuredClone(DEFAULTS);
+let CH = { parts: [{ id: 'body', z: 0, pivot: null, settings: S }] }, cur = 0;   // the character being traced
+const PART = () => CH.parts[cur];
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const STEPS = [
+  { id: 'source', name: 'Source', stage: 0, help: 'Rotate the page and drag a box around ONE character. Everything after works on that box.',
+    params: [['rotate', 'Rotate', 'rot'], ['maxSize', 'Working size (px, long side)', 300, 1600, 50, 0]] },
+  { id: 'paper', name: 'Paper', stage: 1, help: 'Removes uneven lighting and paper colour. The view should look like even white paper with grey lines.',
+    params: [['bgOn', 'Flatten lighting', 'bool', 1], ['bgClose', 'Line removal size', 1, 30, 1, 1, 'Larger than the thickest line. Too small leaves lines in the light estimate.'], ['bgBlur', 'Lighting smoothness', 5, 150, 1, 1]] },
+  { id: 'ink', name: 'Ink', stage: 2, brush: 'ink', help: 'Picks which pixels are pencil. Paint with the brush to add missed lines or erase smudges, specks and stray marks.',
+    params: [['lo', 'Paper level (below = paper)', 0, 120, 1, 2], ['hi', 'Full ink level', 1, 200, 1, 2], ['cut', 'Line cut-off', 0.05, 0.9, 0.01, 2], ['speck', 'Remove specks smaller than (px)', 0, 400, 1, 2], ['auto', 'Auto levels', 'btn']] },
+  { id: 'fill', name: 'Paper fill', stage: 3, brush: 'fill', help: 'The white cutout under the drawing. Raise gap closing if it leaks inside, or paint/erase the fill directly.',
+    params: [['fillClose', 'Gap closing (px)', 1, 60, 1, 3], ['fillOpen', 'Trim thin bits (px)', 0, 10, 1, 3]] },
+  { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
+    params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
+  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back. With the photo underneath, strokes are blue.',
+    params: [['lineBlur', 'Merge pencil grain', 0.5, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['spur', 'Trim spurs shorter than', 0, 40, 1, 5], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 3, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view']] },
+  { id: 'boil', name: 'Boil & export', stage: 5, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set this part\'s pivot, then export the whole character.',
+    params: [['boilAmp', 'Boil strength', 0, 4, 0.1, 6], ['boilFps', 'Frames per second', 2, 24, 1, 6], ['boilPoses', 'Poses in cycle', 2, 6, 1, 6], ['pivot', '', 'pivot'], ['export', '', 'export']] },
+];
+const STAGE_OF = {};
+for (const st of STEPS) for (const p of st.params) if (typeof p[2] === 'number') STAGE_OF[p[0]] = p[5]; else if (p[2] === 'bool') STAGE_OF[p[0]] = p[3];
+STAGE_OF.rotate = 0;
+
+// ====================================================================
+// Image helpers (plain JS, no libraries)
+// ====================================================================
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+function slideExtreme(src, w, h, r, isMax) { // separable square max/min filter, monotonic deque, O(n)
+  if (r < 1) return src.slice();
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  const q = new Int32Array(Math.max(w, h) + 2 * r + 2);
+  const better = isMax ? (a, b) => a >= b : (a, b) => a <= b;
+  const pass = (inp, outp, n, m, stride, step) => {
+    for (let j = 0; j < m; j++) {
+      const base = j * stride;
+      let head = 0, tail = 0;
+      for (let i = -r; i < n; i++) {
+        const k = i + r;
+        if (k < n) {
+          const v = inp[base + k * step];
+          while (tail > head && better(v, inp[base + q[tail - 1] * step])) tail--;
+          q[tail++] = k;
+        }
+        if (q[head] < i - r) head++;
+        if (i >= 0) outp[base + i * step] = inp[base + q[head] * step];
+      }
+    }
+  };
+  pass(src, tmp, w, h, w, 1);
+  pass(tmp, out, h, w, 1, w);
+  return out;
+}
+
+function boxBlur(src, w, h, r) {
+  r = Math.round(r);
+  if (r < 1) return src.slice();
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  const pass = (inp, outp, n, m, stride, step) => {
+    const inv = 1 / (2 * r + 1);
+    for (let j = 0; j < m; j++) {
+      const b = j * stride;
+      let acc = 0;
+      for (let k = -r; k <= r; k++) acc += inp[b + clamp(k, 0, n - 1) * step];
+      for (let i = 0; i < n; i++) {
+        outp[b + i * step] = acc * inv;
+        acc += inp[b + clamp(i + r + 1, 0, n - 1) * step] - inp[b + clamp(i - r, 0, n - 1) * step];
+      }
+    }
+  };
+  pass(src, tmp, w, h, w, 1);
+  pass(tmp, out, h, w, 1, w);
+  return out;
+}
+function gauss(src, w, h, sigma) { // three box passes ~ gaussian
+  if (sigma <= 0.3) return src.slice();
+  const r = Math.max(1, Math.round(Math.sqrt((12 * sigma * sigma) / 3 + 1) / 2 - 0.5 + 0.5));
+  return boxBlur(boxBlur(boxBlur(src, w, h, r), w, h, r), w, h, r);
+}
+
+// Exact Euclidean distance transform (Felzenszwalb). Returns distance from each pixel to the nearest pixel where mask==0.
+function edt(mask, w, h) {
+  const INF = 1e20, f = new Float64Array(Math.max(w, h)), d = new Float64Array(Math.max(w, h));
+  const v = new Int32Array(Math.max(w, h)), z = new Float64Array(Math.max(w, h) + 1);
+  const g = new Float64Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = mask[i] ? INF : 0;
+  const tr = (n) => {
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = g[y * w + x]; tr(h); for (let y = 0; y < h; y++) g[y * w + x] = d[y]; }
+  for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = g[y * w + x]; tr(w); for (let x = 0; x < w; x++) g[y * w + x] = d[x]; }
+  const out = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) out[i] = Math.sqrt(g[i]);
+  return out;
+}
+const not = (m) => { const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = m[i] ? 0 : 1; return o; };
+function dilate(m, w, h, r) { if (r <= 0) return m.slice(); const d = edt(not(m), w, h); const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = d[i] <= r ? 1 : 0; return o; }
+function erode(m, w, h, r) { if (r <= 0) return m.slice(); const d = edt(m, w, h); const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = d[i] > r ? 1 : 0; return o; }
+
+function components(m, w, h) { // 8-connected labels and areas
+  const lab = new Int32Array(w * h), areas = [0], stack = new Int32Array(w * h);
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i] || lab[i]) continue;
+    n++; let sp = 0, a = 0; stack[sp++] = i; lab[i] = n;
+    while (sp) {
+      const p = stack[--sp]; a++;
+      const x = p % w, y = (p / w) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const q = yy * w + xx;
+        if (m[q] && !lab[q]) { lab[q] = n; stack[sp++] = q; }
+      }
+    }
+    areas.push(a);
+  }
+  return { lab, areas, n };
+}
+function dropSmall(m, w, h, minA) {
+  if (minA <= 1) return m.slice();
+  const { lab, areas } = components(m, w, h);
+  const o = new Uint8Array(m.length);
+  for (let i = 0; i < m.length; i++) o[i] = lab[i] && areas[lab[i]] >= minA ? 1 : 0;
+  return o;
+}
+function outsideFlood(blocked, w, h) { // pixels reachable from the border without crossing `blocked`
+  const out = new Uint8Array(w * h), st = new Int32Array(w * h); let sp = 0;
+  const push = (p) => { if (!blocked[p] && !out[p]) { out[p] = 1; st[sp++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (sp) {
+    const p = st[--sp], x = p % w, y = (p / w) | 0;
+    if (x > 0) push(p - 1); if (x < w - 1) push(p + 1); if (y > 0) push(p - w); if (y < h - 1) push(p + w);
+  }
+  return out;
+}
+
+function thin(m, w, h) { // Zhang-Suen thinning
+  const s = m.slice();
+  for (let x = 0; x < w; x++) { s[x] = 0; s[(h - 1) * w + x] = 0; }
+  for (let y = 0; y < h; y++) { s[y * w] = 0; s[y * w + w - 1] = 0; }
+  const del = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let iter = 0; iter < 2; iter++) {
+      del.length = 0;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x; if (!s[i]) continue;
+        const p2 = s[i - w], p3 = s[i - w + 1], p4 = s[i + 1], p5 = s[i + w + 1], p6 = s[i + w], p7 = s[i + w - 1], p8 = s[i - 1], p9 = s[i - w - 1];
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const A = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+        if (A !== 1) continue;
+        if (iter === 0 ? (p2 * p4 * p6 || p4 * p6 * p8) : (p2 * p4 * p8 || p2 * p6 * p8)) continue;
+        del.push(i);
+      }
+      for (const i of del) s[i] = 0;
+      if (del.length) changed = true;
+    }
+  }
+  return s;
+}
+
+// Skeleton -> polylines (node to node, plus closed loops)
+function skeletonPaths(sk, w, h) {
+  const NB = [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1];
+  const nbrs = (p) => { const o = []; for (const d of NB) if (sk[p + d]) o.push(p + d); return o; };
+  const deg = new Map(), nodes = new Set();
+  for (let i = 0; i < w * h; i++) if (sk[i]) { const d = nbrs(i).length; deg.set(i, d); if (d !== 2) nodes.add(i); }
+  const used = new Set();
+  const key = (a, b) => (a < b ? a * 4194304 + b : b * 4194304 + a);
+  const paths = [];
+  const walk = (start, nxt) => {
+    const path = [start, nxt]; used.add(key(start, nxt));
+    let prev = start, cur = nxt;
+    while (!nodes.has(cur)) {
+      const cand = nbrs(cur).filter((q) => q !== prev && !used.has(key(cur, q)));
+      if (!cand.length) break;
+      cand.sort((a, b) => Math.abs(a - cur) === 1 || Math.abs(a - cur) === w ? -1 : 1);
+      const q = cand[0]; used.add(key(cur, q)); path.push(q); prev = cur; cur = q;
+      if (cur === start) break;
+    }
+    return path;
+  };
+  for (const n of nodes) for (const q of nbrs(n)) if (!used.has(key(n, q))) paths.push(walk(n, q));
+  for (const p of deg.keys()) for (const q of nbrs(p)) if (!used.has(key(p, q))) { nodes.add(p); paths.push(walk(p, q)); nodes.delete(p); }
+  return { paths: paths.map((p) => p.map((i) => [i % w, (i / w) | 0])), deg: (x, y) => deg.get(y * w + x) || 0 };
+}
+
+function joinPaths(paths) { // join strokes that continue straight through a junction
+  const dir = (p, atStart) => { const s = atStart ? p.slice(0, 6) : p.slice(-6).reverse(); const vx = s[s.length - 1][0] - s[0][0], vy = s[s.length - 1][1] - s[0][1]; const n = Math.hypot(vx, vy) || 1; return [vx / n, vy / n]; };
+  const k = (pt) => pt[0] + ',' + pt[1];
+  const closed = (p) => p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1];
+  for (let guard = 0; guard < 5000; guard++) {
+    const ends = new Map();
+    paths.forEach((p, i) => { if (closed(p)) return; for (const s of [true, false]) { const kk = k(s ? p[0] : p[p.length - 1]); if (!ends.has(kk)) ends.set(kk, []); ends.get(kk).push([i, s]); } });
+    let best = null;
+    for (const lst of ends.values()) {
+      if (lst.length < 2) continue;
+      for (let a = 0; a < lst.length; a++) for (let b = a + 1; b < lst.length; b++) {
+        const [i, si] = lst[a], [j, sj] = lst[b]; if (i === j) continue;
+        const da = dir(paths[i], si), db = dir(paths[j], sj), c = da[0] * db[0] + da[1] * db[1];
+        if (c < -0.5 && (!best || c < best[0])) best = [c, i, si, j, sj];
+      }
+      if (best) break;
+    }
+    if (!best) break;
+    const [, i, si, j, sj] = best;
+    const pi = si ? paths[i].slice().reverse() : paths[i];
+    const pj = sj ? paths[j] : paths[j].slice().reverse();
+    const merged = pi.concat(pj.slice(1));
+    paths = paths.filter((_, x) => x !== i && x !== j); paths.push(merged);
+  }
+  return paths;
+}
+
+function smoothPoly(a, sigma, closed) {
+  if (sigma < 0.3 || a.length < 5) return a.map((p) => p.slice());
+  const k = Math.ceil(sigma * 3), g = [];
+  let sum = 0; for (let x = -k; x <= k; x++) { const v = Math.exp(-(x * x) / (2 * sigma * sigma)); g.push(v); sum += v; }
+  const n = closed ? a.length - 1 : a.length, out = [];
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0;
+    for (let t = -k; t <= k; t++) {
+      let j = i + t;
+      if (closed) j = ((j % n) + n) % n; else j = clamp(j, 0, n - 1);
+      sx += a[j][0] * g[t + k]; sy += a[j][1] * g[t + k];
+    }
+    out.push([sx / sum, sy / sum]);
+  }
+  if (closed) out.push(out[0].slice()); else { out[0] = a[0].slice(); out[n - 1] = a[n - 1].slice(); }
+  return out;
+}
+function rdp(pts, eps) {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const st = [[0, pts.length - 1]];
+  while (st.length) {
+    const [a, b] = st.pop(); let md = 0, mi = -1;
+    const [ax, ay] = pts[a], [bx, by] = pts[b], dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+    for (let i = a + 1; i < b; i++) {
+      const d = L ? Math.abs(dy * pts[i][0] - dx * pts[i][1] + bx * ay - by * ax) / L : Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
+      if (d > md) { md = d; mi = i; }
+    }
+    if (md > eps && mi > 0) { keep[mi] = 1; st.push([a, mi], [mi, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+function contours(m, w, h) { // pixel-edge loops; holes come out as separate loops (use evenodd)
+  const W = w + 1, out = new Map();
+  const add = (a, b) => { if (!out.has(a)) out.set(a, []); out.get(a).push(b); };
+  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && m[y * w + x];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!m[y * w + x]) continue;
+    if (!at(x, y - 1)) add(y * W + x, y * W + x + 1);
+    if (!at(x + 1, y)) add(y * W + x + 1, (y + 1) * W + x + 1);
+    if (!at(x, y + 1)) add((y + 1) * W + x + 1, (y + 1) * W + x);
+    if (!at(x - 1, y)) add((y + 1) * W + x, y * W + x);
+  }
+  const loops = [];
+  for (const start of out.keys()) {
+    while (out.get(start).length) {
+      const loop = [start]; let cur = start;
+      for (let guard = 0; guard < 4e6; guard++) {
+        const nx = out.get(cur); if (!nx || !nx.length) break;
+        cur = nx.pop(); loop.push(cur); if (cur === start) break;
+      }
+      if (loop.length > 8) loops.push(loop.map((v) => [v % W, (v / W) | 0]));
+    }
+  }
+  return loops;
+}
+
+function stamp(arr, w, h, x, y, r, val) {
+  const x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(w - 1, Math.ceil(x + r));
+  const y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(h - 1, Math.ceil(y + r));
+  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) if ((xx - x) ** 2 + (yy - y) ** 2 <= r * r) arr[yy * w + xx] = val;
+}
+function applyEdits(arr, layer, w, h, val) {
+  for (const e of S.edits) {
+    if (e.layer !== layer) continue;
+    const v = e.mode === 'add' ? val : 0;
+    const pts = e.pts.map(([x, y]) => toWork(x, y)), r = e.r * W.scale;
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = pts[i];
+      if (i === 0) { stamp(arr, w, h, x, y, r, v); continue; }
+      const [px, py] = pts[i - 1], d = Math.hypot(x - px, y - py), n = Math.max(1, Math.ceil(d / Math.max(0.5, r / 2)));
+      for (let t = 1; t <= n; t++) stamp(arr, w, h, px + ((x - px) * t) / n, py + ((y - py) * t) / n, r, v);
+    }
+  }
+}
+
+// ====================================================================
+// Pipeline
+// ====================================================================
+let img = null;            // loaded HTMLImageElement
+let rot = null;            // rotated full-res canvas
+const W = {};              // working data per stage
+let valid = -1;            // highest valid stage
+
+function rotated() {
+  const c = document.createElement('canvas'), q = ((S.rotate % 360) + 360) % 360;
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  c.width = q % 180 ? sh : sw; c.height = q % 180 ? sw : sh;
+  const x = c.getContext('2d'); x.translate(c.width / 2, c.height / 2); x.rotate((q * Math.PI) / 180); x.drawImage(img, -sw / 2, -sh / 2);
+  return c;
+}
+const toWork = (x, y) => [(x - W.cx) * W.scale, (y - W.cy) * W.scale];
+const toSrc = (x, y) => [x / W.scale + W.cx, y / W.scale + W.cy];
+
+function stage0() {
+  rot = rotated();
+  let [cx, cy, cw, ch] = S.crop || [0, 0, rot.width, rot.height];
+  cx = clamp(Math.round(cx), 0, rot.width - 2); cy = clamp(Math.round(cy), 0, rot.height - 2);
+  cw = clamp(Math.round(cw), 2, rot.width - cx); ch = clamp(Math.round(ch), 2, rot.height - cy);
+  const scale = Math.min(1, S.maxSize / Math.max(cw, ch)), w = Math.max(2, Math.round(cw * scale)), h = Math.max(2, Math.round(ch * scale));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(rot, cx, cy, cw, ch, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data, gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  Object.assign(W, { w, h, cx, cy, cw, ch, scale, photo: c, gray });
+}
+function stage1() {
+  const { w, h, gray } = W;
+  if (!S.bgOn) { W.flat = gray.slice(); return; }
+  const bg = boxBlur(boxBlur(slideExtreme(slideExtreme(gray, w, h, Math.round(S.bgClose * Math.max(0.3, W.scale)), true), w, h, Math.round(S.bgClose * Math.max(0.3, W.scale)), false), w, h, S.bgBlur), w, h, S.bgBlur);
+  const flat = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) flat[i] = clamp((gray[i] / Math.max(1, bg[i])) * 255, 0, 255);
+  W.flat = flat;
+}
+function autoLevels() {
+  const { flat } = W, dark = Array.from(flat, (v) => 255 - v).sort((a, b) => a - b);
+  const pct = (arr, p) => arr[Math.min(arr.length - 1, Math.floor((p / 100) * arr.length))];
+  const lo = pct(dark, 90) + 6, ink = dark.filter((v) => v > lo);
+  const hi = Math.max(lo + 20, ink.length ? pct(ink, 60) : lo + 60);
+  S.lo = Math.round(lo); S.hi = Math.round(hi);
+}
+function stage2() {
+  const { w, h, flat } = W, a = new Float32Array(w * h), ink = new Uint8Array(w * h);
+  const lo = S.lo, span = Math.max(1, S.hi - S.lo);
+  for (let i = 0; i < w * h; i++) { a[i] = clamp((255 - flat[i] - lo) / span, 0, 1); ink[i] = a[i] > S.cut ? 1 : 0; }
+  let keep = dropSmall(ink, w, h, S.speck * W.scale * W.scale);
+  const near = dilate(keep, w, h, 2);
+  for (let i = 0; i < w * h; i++) if (!near[i]) a[i] = 0;
+  applyEdits(a, 'ink', w, h, 1); applyEdits(keep, 'ink', w, h, 1);
+  W.alpha = a; W.ink = keep;
+}
+function stage3() {
+  const { w, h, ink } = W, r = S.fillClose * W.scale;
+  const closed = erode(dilate(ink, w, h, r), w, h, r);
+  const outside = outsideFlood(closed, w, h);
+  let sil = not(outside);
+  if (S.fillOpen > 0) sil = dilate(erode(sil, w, h, S.fillOpen), w, h, S.fillOpen);
+  for (let i = 0; i < w * h; i++) if (ink[i]) sil[i] = 1;
+  applyEdits(sil, 'fill', w, h, 1);
+  // ink outside the fill is a stray mark: drop it
+  const a = W.alpha.slice();
+  for (let i = 0; i < w * h; i++) if (!sil[i]) a[i] = 0;
+  W.sil = sil; W.alphaIn = a;
+}
+function median(arr) { if (!arr.length) return 0; const s = Float32Array.from(arr).sort(); return s[s.length >> 1]; }
+function stage4() { // solid ink: decided from the sharp ink mask, before any tracing
+  const { w, h, ink, sil } = W;
+  let inkIn = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) inkIn[i] = ink[i] && sil[i] ? 1 : 0;
+  const dist = edt(inkIn, w, h), sk = thin(inkIn, w, h), rs = [];
+  for (let i = 0; i < w * h; i++) if (sk[i]) rs.push(dist[i]);
+  const rLine = Math.max(1, median(rs));            // half the width of a typical drawn line
+  // Pencil fill is grainy: close small gaps first so a coloured-in area reads as one block.
+  const inkC = S.solidClose > 0 ? erode(dilate(inkIn, w, h, S.solidClose), w, h, S.solidClose) : inkIn;
+  const distC = S.solidClose > 0 ? edt(inkC, w, h) : dist;
+  const t = Math.max(1.5, rLine * S.solidK);
+  let solid = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) solid[i] = distC[i] > t ? 1 : 0;   // cores: deeper inside ink than any line
+  solid = dilate(solid, w, h, t + 1);                                // grow back to the drawn edge
+  for (let i = 0; i < w * h; i++) solid[i] &= inkC[i];
+  { // keep only blobs that are big AND clearly deeper than a line (thick junctions and doubled lines are not)
+    const { lab, areas, n } = components(solid, w, h), depth = new Float32Array(n + 1);
+    for (let i = 0; i < w * h; i++) if (lab[i] && distC[i] > depth[lab[i]]) depth[lab[i]] = distC[i];
+    const minA = (rLine * S.solidMin) ** 2, minD = t + rLine * S.solidDepth;
+    for (let i = 0; i < w * h; i++) if (lab[i] && (areas[lab[i]] < minA || depth[lab[i]] < minD)) solid[i] = 0;
+  }
+  // fill small enclosed holes (white grain specks inside a shoe)
+  const out = outsideFlood(solid, w, h), holes = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) holes[i] = !solid[i] && !out[i] ? 1 : 0;
+  const { lab, areas } = components(holes, w, h), maxHole = (rLine * 6) ** 2;
+  for (let i = 0; i < w * h; i++) if (lab[i] && areas[lab[i]] <= maxHole) solid[i] = 1;
+  applyEdits(solid, 'solid', w, h, 1);
+  W.solid = solid; W.rLine = rLine;
+}
+function stage5() { // strokes
+  const { w, h, alphaIn: a, sil, solid, rLine } = W;
+  const blurred = gauss(a, w, h, S.lineBlur);
+  const solidPad = dilate(solid, w, h, 1 + S.lineBlur);
+  let line = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) line[i] = blurred[i] > S.lineT && !solidPad[i] ? 1 : 0;
+  line = dropSmall(line, w, h, 20);
+  const { paths: raw, deg } = skeletonPaths(thin(line, w, h), w, h);
+  const paths = joinPaths(raw);
+  const width = Math.max(0.8, 2 * rLine * S.widthScale);           // one width for every stroke
+  const cands = [];
+  for (const p of paths) {
+    if (p.length < 2) continue;
+    let len = 0; for (let i = 1; i < p.length; i++) len += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    const loop = p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1];
+    const spur = (deg(...p[0]) === 1) !== (deg(...p[p.length - 1]) === 1);
+    if (!loop && len < Math.max(S.minLen, width)) continue;
+    if (spur && len < S.spur) continue;
+    cands.push({ pts: smoothPoly(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth, loop), len, loop });
+  }
+  // No line on top of another: keep long strokes first, cut later strokes where they come
+  // within one line width of a kept stroke (caps then just touch).
+  cands.sort((p, q) => q.len - p.len);
+  const cell = Math.max(2, width), grid = new Map(), gk = (cx, cy) => cx * 65536 + cy;
+  const near = (x, y) => {
+    const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const l = grid.get(gk(cx + dx, cy + dy)); if (!l) continue;
+      for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < width * width) return true;
+    }
+    return false;
+  };
+  const addPts = (pts) => {
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = pts[i], n = i ? Math.ceil(Math.hypot(x - pts[i - 1][0], y - pts[i - 1][1])) : 1;
+      for (let t = 1; t <= n; t++) {
+        const px = i ? pts[i - 1][0] + ((x - pts[i - 1][0]) * t) / n : x, py = i ? pts[i - 1][1] + ((y - pts[i - 1][1]) * t) / n : y;
+        const k = gk(Math.floor(px / cell), Math.floor(py / cell));
+        if (!grid.has(k)) grid.set(k, []); grid.get(k).push(px, py);
+      }
+    }
+  };
+  const runLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
+  const strokes = [], fmt = (r) => r.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]);
+  for (const c of cands) {
+    const cov = c.pts.map(([x, y]) => near(x, y));
+    // Short covered runs are joints and crossings: keep them so lines stay connected.
+    // Only runs that follow another stroke for a while count as drawn twice.
+    for (let i = 0; i < cov.length;) {
+      if (!cov[i]) { i++; continue; }
+      let j = i; while (j < cov.length && cov[j]) j++;
+      if (runLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
+      i = j;
+    }
+    if (!cov.some(Boolean)) { addPts(c.pts); strokes.push({ pts: fmt(rdp(c.pts, S.simplify)), w: +width.toFixed(2), closed: c.loop }); continue; }
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); strokes.push({ pts: fmt(rdp(run, S.simplify)), w: +width.toFixed(2), closed: false }); }
+      run = [];
+    };
+    c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
+    flush();
+  }
+  const shape = (mask, sm, eps) => contours(mask, w, h).map((l) => rdp(smoothPoly(l, sm, true), eps)).filter((l) => l.length >= 4).map((l) => l.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]));
+  W.fig = { w, h, paper: shape(sil, S.fillSmooth, 0.8), solid: shape(solid, 1.2, 0.4), strokes, rLine, width };
+}
+const STAGES = [stage0, stage1, stage2, stage3, stage4, stage5];
+function ensure(stage) {
+  for (let s = valid + 1; s <= stage; s++) { STAGES[s](); valid = s; }
+}
+function invalidate(stage) { valid = Math.min(valid, stage - 1); }
+
+// ====================================================================
+// SVG output and boil
+// ====================================================================
+function bez(p, closed) {
+  if (p.length === 2) return `M${p[0][0]} ${p[0][1]}L${p[1][0]} ${p[1][1]}`;
+  let e;
+  if (closed) { p = p.slice(0, -1); e = [p[p.length - 1], ...p, p[0], p[1]]; } else e = [p[0], ...p, p[p.length - 1]];
+  const f = (v) => +v.toFixed(1);
+  let d = `M${f(e[1][0])} ${f(e[1][1])}`;
+  for (let i = 1; i < e.length - 2; i++) {
+    const [a, b, c, q] = [e[i - 1], e[i], e[i + 1], e[i + 2]];
+    d += `C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (q[0] - b[0]) / 6)} ${f(c[1] - (q[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`;
+  }
+  return closed ? d + 'Z' : d;
+}
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function jitter(pts, closed, seed, amp) {
+  if (!amp) return pts;
+  const r = rng(seed), len = [0];
+  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const T = len[len.length - 1] || 1, ox = (r() - 0.5) * amp, oy = (r() - 0.5) * amp, waves = [];
+  for (let k = 0; k < 2; k++) { const lam = 20 + r() * 50; waves.push({ fr: closed ? (2 * Math.PI * Math.max(1, Math.round(T / lam))) / T : (2 * Math.PI) / lam, px: r() * 6.283, py: r() * 6.283, w: k ? 0.35 : 0.65 }); }
+  return pts.map(([x, y], i) => { let dx = 0, dy = 0; for (const v of waves) { dx += v.w * Math.sin(len[i] * v.fr + v.px); dy += v.w * Math.sin(len[i] * v.fr + v.py); } return [x + ox + dx * amp * 0.8, y + oy + dy * amp * 0.8]; });
+}
+const INK = '#2b2622', PAPER = '#fffdf6';
+function svgMarkup(fig, pose, amp, standalone) {
+  const seed = (part, i) => (part * 104729 + i * 31 + pose * 15485863) | 0;
+  const paper = fig.paper.map((l, i) => bez(jitter(l, true, seed(1, i), amp * 0.6), true)).join('');
+  const solid = fig.solid.map((l, i) => bez(jitter(l, true, seed(2, i), amp * 0.6), true)).join('');
+  const strokes = fig.strokes.map((s, i) => {
+    const sw = s.w;
+    return `<path stroke-width="${sw.toFixed(2)}" d="${bez(jitter(s.pts, s.closed, seed(3, i), amp), s.closed)}"/>`;
+  }).join('\n');
+  const head = standalone ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${fig.w} ${fig.h}" width="${fig.w}" height="${fig.h}">` : '';
+  return `${head}<g id="paper"><path fill="${PAPER}" fill-rule="evenodd" d="${paper}"/></g>
+<g id="solid"><path fill="${INK}" fill-rule="evenodd" d="${solid}"/></g>
+<g id="ink" fill="none" stroke="${INK}" stroke-linecap="round" stroke-linejoin="round">
+${strokes}
+</g>${standalone ? '</svg>\n' : ''}`;
+}
+
+// ====================================================================
+// UI
+// ====================================================================
+const $ = (id) => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let pivotMode = false, step = 0, showOverlay = true, brushMode = 'add', brushSize = 8, boilTimer = null, boilFrame = 0;
+let svgEl = null;
+
+function renderSteps() {
+  $('steps').innerHTML = STEPS.map((s, i) => `<li><button data-i="${i}" class="${i === step ? 'cur' : ''}"><span class="n">${i + 1}</span>${s.name}</button></li>`).join('');
+  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; renderSteps(); renderParams(); draw(); });
+}
+function renderParams() {
+  const st = STEPS[step];
+  let h = `<h2>${step + 1}. ${st.name}</h2><p class="help">${st.help}</p>`;
+  for (const p of st.params) {
+    const [k, label, a] = p;
+    if (a === 'rot') h += `<div class="p"><label>${label}<output>${S.rotate}°</output></label><div class="row"><button data-rot="-90">↺ 90°</button><button data-rot="90">↻ 90°</button><button id="resetCrop">Use whole image</button></div></div>`;
+    else if (a === 'bool') h += `<label class="check"><input type="checkbox" data-k="${k}" ${S[k] ? 'checked' : ''}> ${label}</label>`;
+    else if (a === 'btn') h += `<div class="row"><button id="autoBtn">${label}</button><span class="hint">Sets the two levels from this image.</span></div>`;
+    else if (a === 'view') h += `<label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> ${label}</label>`;
+    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of crop'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
+    else if (a === 'export') h += `<div class="row"><button class="primary" id="dlChar">Download character JSON</button></div><span class="hint">All ${CH.parts.length} part(s) as <code>${esc(fileBase())}.json</code> for <code>assets/characters/</code>. Also download the preset to keep the settings.</span><div class="row"><button id="dlSvg">Download part SVG</button><button id="cpSvg">Copy part SVG</button></div><span class="hint" id="figStats"></span>`;
+    else h += `<div class="p"><label for="r_${k}">${label}<output id="o_${k}">${S[k]}</output></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
+  }
+  if (st.brush) h += `<div class="p"><label>Brush (${LAYER_NAME[st.brush]})<output id="o_brush">${brushSize}px</output></label>
+    <div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button><button id="bUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="bRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="bClear">Clear brush</button></div>
+    <input type="range" id="brushSize" min="1" max="80" step="1" value="${brushSize}"><label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> Show photo underneath</label></div>`;
+  $('params').innerHTML = h;
+  $('params').querySelectorAll('input[type=range][data-k]').forEach((el) => el.oninput = () => {
+    const k = el.dataset.k; S[k] = +el.value; $('o_' + k).textContent = el.value; changed(STAGE_OF[k]);
+  });
+  $('params').querySelectorAll('input[type=checkbox][data-k]').forEach((el) => el.onchange = () => { S[el.dataset.k] = el.checked; changed(STAGE_OF[el.dataset.k]); });
+  $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => { S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; redo.ink = []; redo.fill = []; redo.solid = []; changed(0); renderParams(); });
+  const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
+  on('resetCrop', () => { S.crop = null; changed(0); });
+  on('autoBtn', () => { ensure(1); autoLevels(); changed(2); renderParams(); });
+  on('bAdd', () => { brushMode = 'add'; renderParams(); });
+  on('bErase', () => { brushMode = 'erase'; renderParams(); });
+  on('bUndo', () => undoBrush(st.brush));
+  on('bRedo', () => redoBrush(st.brush));
+  on('bClear', () => { S.edits = S.edits.filter((e) => e.layer !== st.brush); redo[st.brush] = []; changed(LAYER_STAGE[st.brush]); });
+  on('dlSvg', () => download(fileBase() + '.' + PART().id + '.svg', svgMarkup(W.fig, 0, 0, true), 'image/svg+xml'));
+  on('dlChar', () => { try { const c = buildCharacter(); download(fileBase() + '.json', JSON.stringify(c), 'application/json'); status(`Exported ${c.parts.length} part(s), ${c.size[0]}×${c.size[1]}`); } catch (e) { status(e.message); } });
+  on('pivotBtn', () => { pivotMode = !pivotMode; renderParams(); });
+  on('pivotReset', () => { PART().pivot = null; pivotMode = false; renderParams(); draw(); });
+  on('cpSvg', async () => { try { await navigator.clipboard.writeText(svgMarkup(W.fig, 0, 0, true)); status('SVG copied'); } catch { status('Copy was blocked by the browser'); } });
+  const bs = $('brushSize'); if (bs) bs.oninput = () => { brushSize = +bs.value; $('o_brush').textContent = brushSize + 'px'; };
+  const ov = $('overlay'); if (ov) ov.onchange = () => { showOverlay = ov.checked; draw(); };
+}
+// Undo/redo for brush strokes, one history per layer (ink, fill). Redo is not saved with settings.
+const LAYER_STAGE = { ink: 2, fill: 3, solid: 4 }, LAYER_NAME = { ink: 'ink', fill: 'paper fill', solid: 'solid ink' };
+const redo = { ink: [], fill: [], solid: [] };
+function undoBrush(layer) {
+  for (let i = S.edits.length - 1; i >= 0; i--) if (S.edits[i].layer === layer) {
+    redo[layer].push(S.edits.splice(i, 1)[0]); changed(LAYER_STAGE[layer]); status(`Undid ${LAYER_NAME[layer]} brush stroke`); return;
+  }
+  status('Nothing to undo');
+}
+function redoBrush(layer) {
+  const e = redo[layer].pop();
+  if (!e) { status('Nothing to redo'); return; }
+  S.edits.push(e); changed(LAYER_STAGE[layer]); status(`Redid ${LAYER_NAME[layer]} brush stroke`);
+}
+window.addEventListener('keydown', (ev) => {
+  if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.key.toLowerCase() !== 'z') return;
+  const t = ev.target; if (t && (t.tagName === 'INPUT' && t.type === 'text' || t.tagName === 'TEXTAREA')) return; // keep text-field undo
+  const layer = STEPS[step].brush; if (!layer || !img || drag) return;
+  ev.preventDefault();
+  ev.shiftKey ? redoBrush(layer) : undoBrush(layer);
+});
+const fileBase = () => ($('presetName').value.trim() || 'character').replace(/[^\w-]+/g, '_');
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function status(t) { $('status').textContent = t; }
+
+let pending = null;
+function changed(stage) {
+  invalidate(stage);
+  if (pending) return;
+  // The stroke step takes a few hundred ms, so wait for the slider to settle there.
+  const slow = STEPS[step].stage >= 4 && !drag;
+  pending = slow ? setTimeout(() => { pending = null; draw(); }, 150) : requestAnimationFrame(() => { pending = null; draw(); });
+}
+function fitView() { // scale the working canvas up or down to fill the view area
+  const m = $('main').getBoundingClientRect(), pad = 32;
+  const s = Math.min((m.width - pad) / cv.width, (m.height - pad - 24) / cv.height, 4);
+  cv.style.width = Math.round(cv.width * s) + 'px'; cv.style.height = Math.round(cv.height * s) + 'px';
+}
+window.addEventListener('resize', () => img && fitView());
+
+function putGray(arrFn) {
+  const { w, h } = W, id = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const [r, g, b, a] = arrFn(i); id.data[i * 4] = r; id.data[i * 4 + 1] = g; id.data[i * 4 + 2] = b; id.data[i * 4 + 3] = a; }
+  ctx.putImageData(id, 0, 0);
+}
+function setSvg(markup) {
+  if (!markup) { if (svgEl) { svgEl.remove(); svgEl = null; } return; }
+  if (!svgEl) { svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); $('view').append(svgEl); }
+  svgEl.setAttribute('viewBox', `0 0 ${W.w} ${W.h}`);
+  svgEl.innerHTML = markup;
+}
+
+function draw() {
+  if (!img) return;
+  clearInterval(boilTimer); boilTimer = null;
+  const st = STEPS[step], t0 = performance.now();
+  try { ensure(st.stage); } catch (e) { status('Error: ' + e.message); console.error(e); return; }
+  const ms = Math.round(performance.now() - t0);
+  setSvg(null);
+  queueMicrotask(fitView);
+  if (st.id === 'source') {
+    const s = Math.min(1, 1400 / Math.max(rot.width, rot.height));
+    cv.width = Math.round(rot.width * s); cv.height = Math.round(rot.height * s);
+    ctx.drawImage(rot, 0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(20,30,20,.45)';
+    const [x, y, w, h] = [W.cx * s, W.cy * s, W.cw * s, W.ch * s];
+    ctx.fillRect(0, 0, cv.width, y); ctx.fillRect(0, y + h, cv.width, cv.height - y - h); ctx.fillRect(0, y, x, h); ctx.fillRect(x + w, y, cv.width - x - w, h);
+    ctx.strokeStyle = '#e08a6c'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    cv.dataset.s = s;
+    status(`${rot.width}×${rot.height} source · crop ${W.cw}×${W.ch} → working ${W.w}×${W.h} · drag to crop`);
+    return;
+  }
+  cv.width = W.w; cv.height = W.h;
+  if (st.id === 'paper') { const f = W.flat; putGray((i) => [f[i], f[i], f[i], 255]); }
+  else if (st.id === 'ink') {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alpha, k = W.ink;
+    for (let i = 0; i < W.w * W.h; i++) {
+      const v = a[i]; if (v <= 0) continue;
+      const col = k[i] ? [30, 28, 26] : [200, 70, 40]; // red = soft ink that did not pass the cut-off
+      for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + col[c] * v;
+    }
+    ctx.putImageData(tmp, 0, 0);
+  } else if (st.id === 'fill') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn, sil = W.sil;
+    for (let i = 0; i < W.w * W.h; i++) {
+      if (sil[i]) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * 0.15 + 255 * 0.85;
+      const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + 30 * v;
+    }
+    ctx.putImageData(tmp, 0, 0);
+  } else if (st.id === 'solid') {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn, so = W.solid;
+    for (let i = 0; i < W.w * W.h; i++) {
+      const v = a[i] * 0.7; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + 30 * v;
+      if (so[i]) { tmp.data[i * 4] = 232; tmp.data[i * 4 + 1] = 120; tmp.data[i * 4 + 2] = 40; }
+    }
+    ctx.putImageData(tmp, 0, 0);
+    let n = 0; { const c = components(so, W.w, W.h); n = c.n; }
+    status(`${n} solid area(s) · drawn line ≈ ${(W.rLine * 2).toFixed(1)}px wide · ${ms} ms`);
+    return;
+  } else if (st.id === 'strokes' || st.id === 'boil') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    if (st.id === 'strokes' && showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const fig = W.fig;
+    const stats = `${fig.strokes.length} strokes · ${fig.solid.length} solid shapes · ${fig.paper.length} fill outline(s) · line width ${fig.width.toFixed(1)}px`;
+    if (st.id === 'strokes') {
+      // tint the paper translucent so the photo stays visible under it
+      setSvg(svgMarkup(fig, 0, 0, false).replace(`fill="${PAPER}"`, `fill="${PAPER}" fill-opacity="${showOverlay ? 0.55 : 1}"`).replace(/stroke="#2b2622"/, `stroke="${showOverlay ? '#1f4fbf' : INK}"`));
+    } else {
+      const pv = toWork(...(PART().pivot || [W.cx + W.cw / 2, W.cy + W.ch / 2])), k = Math.max(W.w, W.h) / 60;
+      const mark = `<g stroke="#d23c1e" stroke-width="${(k / 4).toFixed(2)}"><path d="M${pv[0] - k} ${pv[1]}H${pv[0] + k}M${pv[0]} ${pv[1] - k}V${pv[1] + k}"/><circle cx="${pv[0]}" cy="${pv[1]}" r="${(k / 2).toFixed(2)}" fill="none"/></g>`;
+      const tick = () => { boilFrame++; setSvg(svgMarkup(fig, boilFrame % S.boilPoses, S.boilAmp, false) + mark); };
+      tick(); boilTimer = setInterval(tick, 1000 / S.boilFps);
+      const fs = $('figStats'); if (fs) fs.textContent = stats;
+    }
+    status(stats + ` · ${ms} ms`);
+    return;
+  }
+  status(`working ${W.w}×${W.h} · ${ms} ms`);
+}
+
+// ---- pointer: crop on step 1, brush on ink/fill
+const cursor = $('brushCursor');
+function canvasXY(ev) { const r = cv.getBoundingClientRect(); return [((ev.clientX - r.left) / r.width) * cv.width, ((ev.clientY - r.top) / r.height) * cv.height]; }
+let drag = null;
+cv.addEventListener('pointerdown', (ev) => {
+  if (!img) return;
+  const st = STEPS[step], [x, y] = canvasXY(ev);
+  cv.setPointerCapture(ev.pointerId);
+  if (st.id === 'boil' && pivotMode) { PART().pivot = toSrc(x, y); pivotMode = false; renderParams(); draw(); return; }
+  if (st.id === 'source') { const s = +cv.dataset.s; drag = { kind: 'crop', x0: x / s, y0: y / s, s }; }
+  else if (st.brush) {
+    const e = { layer: st.brush, mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
+    S.edits.push(e); redo[st.brush] = []; drag = { kind: 'brush', e }; changed(LAYER_STAGE[st.brush]);
+  }
+});
+cv.addEventListener('pointermove', (ev) => {
+  const st = STEPS[step];
+  if (st.brush) {
+    cursor.style.display = 'block'; const d = brushSize; cursor.style.width = cursor.style.height = d + 'px';
+    cursor.style.left = ev.clientX - d / 2 + 'px'; cursor.style.top = ev.clientY - d / 2 + 'px';
+  }
+  if (!drag) return;
+  const [x, y] = canvasXY(ev);
+  if (drag.kind === 'crop') {
+    const x1 = x / drag.s, y1 = y / drag.s;
+    S.crop = [Math.min(drag.x0, x1), Math.min(drag.y0, y1), Math.abs(x1 - drag.x0), Math.abs(y1 - drag.y0)];
+    if (S.crop[2] > 8 && S.crop[3] > 8) changed(0);
+  } else { drag.e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[drag.e.layer]); }
+});
+const endDrag = () => { if (drag && drag.kind === 'crop' && (!S.crop || S.crop[2] < 8 || S.crop[3] < 8)) S.crop = null; drag = null; };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('pointerleave', () => { cursor.style.display = 'none'; });
+
+// ---- loading
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => {
+    img = im; $('empty').hidden = true; $('view').hidden = false;
+    if (!$('presetName').value) $('presetName').value = f.name.replace(/\.[^.]+$/, '');
+    valid = -1;
+    if (!S.crop && S.lo === DEFAULTS.lo && S.hi === DEFAULTS.hi) { ensure(1); autoLevels(); }
+    invalidate(0); renderParams(); draw();
+  };
+  im.src = url;
+}
+$('file').onchange = () => loadFile($('file').files[0]);
+$('main').addEventListener('dragover', (e) => e.preventDefault());
+$('main').addEventListener('drop', (e) => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+window.addEventListener('paste', (e) => { const it = [...e.clipboardData.items].find((i) => i.type.startsWith('image/')); if (it) loadFile(it.getAsFile()); });
+
+// ---- characters: parts, saved in this browser, and preset files
+// Preset file: { name, parts: [{ id, z, pivot, settings }] }. pivot is in rotated-photo pixels.
+const PKEY = 'lightbox.characters';
+const readSaved = () => { try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch { return {}; } };
+function refreshPresetList() {
+  $('presetList').innerHTML = '<option value="">Load saved…</option>' + Object.keys(readSaved()).sort().map((n) => `<option>${esc(n)}</option>`).join('');
+}
+const presetOf = () => ({ name: $('presetName').value.trim(), parts: CH.parts.map((p) => ({ id: p.id, z: p.z, pivot: p.pivot, settings: p.settings })) });
+function applyPreset(j) {
+  let parts = j.parts;
+  if (!parts) parts = [{ id: 'body', z: 0, pivot: null, settings: j.settings || j }];   // older single-part settings files
+  CH = { parts: parts.map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, settings: Object.assign(structuredClone(DEFAULTS), p.settings) })) };
+  if (j.name) $('presetName').value = j.name;
+  selectPart(0);
+}
+$('savePreset').onclick = () => {
+  const n = $('presetName').value.trim(); if (!n) { status('Type a character name first'); return; }
+  const all = readSaved(); all[n] = presetOf();
+  try { localStorage.setItem(PKEY, JSON.stringify(all)); status(`Saved "${n}" in this browser`); } catch { status('This browser blocked saving; use Download preset'); }
+  refreshPresetList();
+};
+$('presetList').onchange = () => { const n = $('presetList').value; if (!n) return; applyPreset(readSaved()[n]); $('presetName').value = n; status(`Loaded "${n}"`); };
+$('exportPreset').onclick = () => download(fileBase() + '.preset.json', JSON.stringify(presetOf(), null, 1), 'application/json');
+$('importPresetBtn').onclick = () => $('importPreset').click();
+$('importPreset').onchange = async () => {
+  const f = $('importPreset').files[0]; if (!f) return;
+  try { applyPreset(JSON.parse(await f.text())); status(`Opened ${f.name}${img ? '' : '. Now open the photo it was traced from.'}`); } catch { status('That file is not a Lightbox preset'); }
+  $('importPreset').value = '';
+};
+
+function renderParts() {
+  const p = PART();
+  $('parts').innerHTML = `<div class="row" style="justify-content:space-between"><b>Parts</b><span class="hint">${CH.parts.length} in this character</span></div>
+    <div class="tabs">${CH.parts.map((q, i) => `<button data-part="${i}" class="${i === cur ? 'cur' : ''}">${esc(q.id)}</button>`).join('')}<button id="addPart" title="New part, starting from this part's settings without its crop or brush edits">+ Part</button></div>
+    <div class="fields"><label for="partId">Id</label><input type="text" id="partId" value="${esc(p.id)}"><label for="partZ">Order</label><input type="number" id="partZ" value="${p.z}" step="1" title="Draw order; higher is drawn on top"></div>
+    ${CH.parts.length > 1 ? '<div class="row"><button id="delPart">Remove this part</button></div>' : ''}`;
+  $('parts').querySelectorAll('[data-part]').forEach((b) => b.onclick = () => selectPart(+b.dataset.part));
+  $('addPart').onclick = () => {
+    const settings = Object.assign(structuredClone(S), { crop: null, edits: [] });
+    let n = CH.parts.length + 1; while (CH.parts.some((q) => q.id === `part${n}`)) n++;
+    CH.parts.push({ id: `part${n}`, z: Math.max(...CH.parts.map((q) => q.z)) + 1, pivot: null, settings });
+    selectPart(CH.parts.length - 1); step = 0; renderSteps(); renderParams(); draw();
+  };
+  $('partId').onchange = () => {
+    const v = $('partId').value.trim().replace(/[^\w-]+/g, '_');
+    if (!v || CH.parts.some((q, i) => i !== cur && q.id === v)) { status('Part ids must be unique and not empty'); $('partId').value = p.id; return; }
+    p.id = v; renderParts(); renderParams();
+  };
+  $('partZ').onchange = () => { p.z = Math.round(+$('partZ').value) || 0; };
+  const del = $('delPart'); if (del) del.onclick = () => { CH.parts.splice(cur, 1); selectPart(Math.max(0, cur - 1)); };
+}
+function selectPart(i) {
+  cur = i; S = CH.parts[i].settings; redo.ink = []; redo.fill = []; redo.solid = []; pivotMode = false;
+  invalidate(0); renderParts(); renderParams(); draw();
+}
+
+// All parts traced in turn and placed in one coordinate space (photo pixels, shifted so the parts' crops start at 0,0).
+function buildCharacter() {
+  if (!img) throw new Error('Open the photo first');
+  const rots = new Set(CH.parts.map((p) => p.settings.rotate));
+  if (rots.size > 1) throw new Error('All parts must use the same rotation to share one coordinate space');
+  const keep = cur, out = [];
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  try {
+    for (const p of CH.parts) {
+      S = p.settings; valid = -1; ensure(5);
+      const { scale: sc, cx, cy, cw, ch } = W, f = W.fig, m = ([x, y]) => [x / sc + cx, y / sc + cy];
+      x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx + cw); y1 = Math.max(y1, cy + ch);
+      out.push({ id: p.id, pivot: p.pivot || [cx + cw / 2, cy + ch / 2], z: p.z, paper: f.paper.map((l) => l.map(m)), solid: f.solid.map((l) => l.map(m)), strokes: f.strokes.map((st) => ({ pts: st.pts.map(m), closed: st.closed })), width: f.width / sc });
+    }
+  } finally { S = CH.parts[keep].settings; valid = -1; draw(); }
+  const r = (v) => Math.round(v * 10) / 10, sh = ([x, y]) => [r(x - x0), r(y - y0)];
+  out.sort((a, b) => a.z - b.z);
+  return {
+    name: $('presetName').value.trim() || 'character', size: [Math.ceil(x1 - x0), Math.ceil(y1 - y0)],
+    parts: out.map((p) => ({ id: p.id, pivot: sh(p.pivot), z: p.z, paper: p.paper.map((l) => l.map(sh)), solid: p.solid.map((l) => l.map(sh)), strokes: p.strokes.map((st) => ({ pts: st.pts.map(sh), closed: st.closed })), width: r(p.width) })),
+  };
+}
+
+refreshPresetList(); renderParts(); renderSteps(); renderParams();
+window.__lightbox = { get S() { return S; }, get CH() { return CH; }, W, ensure, loadFile, buildCharacter, selectPart, setStep: (i) => { step = i; renderSteps(); renderParams(); draw(); } };
+</script>
+</body>
+</html>
