@@ -2168,7 +2168,13 @@ cv.addEventListener('pointerdown', ptrLog('down'), true);
 cv.addEventListener('pointerup', ptrLog('up'), true);
 cv.addEventListener('dblclick', (ev) => { if (img && STEPS[step].id === 'strokes') { const [x, y] = canvasXY(ev); dbg('dblclick', { x: r2(x), y: r2(y), sel: selInfo() }); } }, true);
 window.addEventListener('keydown', (ev) => { if (img && STEPS[step].id === 'strokes' && !typing(ev.target)) dbg('key', { key: ev.key, alt: ev.altKey, shift: ev.shiftKey, meta: ev.metaKey || ev.ctrlKey, sel: selInfo() }); }, true);
-window.addEventListener('error', (e) => anomaly('page error', { message: e.message, at: `${e.lineno}:${e.colno}` }));
+// A page error is logged too, but it is not an editor check, so the status says what actually failed.
+window.addEventListener('error', (e) => {
+  const a = { t: Math.round(performance.now()), kind: 'page error', message: e.message, at: `${e.lineno}:${e.colno}` };
+  DBG.anomalies.push(a); if (DBG.anomalies.length > 200) DBG.anomalies.shift();
+  dbg('page error', { message: e.message, at: a.at });
+  status(`Error: ${e.message}`);
+});
 function debugReport() {
   const fileName = $('file').files && $('file').files[0] ? $('file').files[0].name : null;
   return {
