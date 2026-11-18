@@ -48,7 +48,7 @@ Anything hidden behind a moving part must still be drawn, or patched with the fi
 
 ## Bake at load time
 
-At start-up, `renderer.js` draws each part's boil poses (6 by default) with Canvas2D into the existing part atlas. It uses the same per-stroke jitter as the Lightbox: each stroke gets its own seeded wobble per pose, so neighbouring lines never move together. This takes a few milliseconds per character, once, and needs no build step or generated PNGs.
+At start-up, `renderer.js` draws each part's boil poses (6 by default, the Lightbox's tuned default; decision 0003 first planned 3) with Canvas2D into the existing part atlas. It uses the same per-stroke jitter as the Lightbox: each stroke gets its own seeded wobble per pose, so neighbouring lines never move together. This takes a few milliseconds per character, once, and needs no build step or generated PNGs.
 
 ## Per-frame cost
 
