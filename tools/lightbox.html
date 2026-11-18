@@ -49,12 +49,16 @@ main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;a
 #view{position:relative;max-width:100%;max-height:100%;transform-origin:0 0}
 #zoombar{position:absolute;right:12px;bottom:10px;display:flex;gap:4px}
 #zoombar button{background:var(--panel);font-family:var(--mono);font-size:12px;min-width:30px}
-main.panning,main.panning canvas{cursor:grab}
+#view canvas[data-cursor=none]{cursor:none}
+#view canvas[data-cursor=crosshair]{cursor:crosshair}
+main.panning,main.panning #view canvas{cursor:grab}
 #view canvas{display:block;touch-action:none}
+#view canvas.px{image-rendering:pixelated}
 #view svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .empty{text-align:center;color:var(--muted);max-width:40ch;padding:24px;border:2px dashed var(--line);border-radius:10px}
 #status{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);padding:3px 8px;border-radius:4px}
-#brushCursor{position:fixed;pointer-events:none;border:1.5px solid var(--warn);border-radius:50%;display:none;z-index:5}
+#view svg#brushCursor{z-index:2;overflow:visible}
+#brushCursor path{fill:none;stroke-linecap:square}
 @media (max-width:760px){.wrap{flex-direction:column}aside{width:auto;border-right:none;border-bottom:1px solid var(--line);max-height:50vh}}
 </style>
 </head>
@@ -69,6 +73,7 @@ main.panning,main.panning canvas{cursor:grab}
     <select id="presetList" aria-label="Saved characters"><option value="">Load saved…</option></select>
     <button id="exportPreset" title="Download <name>.preset.json: the settings, and each part's lassos, fill brush and pivot">Download preset</button>
     <button id="importPresetBtn" title="Open a <name>.preset.json">Open preset</button><input type="file" id="importPreset" accept=".json" hidden>
+    <button id="debugLog" title="Download a report of recent line-editor activity, to send with a bug">Save debug log</button>
   </div>
 </header>
 <div class="wrap">
@@ -79,12 +84,11 @@ main.panning,main.panning canvas{cursor:grab}
   </aside>
   <main id="main">
     <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left: clean up and trace the whole character first, then split it into parts.</div>
-    <div id="view" hidden><canvas id="cv"></canvas></div>
+    <div id="view" hidden><canvas id="cv"></canvas><svg id="brushCursor" style="display:none"></svg></div>
     <div id="status"></div>
     <div id="zoombar" hidden><button id="zOut" title="Zoom out (-)">−</button><button id="zFit" title="Fit to the view (0)">100%</button><button id="zIn" title="Zoom in (=)">+</button></div>
   </main>
 </div>
-<div id="brushCursor"></div>
 <script>
 'use strict';
 // ====================================================================
@@ -125,8 +129,8 @@ const STEPS = [
     params: [['fillClose', 'Gap closing (px)', 1, 60, 1, 3], ['fillOpen', 'Trim thin bits (px)', 0, 10, 1, 3]] },
   { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
     params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
-  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue. Click a line to reshape it as a bezier curve; your line edits stay when you change the sliders.',
-    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify', 0.1, 6, 0.05, 5], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
+  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue. Click a line or a solid ink shape to reshape it as a bezier curve, or draw new ones with the tools below; your edits stay when you change the sliders.',
+    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify (bezier fit, px)', 0.1, 6, 0.05, 5, 'How far each traced curve may stray from the pencil line. Lower keeps more detail but gives more anchors to edit.'], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
   { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
     params: [['parttools', '', 'parttools']] },
   { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
@@ -477,9 +481,9 @@ function pruneBurrs(lines, width, lenMul) {
     if (!lines[i].closed) {
       const hit = d.map(([x, y]) => near(x, y)), hits = hit.filter((h) => h >= 0).length, a = hit[0], b = hit[hit.length - 1];
       // Touching a line at both ends, either two different lines or one line with a gap between, makes it a
-      // connector, but a short one only if it carries on the way a line it touches runs; a short strut across
-      // between two lines is a stray mark.
-      const bridge = a >= 0 && b >= 0 && (a !== b || hit.some((h) => h < 0)) && (len >= maxLen || continues(d, a, i) || continues(d.slice().reverse(), b, i));
+      // connector: a strut or rung between two lines is drawn on purpose once it is two line widths long. A
+      // shorter one only stays if it carries on the way a line it touches runs; otherwise it is a stray mark.
+      const bridge = a >= 0 && b >= 0 && (a !== b || hit.some((h) => h < 0)) && (len >= Math.min(maxLen, width * 2) || continues(d, a, i) || continues(d.slice().reverse(), b, i));
       if (!bridge && ((hits && len < maxLen) || hits > d.length * 0.6)) continue;
     }
     keep[i] = 1;
@@ -556,6 +560,55 @@ function smoothPoly(a, sigma, closed) {
   if (closed) out.push(out[0].slice()); else { out[0] = a[0].slice(); out[n - 1] = a[n - 1].slice(); }
   return out;
 }
+// smoothPoly that keeps sharp corners: find where the raw path turns by more than `deg` degrees, measured
+// `spanMul` line widths either side, take the sharpest point of each such turn as a corner, and smooth each
+// stretch between corners on its own, so a corner stays a corner instead of being rounded off.
+function smoothKeepCorners(a, sigma, closed, width, deg = 50, spanMul = 1.5) {
+  const n = closed ? a.length - 1 : a.length;
+  if (sigma < 0.3 || n < 7) return smoothPoly(a, sigma, closed);
+  const span = Math.max(3, width * spanMul), cum = [0];
+  for (let i = 1; i < a.length; i++) cum.push(cum[i - 1] + Math.hypot(a[i][0] - a[i - 1][0], a[i][1] - a[i - 1][1]));
+  const total = cum[a.length - 1];
+  const along = (i, dir) => { // the point `span` px along the path from i, in direction dir
+    let j = i;
+    if (closed) { for (let L = 0; L < span;) { const k = (j + dir + n) % n; L += Math.hypot(a[k][0] - a[j][0], a[k][1] - a[j][1]); j = k; if (j === i) break; } return a[j]; }
+    while (j + dir >= 0 && j + dir < n && Math.abs(cum[j] - cum[i]) < span) j += dir;
+    return a[j];
+  };
+  const turn = new Float32Array(n), cosLim = Math.cos((deg * Math.PI) / 180);
+  for (let i = 0; i < n; i++) {
+    if (!closed && (cum[i] < span || total - cum[i] < span)) continue;   // no corner right at an open end
+    const p = a[i], b = along(i, -1), c = along(i, 1), ux = p[0] - b[0], uy = p[1] - b[1], vx = c[0] - p[0], vy = c[1] - p[1], L = Math.hypot(ux, uy) * Math.hypot(vx, vy);
+    if (!L) continue;
+    const cs = (ux * vx + uy * vy) / L;
+    if (cs < cosLim) turn[i] = 1 - cs;
+  }
+  const corners = [], reach = Math.ceil(span);
+  for (let i = 0; i < n; i++) { // the sharpest point of each turn
+    if (!turn[i]) continue;
+    let top = true;
+    for (let k = 1; k <= reach && top; k++) {
+      const l = closed ? (i - k + n) % n : i - k, r = closed ? (i + k) % n : i + k;
+      if ((l >= 0 && turn[l] > turn[i]) || (r < n && r !== i && turn[r] >= turn[i])) top = false;
+    }
+    if (top) corners.push(i);
+  }
+  if (!corners.length) return smoothPoly(a, sigma, closed);
+  const piece = (seg) => (seg.length >= 5 ? smoothPoly(seg, sigma, false) : seg.map((q) => q.slice()));   // ends stay put
+  const out = [];
+  if (closed) {
+    for (let c = 0; c < corners.length; c++) {
+      const s0 = corners[c], e0 = c + 1 < corners.length ? corners[c + 1] : corners[0] + n, seg = [];
+      for (let i = s0; i <= e0; i++) seg.push(a[i % n]);
+      const sm = piece(seg); out.push(...(out.length ? sm.slice(1) : sm));
+    }
+    out[out.length - 1] = out[0].slice();
+  } else {
+    const cuts = [0, ...corners, n - 1];
+    for (let c = 0; c + 1 < cuts.length; c++) { const sm = piece(a.slice(cuts[c], cuts[c + 1] + 1)); out.push(...(out.length ? sm.slice(1) : sm)); }
+  }
+  return out;
+}
 function rdp(pts, eps) {
   if (pts.length < 3) return pts;
   const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
@@ -597,22 +650,29 @@ function contours(m, w, h) { // pixel-edge loops; holes come out as separate loo
   return loops;
 }
 
-function stamp(arr, w, h, x, y, r, val) {
-  const x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(w - 1, Math.ceil(x + r));
-  const y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(h - 1, Math.ceil(y + r));
-  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) if ((xx - x) ** 2 + (yy - y) ** 2 <= r * r) arr[yy * w + xx] = val;
+// The pixels a brush dab covers. The dab is centred on the middle of the pixel under (x, y), so it is always
+// the same shape for a given radius, wherever in that pixel the pointer is: every pixel whose centre lies
+// within r of that middle. Pixel i spans [i, i+1), the same as pointer positions.
+function dab(w, h, x, y, r, fn) {
+  const cx = Math.floor(x), cy = Math.floor(y), n = Math.floor(r);
+  for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) {
+    const xx = cx + dx, yy = cy + dy;
+    if (dx * dx + dy * dy <= r * r + 1e-6 && xx >= 0 && yy >= 0 && xx < w && yy < h) fn(xx, yy);
+  }
+}
+// Dabs along a brush segment from a to b (just b when a is null), close enough together to leave no gaps.
+function dabLine(w, h, a, b, r, fn) {
+  const [x, y] = b;
+  if (!a) { dab(w, h, x, y, r, fn); return; }
+  const [px, py] = a, n = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / Math.max(0.5, r / 2)));
+  for (let t = 1; t <= n; t++) dab(w, h, px + ((x - px) * t) / n, py + ((y - py) * t) / n, r, fn);
 }
 function applyEdits(arr, layer, w, h, val) { paintEdits(arr, S.edits.filter((e) => e.layer === layer), w, h, val); }
 function paintEdits(arr, edits, w, h, val) {
   for (const e of edits) {
-    const v = e.mode === 'add' ? val : 0;
+    const v = e.mode === 'add' ? val : 0, set = (xx, yy) => { arr[yy * w + xx] = v; };
     const pts = e.pts.map(([x, y]) => toWork(x, y)), r = e.r * W.scale;
-    for (let i = 0; i < pts.length; i++) {
-      const [x, y] = pts[i];
-      if (i === 0) { stamp(arr, w, h, x, y, r, v); continue; }
-      const [px, py] = pts[i - 1], d = Math.hypot(x - px, y - py), n = Math.max(1, Math.ceil(d / Math.max(0.5, r / 2)));
-      for (let t = 1; t <= n; t++) stamp(arr, w, h, px + ((x - px) * t) / n, py + ((y - py) * t) / n, r, v);
-    }
+    pts.forEach((pt, i) => dabLine(w, h, i ? pts[i - 1] : null, pt, r, set));
   }
 }
 
@@ -735,7 +795,7 @@ function stage5() { // strokes
     const spur = (deg(...p[0]) === 1) !== (deg(...p[p.length - 1]) === 1);
     if (!loop && len < Math.max(S.minLen, width)) continue;
     if (spur && len < width * 2) continue;
-    cands.push({ pts: smoothPoly(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth, loop), len, loop });
+    cands.push({ pts: smoothKeepCorners(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth, loop, width), len, loop });
   }
   // No line on top of another: keep long strokes first, cut later strokes where they come
   // within one line width of a kept stroke (caps then just touch).
@@ -783,9 +843,14 @@ function stage5() { // strokes
   // Join pieces and drop burrs, then join again: a burr or overshoot taken out at a junction frees the line
   // ends it was holding apart.
   const join = (ls) => joinGaps(ls, width, S.joinGap, S.joinAngle), prune = (ls) => pruneBurrs(ls, width, S.burrLen);
-  W.traced = extendEnds(prune(join(prune(join(lines)))), width, S.extendLen);
+  // Every traced line and solid outline becomes a cubic bezier (few anchors, within `simplify` px of the
+  // trace), drawn from that bezier: the same curves the line editor shows and edits, so a first click
+  // changes nothing.
+  const eps = Math.max(0.3, S.simplify), bezier = (l) => { const nodes = fitNodes(l.pts, l.closed, eps); return { ...l, pts: sampleCurve(nodes, l.closed), nodes }; };
+  W.traced = extendEnds(prune(join(prune(join(lines)))), width, S.extendLen).map(bezier);
   if (sel && sel.ci < 0) sel = null;   // a selected traced line may not exist after re-tracing
-  W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: shape(solid, w, h, 1.2, 0.4), strokes: [], rLine, width };
+  W.tracedSolid = shape(solid, w, h, 1.2, 0.4).map((pts) => bezier({ pts, closed: true, solid: true }));
+  W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: [], strokes: [], rLine, width };
   applyCurves();
 }
 // Line edits from the bezier editor go on top of the traced lines, so they survive re-tracing: each edit takes
@@ -793,40 +858,98 @@ function stage5() { // strokes
 // This is cheap, so editing a curve does not re-trace.
 function applyCurves() {
   const { width } = W.fig, touch = width, cell = touch * 1.5;
-  let lines = W.traced;
-  const curves = S.curves.map((c, ci) => ({ ci, c, from: densify(c.from.map((pt) => toWork(...pt)), 1) }));
-  if (curves.length) {
-    const grid = new Map(), gk = (x, y) => x * 65536 + y;
-    for (const { from } of curves) for (const [x, y] of from) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, y); }
-    const near = (x, y) => {
-      const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const l = grid.get(gk(cx + dx, cy + dy)); if (l) for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return true; }
-      return false;
-    };
-    const keep = [];
-    for (const l of lines) { // keep only the parts of a traced line that do not run along an edited line
-      const d = densify(l.pts, 1), cov = d.map(([x, y]) => near(x, y));
-      if (cov.filter(Boolean).length >= cov.length * 0.6) continue;   // this is the edited line: take it out whole
-      for (let i = 0; i < cov.length;) { // otherwise cut only a long stretch along it; crossings and forks stay
-        if (!cov[i]) { i++; continue; }
-        let j = i; while (j < cov.length && cov[j]) j++;
-        if (j - i < width * 8) for (let q = i; q < j; q++) cov[q] = false;
+  const curves = S.curves.map((c, ci) => ({ ci, c, from: c.from.length ? densify(c.from.map((pt) => toWork(...pt)), 1) : [] }));
+  // Edits to a traced line take it out of the trace; the same for solid shapes, matched only against solid edits.
+  // Each edit (a reshaped or deleted line) was made from exactly one traced line: the one that still shares the
+  // longest stretch with the line the edit recorded, if it shares at least half of it. Only that line is taken
+  // out (whole, when the edit covers most of it) or trimmed (where it runs along the edit, when a re-trace has
+  // carried it on past the edited part). Every other line is left alone, even one that overlaps or crosses it.
+  const takeOut = (lines, edits, cutLong) => {
+    const dense = lines.map((l) => densify(l.pts, 1)), lens = dense.map(polyLen);
+    const whole = new Set(), cuts = new Map(), along = new Map();   // line index -> cut mask / edits' coverage masks
+    for (const { from } of edits) {
+      if (!from.length) continue;   // a line drawn by hand was made from nothing
+      const grid = new Map(), gk = (x, y) => x * 65536 + y;
+      for (const [x, y] of from) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, y); }
+      const near = (x, y) => {
+        const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const l = grid.get(gk(cx + dx, cy + dy)); if (l) for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return true; }
+        return false;
+      };
+      let best = -1, bestLen = 0, bestOn = null;
+      dense.forEach((d, li) => {
+        const on = d.map(([x, y]) => near(x, y));
+        let shared = 0; for (let i = 1; i < d.length; i++) if (on[i] && on[i - 1]) shared += Math.hypot(d[i][0] - d[i - 1][0], d[i][1] - d[i - 1][1]);
+        if (shared > bestLen) { bestLen = shared; best = li; bestOn = on; }
+      });
+      if (best < 0 || bestLen < polyLen(from) * 0.5) continue;   // the line it was made from is not traced any more
+      if (bestLen >= lens[best] * 0.6 || !cutLong) { if (bestLen >= lens[best] * 0.6) whole.add(best); continue; }
+      const d = dense[best], cut = cuts.get(best) || new Array(d.length).fill(false);
+      for (let i = 0; i < d.length;) { // trim where it runs along the edit; a brief touch is a crossing and stays
+        if (!bestOn[i]) { i++; continue; }
+        let j = i; while (j < d.length && bestOn[j]) j++;
+        if (polyLen(d.slice(i, j)) >= width * 2) for (let q = i; q < j; q++) cut[q] = true;
         i = j;
       }
-      if (!cov.some(Boolean)) { keep.push(l); continue; }
-      let run = [];
-      const flush = () => { if (run.length >= 2 && polyLen(run) >= width * 3) keep.push({ pts: run, closed: false }); run = []; };
-      d.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
-      flush();
+      cuts.set(best, cut); if (!along.has(best)) along.set(best, []); along.get(best).push(bestOn);
     }
-    lines = keep;
-    for (const { ci, c } of curves) if (!c.del) lines.push({ pts: sampleCurve(c.nodes.map(nodeToWork), c.closed), closed: c.closed, curve: ci });
+    const keep = [];
+    lines.forEach((l, li) => {
+      if (whole.has(li)) return;
+      const cut = cuts.get(li);
+      if (!cut || !cut.some(Boolean)) { keep.push(l); return; }
+      // What is left between cuts stays, unless it is a short end that still lies along the edit.
+      const d = dense[li], ons = along.get(li);
+      let run = [], idx = [];
+      const flush = () => {
+        const lying = ons.some((on) => idx.filter((i) => on[i]).length >= idx.length * 0.6);
+        if (run.length >= 2 && polyLen(run) >= width * 3 && !lying) keep.push({ pts: run, closed: false });
+        run = []; idx = [];
+      };
+      d.forEach((pt, i) => { if (cut[i]) flush(); else { run.push(pt); idx.push(i); } });
+      flush();
+    });
+    return keep;
+  };
+  const lineEdits = curves.filter(({ c }) => !c.solid), solidEdits = curves.filter(({ c }) => c.solid);
+  const lines = takeOut(W.traced, lineEdits, true), solids = takeOut(W.tracedSolid, solidEdits, false);
+  const userLines = [];
+  for (const { ci, c } of lineEdits) if (!c.del) userLines.push({ pts: sampleCurve(c.nodes.map(nodeToWork), c.closed), closed: c.closed, curve: ci });
+  // A traced line lying almost entirely under one of the artist's own lines (one they drew, or reshaped from
+  // another trace) is already drawn by it: hide it, so it does not show doubled. Deleted lines never hide anything.
+  if (userLines.length) {
+    const g = new Map(), gk = (x, y) => x * 65536 + y;
+    for (const u of userLines) for (const [x, y] of densify(u.pts, 1)) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!g.has(k)) g.set(k, []); g.get(k).push(x, y); }
+    const under = (x, y) => { const cx = Math.floor(x / cell), cy = Math.floor(y / cell); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const l = g.get(gk(cx + dx, cy + dy)); if (l) for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return true; } return false; };
+    for (let i = lines.length - 1; i >= 0; i--) { const d = densify(lines[i].pts, 1); if (d.filter(([x, y]) => under(x, y)).length >= d.length * 0.8) lines.splice(i, 1); }
   }
-  W.lines = lines;
-  W.fig.strokes = lines.map((l) => ({ pts: fmt(rdp(l.pts, l.curve != null ? 0.25 : S.simplify)), w: +width.toFixed(2), closed: l.closed }));
+  lines.push(...userLines);
+  for (const { ci, c } of solidEdits) if (!c.del) solids.push({ pts: sampleCurve(c.nodes.map(nodeToWork), true), closed: true, curve: ci, solid: true });
+  W.lines = lines; W.solids = solids;
+  // Lines are sampled beziers, so a fine simplify keeps them true to the curve.
+  W.fig.strokes = lines.map((l) => ({ pts: fmt(rdp(l.pts, 0.25)), w: +width.toFixed(2), closed: l.closed }));
+  W.fig.solid = solids.map((l) => fmt(rdp(l.pts, 0.25)));
+  // The parts step cuts solid ink from a mask, so draw the bezier shapes back into one.
+  W.solidMask = fillMask(W.fig.solid);
 }
-const nodeToWork = (n) => ({ p: toWork(...n.p), i: toWork(...n.i), o: toWork(...n.o) });
-const nodeToSrc = (n) => ({ p: toSrc(...n.p), i: toSrc(...n.i), o: toSrc(...n.o) });
+function fillMask(loops) { // closed loops (working pixels) filled even-odd into a 0/1 mask
+  const { w, h } = W, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.beginPath();
+  for (const l of loops) { l.forEach(([px, py], k) => (k ? x.lineTo(px, py) : x.moveTo(px, py))); x.closePath(); }
+  x.fill('evenodd');
+  const d = x.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) m[p] = d[p * 4 + 3] >= 128 ? 1 : 0;
+  return m;
+}
+// An anchor is smooth (its two handles point opposite ways, and dragging one swings the other) or a corner
+// (c: true, the handles move on their own). Line edits saved before corners existed have no flag, so a
+// corner is told from its handles.
+const bentHandles = (n) => {
+  const ax = n.p[0] - n.i[0], ay = n.p[1] - n.i[1], bx = n.o[0] - n.p[0], by = n.o[1] - n.p[1], La = Math.hypot(ax, ay), Lb = Math.hypot(bx, by);
+  return La > 0.05 && Lb > 0.05 && (ax * bx + ay * by) / (La * Lb) < 0.9986;   // more than 3° off straight
+};
+const nodeToWork = (n) => ({ p: toWork(...n.p), i: toWork(...n.i), o: toWork(...n.o), c: n.c ?? bentHandles(n) });
+const nodeToSrc = (n) => ({ p: toSrc(...n.p), i: toSrc(...n.i), o: toSrc(...n.o), c: !!n.c });
 // Few bezier anchors for a traced line, so it is easy to edit: anchors where the line bends (simplified to
 // within `eps`), a tangent through each anchor (two at a sharp corner), and handle lengths fitted to the
 // line between anchors by least squares.
@@ -841,7 +964,7 @@ function fitNodes(pts, closed, eps) {
   const unit = (v) => { const L = Math.hypot(v[0], v[1]) || 1; return [v[0] / L, v[1] / L]; };
   const at = (k) => P[((k % n) + n) % n], reach = eps * 2.5;
   const fit = (A) => {
-  const m = A.length, tin = [], tout = [];
+  const m = A.length, tin = [], tout = [], corners = new Set();
   for (let j = 0; j < m; j++) { // tangents from the line a few pixels either side of the anchor
     const k = A[j], span = (dir, limit) => { // the point about `reach` px along the line, not past the next anchor
       let L = 0, q = k; while (Math.abs(q - k) < limit && L < reach) { const a = at(q), b = at(q + dir); L += Math.hypot(b[0] - a[0], b[1] - a[1]); q += dir; } return at(q); };
@@ -850,10 +973,10 @@ function fitNodes(pts, closed, eps) {
     const vin = unit([P[k][0] - back[0], P[k][1] - back[1]]), vout = unit([fwd[0] - P[k][0], fwd[1] - P[k][1]]);
     if (!closed && j === 0) { tin.push(vout); tout.push(vout); continue; }
     if (!closed && j === m - 1) { tin.push(vin); tout.push(vin); continue; }
-    if (vin[0] * vout[0] + vin[1] * vout[1] < 0.5) { tin.push(vin); tout.push(vout); }   // a corner: keep both directions
+    if (vin[0] * vout[0] + vin[1] * vout[1] < 0.5) { tin.push(vin); tout.push(vout); corners.add(j); }   // a corner: keep both directions
     else { const t = unit([vin[0] + vout[0], vin[1] + vout[1]]); tin.push(t); tout.push(t); }
   }
-  const nodes = A.map((k) => ({ p: P[k].slice(), i: P[k].slice(), o: P[k].slice() }));
+  const nodes = A.map((k, j) => ({ p: P[k].slice(), i: P[k].slice(), o: P[k].slice(), ...(corners.has(j) ? { c: true } : {}) }));
   for (let j = 0; j < (closed ? m : m - 1); j++) { // fit the two handle lengths of each segment
     const j2 = (j + 1) % m, k0 = A[j], k1 = j2 ? A[j2] : (closed ? n : A[j2]);
     const Q = []; for (let k = k0; k <= k1; k++) Q.push(at(k));
@@ -932,7 +1055,7 @@ function densify(pts, step) {
   return out;
 }
 function stage6() { // split the traced character into parts
-  const { w, h, sil, solid, lines, fig } = W, lab = partLabels(), n = CH.parts.length, width = fig.width;
+  const { w, h, sil, solidMask: solid, lines, fig } = W, lab = partLabels(), n = CH.parts.length, width = fig.width;
   const at = ([x, y]) => lab[clamp(Math.floor(y), 0, h - 1) * w + clamp(Math.floor(x), 0, w - 1)];
   const strokesOf = Array.from({ length: n }, () => []);
   for (const ln of lines) {
@@ -951,7 +1074,7 @@ function stage6() { // split the traced character into parts
       runs.splice(i, 1);
       for (let j = runs.length - 1; j > 0; j--) if (runs[j].part === runs[j - 1].part) { runs[j - 1].pts.push(...runs[j].pts.slice(1)); runs.splice(j, 1); }
     }
-    for (const r of runs) strokesOf[r.part].push({ pts: fmt(rdp(r.pts, ln.curve != null ? 0.25 : S.simplify)), w: +width.toFixed(2), closed: ln.closed && runs.length === 1 });
+    for (const r of runs) strokesOf[r.part].push({ pts: fmt(rdp(r.pts, 0.25)), w: +width.toFixed(2), closed: ln.closed && runs.length === 1 });
   }
   W.lab = lab;
   W.parts = CH.parts.map((p, i) => {
@@ -1027,7 +1150,7 @@ let svgEl = null;
 
 function renderSteps() {
   $('steps').innerHTML = STEPS.map((s, i) => `<li><button data-i="${i}" class="${i === step ? 'cur' : ''}"><span class="n">${i + 1}</span>${s.name}</button></li>`).join('');
-  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; pivotMode = false; renderSteps(); renderParams(); draw(); });
+  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; pivotMode = false; pen = null; renderSteps(); renderParams(); draw(); });
   $('parts').hidden = !usesParts();
   if (usesParts()) renderParts();
 }
@@ -1062,7 +1185,7 @@ function renderParams() {
   $('params').querySelectorAll('input[type=checkbox][data-k]').forEach((el) => el.onchange = () => { S[el.dataset.k] = el.checked; changed(STAGE_OF[el.dataset.k]); });
   $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => {
     // Brush edits, lassos and pivots are in rotated-photo pixels, so a new rotation drops them.
-    S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; S.curves = []; sel = null; curveUndo.length = curveRedo.length = 0; redo.ink = []; redo.fill = []; redo.solid = [];
+    S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; S.curves = []; sel = null; pen = null; curveUndo.length = curveRedo.length = 0; redo.ink = []; redo.fill = []; redo.solid = [];
     for (const p of CH.parts) { p.marks = []; p.pivot = null; } partRedo.length = 0;
     changed(0); renderParams();
   });
@@ -1081,6 +1204,13 @@ function renderParams() {
   on('mClear', () => { const kind = partTool; PART().marks = PART().marks.filter((m) => m.kind !== kind); partRedo.length = 0; changed(6); });
   on('cReset', () => { if (!sel || sel.ci < 0) return; pushCurveUndo(); S.curves.splice(sel.ci, 1); sel = null; curvesChanged('Line reset to the trace'); });
   on('cDelete', deleteSelected);
+  const pk = $('peekInk'); if (pk) pk.onchange = () => setPeek(pk.checked);
+  on('cCorner', () => { if (selAnchor() != null) toggleCorner(selAnchor()); });
+  on('cDelAnchor', () => { if (selAnchor() != null) removeAnchor(selNodes(), selAnchor()); });
+  $('params').querySelectorAll('[data-ctool]').forEach((b) => b.onclick = () => {
+    curveTool = b.dataset.ctool; pen = null; joinFrom = null; if (curveTool === 'line' || curveTool === 'solid') sel = null;
+    renderParams(); draw();
+  });
   on('cUndo', () => curveHistory(true));
   on('cRedo', () => curveHistory(false));
   on('cClear', () => { if (!S.curves.length) return; pushCurveUndo(); S.curves = []; sel = null; curvesChanged('All line edits cleared'); });
@@ -1134,19 +1264,36 @@ function download(name, text, type) {
 }
 function status(t) { $('status').textContent = t; }
 
-let pending = null;
+let pending = null, drawMs = 0;
+function cancelPending() {
+  if (!pending) return;
+  if (pending.t) clearTimeout(pending.t); else cancelAnimationFrame(pending.raf);
+  pending = null;
+}
 function changed(stage) {
   invalidate(stage);
   if (pending) return;
-  // The stroke step takes a few hundred ms, so wait for the slider to settle there.
-  const slow = STEPS[step].stage >= 4 && !drag;
-  pending = slow ? setTimeout(() => { pending = null; draw(); }, 150) : requestAnimationFrame(() => { pending = null; draw(); });
+  // The stroke step takes a few hundred ms, so wait for the slider to settle there. While brushing, a step
+  // that is slow to recompute catches up a few times a second; brushPreview shows the stroke meanwhile.
+  const wait = !drag ? (STEPS[step].stage >= 4 ? 150 : 0) : (drawMs > 30 ? 250 : 0);
+  const run = () => { pending = null; draw(); };
+  pending = wait ? { t: setTimeout(run, wait) } : { raf: requestAnimationFrame(run) };
+}
+// Paint a brush segment straight onto the canvas, so the stroke follows the pointer before the recompute.
+// The colours match what draw() shows for that layer; the recompute then replaces it with the real result.
+const PREVIEW = { ink: ['rgb(30,28,26)', '#fff'], fill: ['#eef0ec', '#7d8a74'], solid: ['rgb(232,120,40)', '#fff'] };
+function brushPreview(layer, mode, r, a, b) { // the same pixels the edit will change, not a smooth line
+  ctx.fillStyle = PREVIEW[layer][mode === 'add' ? 0 : 1];
+  dabLine(cv.width, cv.height, a, b, r, (xx, yy) => ctx.fillRect(xx, yy, 1, 1));
 }
 function fitView() { // scale the working canvas up or down to fill the view area
   const m = $('main').getBoundingClientRect(), pad = 32;
   const s = Math.min((m.width - pad) / cv.width, (m.height - pad - 24) / cv.height, 4);
   cv.style.width = Math.round(cv.width * s) + 'px'; cv.style.height = Math.round(cv.height * s) + 'px';
+  sharpen();
 }
+// Show each pixel as a sharp square once it is drawn 2× or larger; below that, smoothing reads better.
+function sharpen() { cv.classList.toggle('px', cv.getBoundingClientRect().width >= 2 * cv.width); }
 window.addEventListener('resize', () => img && fitView());
 
 function putGray(arrFn) {
@@ -1162,7 +1309,13 @@ function setSvg(markup) {
 }
 
 function draw() {
+  const t0 = performance.now();
+  drawFrame();
+  drawMs = performance.now() - t0;
+}
+function drawFrame() {
   if (!img) return;
+  setCursor();
   clearInterval(boilTimer); boilTimer = null;
   const st = STEPS[step], t0 = performance.now();
   try { ensure(st.stage); } catch (e) { status('Error: ' + e.message); console.error(e); return; }
@@ -1214,12 +1367,23 @@ function draw() {
     let n = 0; { const c = components(so, W.w, W.h); n = c.n; }
     status(`${n} solid area(s) · drawn line ≈ ${(W.rLine * 2).toFixed(1)}px wide · ${ms} ms`);
     return;
+  } else if (st.id === 'strokes' && peek) {
+    // Holding Tab: the cleaned-up pencil ink the strokes were traced from, with the strokes as hairlines on top.
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn;
+    for (let i = 0; i < W.w * W.h; i++) { const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = 255 * (1 - v) + 30 * v; }
+    ctx.putImageData(tmp, 0, 0);
+    const k = pxToWork(), hair = W.lines.map((l) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}${l.closed ? 'Z' : ''}"/>`).join('')
+      + W.solids.map((l) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}Z"/>`).join('');
+    setSvg(`<g fill="none" stroke="#1f6fe0" stroke-width="${(1.2 * k).toFixed(2)}" stroke-linejoin="round" opacity=".8">${hair}</g>` + editorMarkup(true) + penMarkup());
+    status('Ink view · tap Tab (or untick Show ink) to go back to the strokes');
+    return;
   } else if (st.id === 'strokes') {
     ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
     if (showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
     const fig = W.fig;
     // tint the paper translucent so the photo stays visible under it
-    setSvg(svgMarkup(fig, 0, 0, false, showOverlay ? { paperOpacity: 0.55, strokeColor: '#1f4fbf' } : {}) + editorMarkup());
+    setSvg(svgMarkup(fig, 0, 0, false, showOverlay ? { paperOpacity: 0.55, strokeColor: '#1f4fbf' } : {}) + editorMarkup() + penMarkup() + joinMarkup());
     status(`${fig.strokes.length} strokes · ${fig.solid.length} solid shapes · ${fig.paper.length} fill outline(s) · line width ${fig.width.toFixed(1)}px · ${ms} ms`);
     return;
   } else if (st.id === 'parts') {
@@ -1264,6 +1428,27 @@ function partsMarkup() {
 
 // ---- pointer: crop on step 1, brush on ink/fill/solid, lasso and fill brush on parts
 const cursor = $('brushCursor');
+const brushOn = () => !!STEPS[step].brush || (STEPS[step].id === 'parts' && partTool === 'fill');
+// With a brush, the pixel outline is the cursor, so the pointer arrow is hidden instead of covering it.
+function setCursor() { cv.dataset.cursor = brushOn() ? 'none' : STEPS[step].id === 'strokes' && curveTool !== 'edit' ? 'crosshair' : ''; }
+// The brush cursor outlines exactly the pixels one dab paints at the pointer, drawn in canvas pixels on top
+// of the view so it zooms with it.
+function showBrushCursor(x, y) {
+  const w = cv.width, h = cv.height, k = w / cv.getBoundingClientRect().width, r = (brushSize / 2) * k, on = new Set();
+  dab(w, h, x, y, r, (xx, yy) => on.add(yy * w + xx));
+  let d = '';
+  for (const i of on) { // the edges a covered pixel shares with an uncovered one
+    const xx = i % w, yy = (i - xx) / w;
+    if (!on.has(i - w) || yy === 0) d += `M${xx} ${yy}h1`;
+    if (!on.has(i + w) || yy === h - 1) d += `M${xx} ${yy + 1}h1`;
+    if (!on.has(i - 1) || xx === 0) d += `M${xx} ${yy}v1`;
+    if (!on.has(i + 1) || xx === w - 1) d += `M${xx + 1} ${yy}v1`;
+  }
+  cursor.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // A 1.5px line on screen at any zoom. (vector-effect: non-scaling-stroke ignores the view's CSS zoom.)
+  cursor.innerHTML = `<path d="${d}" stroke="#d23c1e" stroke-width="${(1.5 * k).toFixed(3)}"/>`;
+  cursor.style.display = '';
+}
 function canvasXY(ev) { const r = cv.getBoundingClientRect(); return [((ev.clientX - r.left) / r.width) * cv.width, ((ev.clientY - r.top) / r.height) * cv.height]; }
 let drag = null;
 cv.addEventListener('pointerdown', (ev) => {
@@ -1280,15 +1465,16 @@ cv.addEventListener('pointerdown', (ev) => {
   }
   else if (st.brush) {
     const e = { layer: st.brush, mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
-    S.edits.push(e); redo[st.brush] = []; drag = { kind: 'brush', e }; changed(LAYER_STAGE[st.brush]);
+    S.edits.push(e); redo[st.brush] = []; drag = { kind: 'brush', e, last: [x, y] }; changed(LAYER_STAGE[st.brush]);
+    brushPreview(e.layer, e.mode, e.r * W.scale, null, [x, y]);
   }
 });
 cv.addEventListener('pointermove', (ev) => {
   const st = STEPS[step];
-  if (st.brush || (st.id === 'parts' && partTool === 'fill')) {
-    cursor.style.display = 'block'; const d = brushSize; cursor.style.width = cursor.style.height = d + 'px';
-    cursor.style.left = ev.clientX - d / 2 + 'px'; cursor.style.top = ev.clientY - d / 2 + 'px';
-  }
+  setCursor();
+  if (brushOn()) {
+    showBrushCursor(...canvasXY(ev));
+  } else cursor.style.display = 'none';
   if (!drag) return;
   const [x, y] = canvasXY(ev);
   if (drag.kind === 'crop') {
@@ -1296,14 +1482,20 @@ cv.addEventListener('pointermove', (ev) => {
     S.crop = [Math.min(drag.x0, x1), Math.min(drag.y0, y1), Math.abs(x1 - drag.x0), Math.abs(y1 - drag.y0)];
     if (S.crop[2] > 8 && S.crop[3] > 8) changed(0);
   } else if (drag.kind === 'node') curveMove(x, y, ev);
+  else if (drag.kind === 'pen') penMove(x, y);
   else if (drag.kind === 'lasso') { drag.pts.push(toSrc(x, y)); setSvg(partsMarkup()); }
   else if (drag.kind === 'mark') { drag.m.pts.push(toSrc(x, y)); changed(6); }
-  else { drag.e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[drag.e.layer]); }
+  else {
+    const e = drag.e; e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[e.layer]);
+    brushPreview(e.layer, e.mode, e.r * W.scale, drag.last, [x, y]); drag.last = [x, y];
+  }
 });
 const endDrag = () => {
   if (drag && drag.kind === 'crop' && (!S.crop || S.crop[2] < 8 || S.crop[3] < 8)) S.crop = null;
   const lasso = drag && drag.kind === 'lasso' ? drag : null;
+  const painted = drag && (drag.kind === 'brush' || drag.kind === 'mark');
   drag = null;
+  if (painted && pending && pending.t) { cancelPending(); draw(); }   // show the real result now, not after the catch-up wait
   if (lasso) {
     if (lasso.pts.length >= 3) { PART().marks.push({ kind: 'lasso', pts: lasso.pts.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]) }); partRedo.length = 0; changed(6); }
     else draw();
@@ -1319,6 +1511,7 @@ let zoom = 1, panX = 0, panY = 0, spaceDown = false, pan = null;
 function applyZoom() {
   $('view').style.transform = zoom === 1 ? '' : `translate(${panX.toFixed(1)}px,${panY.toFixed(1)}px) scale(${zoom})`;
   $('zFit').textContent = Math.round(zoom * 100) + '%';
+  sharpen();
   if (sel && STEPS[step].id === 'strokes') draw();   // keep the line editor's handles the same size on screen
 }
 function resetZoom() { zoom = 1; panX = panY = 0; applyZoom(); }
@@ -1363,11 +1556,16 @@ $('main').addEventListener('mousedown', (ev) => { if (ev.button === 1) ev.preven
 window.addEventListener('blur', () => { spaceDown = false; $('main').classList.remove('panning'); });
 
 // ---- line editor on the strokes step: click a line, then drag its bezier anchors and handles
-let sel = null;   // {ci} for an edited line (index into S.curves), or {ci: -1, line, nodes, closed} for a traced one
+let sel = null;   // {ci} for an edited line (index into S.curves), or {ci: -1, line, nodes, closed, solid} for a traced one;
+                  // either may carry `anchor`, the index of the selected anchor, which Delete removes
+// 'edit' drags anchors and handles; 'line' and 'solid' draw a new line or filled shape anchor by anchor;
+// 'add' and 'remove' add or remove an anchor with one click.
+let curveTool = 'edit', pen = null, peek = false;   // peek: the ink view, showing the ink instead of the strokes   // pen: the line being drawn, {nodes, solid, dragging}
 const curveUndo = [], curveRedo = [];
 const pxToWork = () => { const r = cv.getBoundingClientRect(); return r.width ? cv.width / r.width : 1; };
 const selNodes = () => (sel.ci >= 0 ? S.curves[sel.ci].nodes.map(nodeToWork) : sel.nodes);
 const selClosed = () => (sel.ci >= 0 ? S.curves[sel.ci].closed : sel.closed);
+const selSolid = () => !!(sel.ci >= 0 ? S.curves[sel.ci].solid : sel.solid);
 const srcLine = (pts) => fmt(rdp(pts, 0.5).map((pt) => toSrc(...pt)));
 function pushCurveUndo() { curveUndo.push(JSON.stringify(S.curves)); curveRedo.length = 0; }
 function curveHistory(undo) {
@@ -1382,40 +1580,210 @@ function curvesChanged(msg) {
   renderParams(); draw(); if (msg) status(msg);
 }
 function setSelNodes(nodes) { // store the edited nodes (working pixels); the first edit turns a traced line into a curve
-  if (sel.ci < 0) { S.curves.push({ from: srcLine(sel.line.pts), nodes: [], closed: sel.closed }); sel = { ci: S.curves.length - 1 }; }
-  S.curves[sel.ci].nodes = nodes.map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0] }));
+  if (sel.ci < 0) { S.curves.push({ from: srcLine(sel.line.pts), nodes: [], closed: sel.closed, ...(sel.solid ? { solid: true } : {}) }); sel = { ci: S.curves.length - 1, anchor: sel.anchor }; }
+  S.curves[sel.ci].nodes = nodes.map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0], ...(n.c ? { c: true } : {}) }));
 }
 function deleteSelected() {
   if (!sel) return;
   pushCurveUndo();
-  if (sel.ci >= 0) S.curves[sel.ci] = { from: S.curves[sel.ci].from, del: true };
-  else S.curves.push({ from: srcLine(sel.line.pts), del: true });
-  sel = null; curvesChanged('Line deleted');
+  const solid = selSolid() ? { solid: true } : {}, what = solid.solid ? 'Solid shape' : 'Line';
+  if (sel.ci >= 0) S.curves[sel.ci] = { from: S.curves[sel.ci].from, del: true, ...solid };
+  else S.curves.push({ from: srcLine(sel.line.pts), del: true, ...solid });
+  sel = null; curvesChanged(what + ' deleted');
 }
 const distSeg = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy, t = L ? clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L, 0, 1) : 0; return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
 function curveDown(x, y, ev) {
+  if (curveTool === 'line' || curveTool === 'solid') { penDown(x, y, ev); return; }
+  if (curveTool === 'split') { splitAt(x, y); return; }
+  if (curveTool === 'join') { joinClick(x, y); return; }
   const R = 8 * pxToWork();
-  if (sel) { // grab a handle or anchor of the selected line
+  if (sel && curveTool !== 'add') { // grab a handle or anchor of the selected line
     const nodes = selNodes(), closed = selClosed();
     let hit = null;
-    nodes.forEach((n, k) => { for (const part of ['i', 'o']) { if (!closed && ((part === 'i' && k === 0) || (part === 'o' && k === nodes.length - 1))) continue; const d = Math.hypot(n[part][0] - x, n[part][1] - y); if (d < R && (!hit || d < hit.d)) hit = { k, part, d }; } });
+    if (curveTool === 'edit') nodes.forEach((n, k) => { for (const part of ['i', 'o']) { if (!closed && ((part === 'i' && k === 0) || (part === 'o' && k === nodes.length - 1))) continue; const d = Math.hypot(n[part][0] - x, n[part][1] - y); if (d < R && (!hit || d < hit.d)) hit = { k, part, d }; } });
     nodes.forEach((n, k) => { const d = Math.hypot(n.p[0] - x, n.p[1] - y); if (d < R && (!hit || hit.part !== 'p' || d < hit.d)) hit = { k, part: 'p', d }; });
     if (hit) {
+      if (hit.part === 'p' && (ev.altKey || curveTool === 'remove')) { removeAnchor(nodes, hit.k); return; }
+      sel.anchor = hit.k; renderParams(); draw();   // the anchor clicked, or the one whose handle was grabbed, is selected
       pushCurveUndo();
-      if (hit.part === 'p' && ev.altKey) { // Alt-click an anchor: remove it
-        if (nodes.length > 2) { nodes.splice(hit.k, 1); setSelNodes(nodes); curvesChanged('Anchor removed'); } else curveUndo.pop();
-        return;
-      }
       drag = { kind: 'node', k: hit.k, part: hit.part, nodes, x0: x, y0: y, base: JSON.parse(JSON.stringify(nodes)) };
       return;
     }
   }
-  // otherwise select the line under the pointer, or nothing
-  let best = -1, bd = Math.max(W.fig.width * 1.5, 10 * pxToWork());
-  W.lines.forEach((l, k) => { for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = k; } } });
-  if (best < 0) sel = null;
-  else { const l = W.lines[best]; sel = l.curve != null ? { ci: l.curve } : { ci: -1, line: l, nodes: fitNodes(l.pts, l.closed, Math.max(W.fig.width, 2)), closed: l.closed }; }
+  if (curveTool === 'add' && sel && addAnchorAt(x, y)) return;
+  selectAt(x, y);
+  if (curveTool === 'add' && sel) addAnchorAt(x, y);
   renderParams(); draw();
+}
+// Select the line or solid shape under the pointer, or nothing. A line wins over the shape it lies on.
+function selectAt(x, y) {
+  let best = null, bd = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  for (const l of [...W.lines, ...W.solids]) for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = l; } }
+  if (!best) best = W.solids.find((l) => inside([x, y], l.pts)) || null;
+  if (!best) sel = null;
+  else if (best.curve != null) sel = { ci: best.curve };
+  else { // the traced bezier itself; a piece left over from cutting an edited line has none, so fit one
+    const nodes = best.nodes ? structuredClone(best.nodes) : fitNodes(best.pts, best.closed, Math.max(0.3, S.simplify));
+    sel = { ci: -1, line: best, nodes, closed: best.closed, solid: !!best.solid };
+  }
+}
+const inside = ([x, y], pts) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
+function removeAnchor(nodes, k) {
+  if (nodes.length <= (selClosed() ? 3 : 2)) { status(selClosed() ? 'A closed shape needs at least 3 anchors' : 'A line needs at least 2 anchors'); return; }
+  pushCurveUndo(); nodes.splice(k, 1); setSelNodes(nodes); sel.anchor = null; curvesChanged('Anchor removed');
+}
+const selAnchor = () => (sel && sel.anchor != null && sel.anchor < selNodes().length ? sel.anchor : null);
+// Insert an anchor where (x, y) is nearest the curve, without changing its shape (de Casteljau split). Returns
+// the new anchor's index, or -1 when (x, y) is too far from the curve.
+function insertAnchor(nodes, closed, x, y) {
+  let best = null;
+  segs(nodes, closed).forEach(([a, b], s) => { for (let t = 0.02; t < 1; t += 0.02) { const q = cubic(a, b, t), d = Math.hypot(q[0] - x, q[1] - y); if (!best || d < best.d) best = { s, t, d }; } });
+  if (!best || best.d > Math.max(W.fig.width * 2, 10 * pxToWork())) return -1;
+  const a = nodes[best.s], b = nodes[(best.s + 1) % nodes.length], t = best.t, L = (u, v) => [u[0] + (v[0] - u[0]) * t, u[1] + (v[1] - u[1]) * t];
+  const ab = L(a.p, a.o), bc = L(a.o, b.i), cd = L(b.i, b.p), abc = L(ab, bc), bcd = L(bc, cd), m = L(abc, bcd);
+  a.o = ab; b.i = cd;
+  nodes.splice(best.s + 1, 0, { p: m, i: abc, o: bcd });
+  return best.s + 1;
+}
+function addAnchorAt(x, y) { // add an anchor to the selected curve at the point nearest (x, y); false if that is too far
+  const nodes = selNodes(), before = JSON.stringify(S.curves);
+  if (insertAnchor(nodes, selClosed(), x, y) < 0) return false;
+  curveUndo.push(before); curveRedo.length = 0;
+  setSelNodes(nodes); curvesChanged('Anchor added');
+  return true;
+}
+// ---- split and join. Both work on any line, traced or edited; the result is stored as line edits.
+const storeNodes = (nodes) => nodes.map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0], ...(n.c ? { c: true } : {}) }));
+// The line (not solid shape) under the pointer, with its anchors in working pixels.
+function pickLine(x, y) {
+  let best = null, bd = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  for (const l of W.lines) for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = l; } }
+  if (!best) return null;
+  const c = best.curve != null ? S.curves[best.curve] : null;
+  const nodes = c ? c.nodes.map(nodeToWork) : structuredClone(best.nodes || fitNodes(best.pts, best.closed, Math.max(0.3, S.simplify)));
+  return { line: best, ci: best.curve ?? -1, nodes, closed: c ? c.closed : best.closed };
+}
+// Store new anchors for a picked line: an edited line is updated, a traced one becomes an edit made from it.
+function putLine(pick, nodes, closed) {
+  if (pick.ci >= 0) { S.curves[pick.ci] = { ...S.curves[pick.ci], nodes: storeNodes(nodes), closed }; return pick.ci; }
+  S.curves.push({ from: srcLine(pick.line.pts), nodes: storeNodes(nodes), closed }); return S.curves.length - 1;
+}
+function dropLine(pick) { // remove a picked line that was joined into another
+  if (pick.ci >= 0) S.curves[pick.ci] = { from: S.curves[pick.ci].from, del: true };
+  else S.curves.push({ from: srcLine(pick.line.pts), del: true });
+}
+const plainEnd = (n) => { const m = { ...n }; delete m.c; return m; };
+// Cut the line under the pointer there: at an anchor if one is close, else at a new anchor on the curve. An open
+// line becomes two lines; a closed loop opens there.
+function splitAt(x, y) {
+  sel = null;
+  const pick = pickLine(x, y);
+  if (!pick) { draw(); status(W.solids.some((l) => inside([x, y], l.pts)) ? 'A solid shape cannot be split' : 'Click on a line to split it there'); return; }
+  const nodes = pick.nodes, R = 8 * pxToWork();
+  let k = nodes.findIndex((n) => Math.hypot(n.p[0] - x, n.p[1] - y) < R);
+  if (k < 0) k = insertAnchor(nodes, pick.closed, x, y);
+  if (k < 0) { draw(); status('Click on a line to split it there'); return; }
+  if (!pick.closed && (k === 0 || k === nodes.length - 1)) { draw(); status('That is the end of the line; split it somewhere along it'); return; }
+  pushCurveUndo();
+  if (pick.closed) { // open the loop at k: it starts and ends there
+    const ring = [...nodes.slice(k), ...nodes.slice(0, k + 1)].map((n, j, all) => (j === 0 || j === all.length - 1 ? plainEnd(n) : n));
+    ring[ring.length - 1] = structuredClone(ring[ring.length - 1]);
+    putLine(pick, ring, false);
+    curveTool = 'edit'; curvesChanged('Loop opened · back to Edit');
+    return;
+  }
+  const first = nodes.slice(0, k + 1).map((n, j) => (j === k ? plainEnd(n) : n)), second = nodes.slice(k).map((n, j) => (j === 0 ? plainEnd(structuredClone(n)) : n));
+  putLine(pick, first, false);
+  S.curves.push({ from: [], nodes: storeNodes(second), closed: false });   // the second piece was made from nothing traced
+  curveTool = 'edit'; curvesChanged('Split into two lines · back to Edit');
+}
+// Join: click near one end of a line, then near an end of another (or the other end of the same line, to close it).
+let joinFrom = null;   // {pick, end: 0 | 1} after the first click
+const reverseNodes = (nodes) => nodes.slice().reverse().map((n) => ({ ...n, i: n.o, o: n.i }));
+function joinClick(x, y) {
+  sel = null;
+  const pick = pickLine(x, y);
+  if (!pick || pick.closed) { draw(); status(pick ? 'A closed line has no ends to join' : 'Click near the end of a line'); return; }
+  const ends = [pick.nodes[0].p, pick.nodes[pick.nodes.length - 1].p], end = Math.hypot(ends[0][0] - x, ends[0][1] - y) <= Math.hypot(ends[1][0] - x, ends[1][1] - y) ? 0 : 1;
+  if (!joinFrom || !W.lines.includes(joinFrom.pick.line)) { joinFrom = { pick, end }; draw(); status('Now click near the end to join it to (Esc cancels)'); return; }
+  const A = joinFrom, same = A.pick.line === pick.line;
+  joinFrom = null;
+  if (same && A.end === end) { draw(); status('That is the same end: pick the other end, or another line'); return; }
+  const snap = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  const a = A.end === 1 ? A.pick.nodes : reverseNodes(A.pick.nodes);   // A runs into the join
+  pushCurveUndo();
+  if (same) { // close the loop
+    const first = a[0], last = a[a.length - 1];
+    if (Math.hypot(first.p[0] - last.p[0], first.p[1] - last.p[1]) < snap) { first.i = [last.i[0] + first.p[0] - last.p[0], last.i[1] + first.p[1] - last.p[1]]; a.pop(); first.c = bentHandles(first); }
+    else bridge(last, first);
+    putLine(A.pick, a, true);
+    curvesChanged('Line closed into a loop');
+    return;
+  }
+  const b = end === 0 ? pick.nodes : reverseNodes(pick.nodes);          // B runs out of the join
+  const tail = a[a.length - 1], head = b[0];
+  let joined;
+  if (Math.hypot(tail.p[0] - head.p[0], tail.p[1] - head.p[1]) < snap) { // one anchor halfway between the two ends
+    const m = [(tail.p[0] + head.p[0]) / 2, (tail.p[1] + head.p[1]) / 2], n = { p: m, i: [tail.i[0] + m[0] - tail.p[0], tail.i[1] + m[1] - tail.p[1]], o: [head.o[0] + m[0] - head.p[0], head.o[1] + m[1] - head.p[1]] };
+    n.c = bentHandles(n);
+    joined = [...a.slice(0, -1), n, ...b.slice(1)];
+  } else { bridge(tail, head); joined = [...a, ...b]; }   // too far apart: a straight piece between them
+  putLine(A.pick, joined, false);
+  dropLine(pick);
+  curvesChanged('Lines joined');
+}
+function bridge(from, to) { // a straight segment from one end anchor to another
+  const dx = (to.p[0] - from.p[0]) / 3, dy = (to.p[1] - from.p[1]) / 3;
+  from.o = [from.p[0] + dx, from.p[1] + dy]; to.i = [to.p[0] - dx, to.p[1] - dy];
+  from.c = bentHandles(from); to.c = bentHandles(to);
+}
+function joinMarkup() { // the end picked by the first Join click
+  if (!joinFrom || curveTool !== 'join' || !W.lines.includes(joinFrom.pick.line)) return '';
+  const k = pxToWork(), f = (v) => v.toFixed(1), nodes = joinFrom.pick.nodes, p = nodes[joinFrom.end ? nodes.length - 1 : 0].p;
+  return `<path d="${curvePath(nodes, false)}" fill="none" stroke="#e8742c" stroke-width="${f(W.fig.width)}" stroke-linecap="round" opacity=".6"/><circle cx="${f(p[0])}" cy="${f(p[1])}" r="${f(7 * k)}" fill="none" stroke="#e8742c" stroke-width="${f(2.5 * k)}"/>`;
+}
+// ---- pen: click to place anchors, drag while placing one to pull out its handles. Click the first anchor to
+// close the line, double-click or press Enter to finish, Esc to cancel. A solid shape always closes.
+function penDown(x, y, ev) {
+  if (sel) { sel = null; renderParams(); }
+  if (pen && ev.detail >= 2) { finishPen(false); return; }   // the first click of the double-click placed the last anchor
+  if (pen && pen.nodes.length >= 2) {
+    const f = pen.nodes[0].p;
+    if (Math.hypot(f[0] - x, f[1] - y) < 8 * pxToWork()) { finishPen(true); return; }
+  }
+  if (!pen) pen = { nodes: [], solid: curveTool === 'solid' };
+  pen.nodes.push({ p: [x, y], i: [x, y], o: [x, y], auto: true });
+  drag = { kind: 'pen' }; draw();
+}
+function penMove(x, y) {
+  const n = pen.nodes[pen.nodes.length - 1];
+  if (Math.hypot(x - n.p[0], y - n.p[1]) < 2 * pxToWork() && n.auto) return;   // a click, not a drag
+  n.auto = false; n.o = [x, y]; n.i = [2 * n.p[0] - x, 2 * n.p[1] - y]; draw();
+}
+// Smooth handles for anchors placed with a plain click: along the line from the anchor before to the one after.
+function penNodes(nodes, closed) {
+  const m = nodes.length;
+  return nodes.map((n, k) => {
+    if (!n.auto) return { p: n.p, i: n.i, o: n.o };
+    const prev = nodes[closed ? (k + m - 1) % m : Math.max(0, k - 1)].p, next = nodes[closed ? (k + 1) % m : Math.min(m - 1, k + 1)].p;
+    const tx = (next[0] - prev[0]) / 6, ty = (next[1] - prev[1]) / 6;
+    return { p: n.p, i: [n.p[0] - tx, n.p[1] - ty], o: [n.p[0] + tx, n.p[1] + ty] };
+  });
+}
+function finishPen(close) {
+  const p = pen; pen = null; drag = null;
+  const closed = p.solid || close, need = closed ? 3 : 2;
+  if (p.nodes.length < need) { status(`Needs at least ${need} anchors`); draw(); return; }
+  pushCurveUndo();
+  S.curves.push({ from: [], nodes: penNodes(p.nodes, closed).map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0] })), closed, ...(p.solid ? { solid: true } : {}) });
+  curvesChanged(p.solid ? 'Solid shape added' : 'Line added');
+}
+function penMarkup() {
+  if (!pen) return '';
+  const k = pxToWork(), f = (v) => v.toFixed(1), col = '#e8742c', nodes = penNodes(pen.nodes, pen.solid);
+  let h = nodes.length > 1 ? `<path d="${curvePath(nodes, pen.solid && nodes.length > 2)}" fill="${pen.solid ? col : 'none'}" fill-opacity=".5" stroke="${col}" stroke-width="${f(pen.solid ? 1.5 * k : W.fig.width)}" stroke-linecap="round"/>` : '';
+  nodes.forEach((n, i) => { h += `<rect x="${f(n.p[0] - 4 * k)}" y="${f(n.p[1] - 4 * k)}" width="${f(8 * k)}" height="${f(8 * k)}" fill="${i ? col : '#fff'}" stroke="${col}" stroke-width="${f(1.2 * k)}"/>`; });
+  return h;
 }
 let curveFrame = 0;
 function curveMove(x, y, ev) {
@@ -1439,53 +1807,114 @@ function curveMove(x, y, ev) {
   else {
     n[part] = [b[part][0] + dx, b[part][1] + dy];
     const other = part === 'i' ? 'o' : 'i';
-    if (!ev.altKey) { // keep the curve smooth through the anchor: the other handle points the opposite way
+    if (!ev.altKey && !b.c) { // a smooth anchor stays smooth: the other handle points the opposite way
       const vx = n[part][0] - n.p[0], vy = n[part][1] - n.p[1], L = Math.hypot(vx, vy) || 1, M = Math.hypot(b[other][0] - b.p[0], b[other][1] - b.p[1]);
       n[other] = [n.p[0] - (vx / L) * M, n.p[1] - (vy / L) * M];
-    } else n[other] = b[other].slice();
+    } else { n[other] = b[other].slice(); n.c = true; }   // a corner, or Alt-drag to make one
   }
   setSelNodes(nodes);
   if (!curveFrame) curveFrame = requestAnimationFrame(() => { curveFrame = 0; curvesChanged(); });
 }
-cv.addEventListener('dblclick', (ev) => { // double-click the selected line to add an anchor there
-  if (STEPS[step].id !== 'strokes' || !sel) return;
-  const [x, y] = canvasXY(ev), nodes = selNodes(), closed = selClosed();
-  let best = null;
-  segs(nodes, closed).forEach(([a, b], s) => { for (let t = 0.02; t < 1; t += 0.02) { const q = cubic(a, b, t), d = Math.hypot(q[0] - x, q[1] - y); if (!best || d < best.d) best = { s, t, d }; } });
-  if (!best || best.d > Math.max(W.fig.width * 2, 10 * pxToWork())) return;
-  const a = nodes[best.s], b = nodes[(best.s + 1) % nodes.length], t = best.t, L = (u, v) => [u[0] + (v[0] - u[0]) * t, u[1] + (v[1] - u[1]) * t];
-  const ab = L(a.p, a.o), bc = L(a.o, b.i), cd = L(b.i, b.p), abc = L(ab, bc), bcd = L(bc, cd), m = L(abc, bcd);   // de Casteljau split
+cv.addEventListener('dblclick', (ev) => { // double-click an anchor to switch corner/smooth, the line to add one
+  if (STEPS[step].id !== 'strokes' || !sel || curveTool !== 'edit') return;
+  const [x, y] = canvasXY(ev), R = 8 * pxToWork(), k = selNodes().findIndex((n) => Math.hypot(n.p[0] - x, n.p[1] - y) < R);
+  if (k >= 0) toggleCorner(k); else addAnchorAt(x, y);
+});
+function toggleCorner(k) {
+  const nodes = selNodes(), n = nodes[k];
+  if (!selClosed() && (k === 0 || k === nodes.length - 1)) { status('An end anchor has one handle, so it is neither'); return; }
   pushCurveUndo();
-  a.o = ab; b.i = cd;
-  nodes.splice(best.s + 1, 0, { p: m, i: abc, o: bcd });
-  setSelNodes(nodes); curvesChanged('Anchor added');
+  if (n.c) { // straighten the handles through the anchor, along the middle of their two directions, keeping their lengths
+    const Li = Math.hypot(n.p[0] - n.i[0], n.p[1] - n.i[1]), Lo = Math.hypot(n.o[0] - n.p[0], n.o[1] - n.p[1]);
+    const ui = Li ? [(n.p[0] - n.i[0]) / Li, (n.p[1] - n.i[1]) / Li] : [0, 0], uo = Lo ? [(n.o[0] - n.p[0]) / Lo, (n.o[1] - n.p[1]) / Lo] : [0, 0];
+    let tx = ui[0] + uo[0], ty = ui[1] + uo[1], T = Math.hypot(tx, ty);
+    if (T < 1e-6) { tx = -ui[1] || 1; ty = ui[0]; T = Math.hypot(tx, ty); }   // handles pointing the same way: turn them square to it
+    tx /= T; ty /= T;
+    n.i = [n.p[0] - tx * Li, n.p[1] - ty * Li]; n.o = [n.p[0] + tx * Lo, n.p[1] + ty * Lo]; n.c = false;
+  } else n.c = true;
+  setSelNodes(nodes); sel.anchor = k; curvesChanged(n.c ? 'Corner anchor: its handles move on their own' : 'Smooth anchor');
+}
+// The ink view on the strokes step shows the pencil ink under the strokes; editing keeps working meanwhile.
+// Tap Tab (or tick "Show ink") to switch it on or off; hold Tab to look only while it is held.
+let peekDown = 0;   // when Tab went down, while it is held
+function setPeek(on) { if (peek === on) return; peek = on; if (img) { renderParams(); draw(); } }
+window.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Tab' || STEPS[step].id !== 'strokes' || !img || ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev.target)) return;
+  ev.preventDefault();
+  if (ev.repeat || peekDown) return;
+  peekDown = performance.now();
+  if (peek) { setPeek(false); peekDown = -1; } else setPeek(true);   // -1: this press turned it off
+});
+window.addEventListener('keyup', (ev) => {
+  if (ev.key !== 'Tab' || !peekDown) return;
+  const held = peekDown > 0 && performance.now() - peekDown > 350;
+  peekDown = 0;
+  if (held) setPeek(false);   // held to look: back to the strokes on release; a tap leaves it on
+});
+window.addEventListener('blur', () => { if (peekDown > 0 && peek) setPeek(false); peekDown = 0; });
+window.addEventListener('keydown', (ev) => { // Esc drops a half-done join
+  if (ev.key === 'Escape' && joinFrom && STEPS[step].id === 'strokes') { joinFrom = null; draw(); status('Join cancelled'); }
+});
+window.addEventListener('keydown', (ev) => { // Enter finishes the line being drawn, Esc drops it
+  if (STEPS[step].id !== 'strokes' || !pen) return;
+  if (ev.key === 'Enter') { ev.preventDefault(); finishPen(false); }
+  else if (ev.key === 'Escape') { pen = null; drag = null; draw(); status('Line cancelled'); }
 });
 window.addEventListener('keydown', (ev) => {
   if (STEPS[step].id !== 'strokes' || !sel || ev.metaKey || ev.ctrlKey) return;
   const t = ev.target; if (t && (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number') || t.tagName === 'TEXTAREA')) return;
-  if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); deleteSelected(); }
-  else if (ev.key === 'Escape') { sel = null; renderParams(); draw(); }
+  if (ev.key === 'Delete' || ev.key === 'Backspace') { // the selected anchor, else the whole line
+    ev.preventDefault();
+    if (selAnchor() != null) removeAnchor(selNodes(), selAnchor()); else deleteSelected();
+  } else if (ev.key === 'Escape') { // first the anchor, then the line
+    if (selAnchor() != null) sel.anchor = null; else sel = null;
+    renderParams(); draw();
+  }
 });
-function editorMarkup() {
+function editorMarkup(thin) { // thin: just the outline, so the ink under it shows (the Tab ink preview)
   if (!sel) return '';
   const nodes = selNodes(), closed = selClosed(), k = pxToWork(), f = (v) => v.toFixed(1), col = '#e8742c';
-  let h = `<path d="${curvePath(nodes, closed)}" fill="none" stroke="${col}" stroke-width="${f(W.fig.width)}" stroke-linecap="round" opacity=".85"/>`;
+  let h = thin
+    ? `<path d="${curvePath(nodes, closed)}" fill="none" stroke="${col}" stroke-width="${f(1.5 * k)}"/>`
+    : selSolid()
+    ? `<path d="${curvePath(nodes, true)}" fill="${col}" fill-opacity=".55" stroke="${col}" stroke-width="${f(1.5 * k)}"/>`
+    : `<path d="${curvePath(nodes, closed)}" fill="none" stroke="${col}" stroke-width="${f(W.fig.width)}" stroke-linecap="round" opacity=".85"/>`;
+  // Every handle first, then every anchor on top: a handle swung over a neighbouring anchor must not hide it
+  // (a click there grabs the anchor anyway).
   nodes.forEach((n, i) => {
     for (const part of ['i', 'o']) {
       if (!closed && ((part === 'i' && i === 0) || (part === 'o' && i === nodes.length - 1))) continue;
       h += `<path d="M${f(n.p[0])} ${f(n.p[1])}L${f(n[part][0])} ${f(n[part][1])}" stroke="#fff" stroke-width="${f(1.2 * k)}"/><circle cx="${f(n[part][0])}" cy="${f(n[part][1])}" r="${f(3.5 * k)}" fill="#fff" stroke="${col}" stroke-width="${f(1.2 * k)}"/>`;
     }
-    h += `<rect x="${f(n.p[0] - 4 * k)}" y="${f(n.p[1] - 4 * k)}" width="${f(8 * k)}" height="${f(8 * k)}" fill="${col}" stroke="#fff" stroke-width="${f(1.2 * k)}"/>`;
+  });
+  nodes.forEach((n, i) => { // a smooth anchor is a square, a corner a diamond; the selected one larger and white
+    const on = i === selAnchor(), r = (on ? 5.5 : 4) * k * (n.c ? 1.3 : 1);
+    const paint = on ? `fill="#fff" stroke="${col}" stroke-width="${f(2.5 * k)}"` : `fill="${col}" stroke="#fff" stroke-width="${f(1.2 * k)}"`;
+    h += n.c
+      ? `<path class="anchor" d="M${f(n.p[0])} ${f(n.p[1] - r)}L${f(n.p[0] + r)} ${f(n.p[1])}L${f(n.p[0])} ${f(n.p[1] + r)}L${f(n.p[0] - r)} ${f(n.p[1])}Z" ${paint}/>`
+      : `<rect class="anchor" x="${f(n.p[0] - r)}" y="${f(n.p[1] - r)}" width="${f(2 * r)}" height="${f(2 * r)}" ${paint}/>`;
   });
   return h;
 }
+const CURVE_TOOLS = [['edit', 'Edit'], ['line', 'Draw line'], ['solid', 'Draw solid'], ['add', 'Add anchor'], ['remove', 'Remove anchor'], ['split', 'Split'], ['join', 'Join']];
 function curvePanel() {
   const n = S.curves.length, edits = n ? ` · ${n} line edit(s) kept through re-tracing` : '';
-  const help = sel
-    ? 'Drag a square to move an anchor (an end snaps onto a nearby line; hold Shift to place it freely), a circle to bend the line. Alt-drag a circle for a sharp corner, Alt-click a square to remove it, double-click the line to add one. Delete removes the line, Esc deselects.'
-    : 'Click a line to edit its curve.';
-  return `<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? 'edited line' : 'traced line') : ''}</output></label><span class="hint">${help}${edits}</span>
-    <div class="row"><button id="cReset" ${sel && sel.ci >= 0 ? '' : 'disabled'}>Reset line</button><button id="cDelete" ${sel ? '' : 'disabled'}>Delete line</button><button id="cUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="cRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="cClear" ${n ? '' : 'disabled'}>Reset all lines</button></div></div>`;
+  const what = sel ? (selSolid() ? 'shape' : 'line') : 'line';
+  const help = {
+    edit: sel
+      ? `Drag an anchor to move it${selClosed() ? '' : ' (an end snaps onto a nearby line; hold Shift to place it freely)'}, a circle to bend the ${what}. A square is a smooth anchor, whose handles stay in line; a diamond is a corner, whose handles move on their own (Alt-dragging a circle also makes one). Double-click an anchor to switch it, or the ${what} to add an anchor. Click an anchor to select it: Delete removes it, or the whole ${what} when no anchor is selected. Esc deselects.`
+      : 'Click a line or a solid ink shape to edit its curve.',
+    line: 'Click to place anchors; drag while placing one to bend the line through it. Click the first anchor to close the line, double-click or press Enter to finish, Esc to cancel.',
+    solid: 'Click to place the outline of a filled shape; drag while placing an anchor to bend it. Click the first anchor, double-click or press Enter to finish, Esc to cancel.',
+    add: 'Click a line or solid shape where the new anchor should go.',
+    remove: 'Click a line or solid shape to show its anchors, then click an anchor to remove it.',
+    split: 'Click anywhere on a line to cut it into two there. Clicking a closed line opens it at that point.',
+    join: 'Click near the end of a line, then near the end of another line to join them into one; ends that nearly meet become one anchor, others get a straight piece between them. Click both ends of one line to close it. Esc cancels.',
+  }[curveTool];
+  const tools = CURVE_TOOLS.map(([id, label]) => `<button data-ctool="${id}" class="${curveTool === id ? 'on' : ''}">${label}</button>`).join('');
+  const inkBox = `<label class="check"><input type="checkbox" id="peekInk" ${peek ? 'checked' : ''}> Show ink (tap Tab; hold Tab to look)</label>`;
+  return `${inkBox}<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? `edited ${what}` : `traced ${what}`) : ''}</output></label><div class="row">${tools}</div><span class="hint">${help}${edits}</span>
+    <div class="row"><button id="cReset" ${sel && sel.ci >= 0 ? '' : 'disabled'}>Reset ${what}</button><button id="cDelAnchor" ${sel && selAnchor() != null ? '' : 'disabled'}>Delete anchor</button><button id="cCorner" ${sel && selAnchor() != null ? '' : 'disabled'}>${sel && selAnchor() != null && selNodes()[selAnchor()].c ? 'Make smooth' : 'Make corner'}</button><button id="cDelete" ${sel ? '' : 'disabled'}>Delete ${what}</button><button id="cUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="cRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="cClear" ${n ? '' : 'disabled'}>Reset all lines</button></div></div>`;
 }
 
 // ---- loading
@@ -1524,7 +1953,7 @@ function applyPreset(j) {
   S = Object.assign(structuredClone(DEFAULTS), settings);
   CH = { parts: (parts && parts.length ? parts : [{ id: 'body' }]).map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, marks: p.marks || [] })) };
   if (j.name) $('presetName').value = j.name;
-  redo.ink = []; redo.fill = []; redo.solid = []; sel = null; curveUndo.length = curveRedo.length = 0;
+  redo.ink = []; redo.fill = []; redo.solid = []; sel = null; pen = null; curveUndo.length = curveRedo.length = 0;
   invalidate(0); renderParams(); selectPart(0);
   return note;
 }
@@ -1584,8 +2013,143 @@ function buildCharacter() {
   };
 }
 
+// ====================================================================
+// Debug log for the line editor. Records pointer events on the strokes step, every editor action with the
+// selected line's anchors before and after, and checks after each change that no anchor went missing, moved
+// on its own or is hidden. "Save debug log" downloads it all, with the settings and undo history needed to
+// replay the edit. Nothing here changes what the editor does.
+// ====================================================================
+const LIGHTBOX_BUILD = 'anchor-debug-1';
+const DBG = { events: [], anomalies: [], max: 6000, lastRender: '' };
+const r2 = (v) => Math.round(v * 100) / 100;
+const pt = (p) => (p ? [r2(p[0]), r2(p[1])] : p);
+const nodeDump = (nodes) => nodes.map((n) => ({ p: pt(n.p), i: pt(n.i), o: pt(n.o), ...(n.c ? { c: 1 } : {}) }));
+function selInfo(full) {
+  if (!sel) return null;
+  let nodes = null; try { nodes = selNodes(); } catch (e) { return { ci: sel.ci, error: String(e) }; }
+  return { ci: sel.ci, traced: sel.ci < 0, solid: selSolid(), closed: selClosed(), n: nodes.length, anchor: sel.anchor ?? null, ...(full ? { nodes: nodeDump(nodes) } : {}) };
+}
+function dbg(ev, data) {
+  DBG.events.push({ t: Math.round(performance.now()), ev, ...data });
+  if (DBG.events.length > DBG.max) DBG.events.splice(0, DBG.events.length - DBG.max);
+}
+function anomaly(kind, data) {
+  const a = { t: Math.round(performance.now()), kind, ...data };
+  DBG.anomalies.push(a); if (DBG.anomalies.length > 200) DBG.anomalies.shift();
+  dbg('ANOMALY', { kind, ...data });
+  console.warn('[lightbox debug]', kind, data);
+  status(`⚠ Editor check failed: ${kind}. Click "Save debug log" and send the file.`);
+}
+// After a change: nodes must be finite, the selected curve must be drawn, and on the strokes step every anchor
+// must be in the view (and not sitting on top of another one).
+function checkAnchors(where) {
+  if (!sel || STEPS[step].id !== 'strokes') return;
+  let nodes; try { nodes = selNodes(); } catch (e) { anomaly('selection unreadable', { where, error: String(e) }); return; }
+  nodes.forEach((n, k) => { for (const q of ['p', 'i', 'o']) if (!n[q] || !Number.isFinite(n[q][0]) || !Number.isFinite(n[q][1])) anomaly('anchor has no position', { where, k, part: q, node: n }); });
+  if (sel.ci >= 0 && S.curves[sel.ci] && !S.curves[sel.ci].del && valid >= 5 && ![...W.lines, ...W.solids].some((l) => l.curve === sel.ci)) anomaly('selected curve not drawn', { where, sel: selInfo(true) });
+  const R = 8 * pxToWork(), close = [];
+  for (let a = 0; a < nodes.length; a++) for (let b = a + 1; b < nodes.length; b++) if (Math.hypot(nodes[a].p[0] - nodes[b].p[0], nodes[a].p[1] - nodes[b].p[1]) < R) close.push([a, b]);
+  const shown = svgEl ? svgEl.querySelectorAll('.anchor').length : 0;
+  const sig = `${sel.ci}|${nodes.length}|${shown}|${JSON.stringify(close)}|${peek}`;
+  if (sig !== DBG.lastRender) {
+    DBG.lastRender = sig;
+    dbg('render', { where, sel: selInfo(), anchorsDrawn: shown, overlapping: close });
+    if (!peek && shown !== nodes.length) anomaly('anchors drawn != anchors', { where, drawn: shown, anchors: nodes.length, sel: selInfo(true) });
+    if (close.length) anomaly('anchors on top of each other', { where, pairs: close, sel: selInfo(true) });
+  }
+}
+// Wrap the editor's functions to log them. Reassigning a function declaration rebinds it for every caller.
+const wrapFn = (get, set, name, before, after) => {
+  const f = get();
+  set(function (...args) {
+    const pre = before ? before(...args) : {};
+    let out, err;
+    try { out = f.apply(this, args); } catch (e) { err = e; }
+    dbg(name, { args: args.filter((a) => typeof a === 'number' || typeof a === 'boolean').map((a) => (typeof a === 'number' ? r2(a) : a)), ...pre, ...(after ? after(out, pre, ...args) : {}), ...(err ? { error: String(err) } : {}) });
+    if (err) { anomaly('error in ' + name, { error: String(err), stack: err.stack }); throw err; }
+    return out;
+  });
+};
+const selBefore = () => ({ before: selInfo(true) });
+const selAfter = () => ({ after: selInfo(true) });
+wrapFn(() => curveDown, (f) => { curveDown = f; }, 'curveDown', () => ({ tool: curveTool, before: selInfo(true) }),
+  () => ({ after: selInfo(), drag: drag ? { kind: drag.kind, k: drag.k, part: drag.part } : null }));
+wrapFn(() => selectAt, (f) => { selectAt = f; }, 'selectAt', null, selAfter);
+wrapFn(() => removeAnchor, (f) => { removeAnchor = f; }, 'removeAnchor', selBefore, selAfter);
+wrapFn(() => addAnchorAt, (f) => { addAnchorAt = f; }, 'addAnchorAt', selBefore, (out) => ({ added: out, ...selAfter() }));
+wrapFn(() => toggleCorner, (f) => { toggleCorner = f; }, 'toggleCorner', selBefore, selAfter);
+wrapFn(() => splitAt, (f) => { splitAt = f; }, 'splitAt', () => ({ curves: S.curves.length }), () => ({ curvesAfter: S.curves.length, last: S.curves.slice(-2) }));
+wrapFn(() => joinClick, (f) => { joinClick = f; }, 'joinClick', () => ({ pending: joinFrom ? { ci: joinFrom.pick.ci, end: joinFrom.end } : null, curves: S.curves.length }), () => ({ pendingAfter: joinFrom ? { ci: joinFrom.pick.ci, end: joinFrom.end } : null, curvesAfter: S.curves.length }));
+wrapFn(() => deleteSelected, (f) => { deleteSelected = f; }, 'deleteSelected', selBefore, selAfter);
+wrapFn(() => finishPen, (f) => { finishPen = f; }, 'finishPen', () => ({ pen: pen ? { n: pen.nodes.length, solid: pen.solid } : null }), selAfter);
+wrapFn(() => curveHistory, (f) => { curveHistory = f; }, 'curveHistory', selBefore, selAfter);
+wrapFn(() => setSelNodes, (f) => { setSelNodes = f; }, 'setSelNodes', (nodes) => ({ ciBefore: sel && sel.ci, n: nodes.length }), () => ({ ciAfter: sel && sel.ci }));
+// Moves log only what moved, but check that no other anchor moved and none was added or lost.
+{
+  const f = curveMove;
+  curveMove = function (x, y, ev) {
+    const d = drag, k = d && d.k;
+    f.call(this, x, y, ev);
+    if (!d || !sel) return;
+    let nodes; try { nodes = selNodes(); } catch { return; }
+    const n = nodes[k];
+    dbg('move', { x: r2(x), y: r2(y), k, part: d.part, alt: ev.altKey, shift: ev.shiftKey, node: n ? { p: pt(n.p), i: pt(n.i), o: pt(n.o), c: !!n.c } : null });
+    if (nodes.length !== d.base.length) anomaly('anchor count changed while dragging', { k, part: d.part, before: d.base.length, after: nodes.length, base: nodeDump(d.base), now: nodeDump(nodes) });
+    else {
+      const tol = 0.25;
+      nodes.forEach((m, j) => {
+        if (j === k) return;
+        const b = d.base[j];
+        for (const q of ['p', 'i', 'o']) if (Math.hypot(m[q][0] - b[q][0], m[q][1] - b[q][1]) > tol) { anomaly('another anchor moved while dragging', { dragged: k, part: d.part, moved: j, field: q, from: pt(b[q]), to: pt(m[q]) }); return; }
+      });
+    }
+  };
+}
+{
+  const f = curvesChanged;
+  curvesChanged = function (msg) { f.call(this, msg); dbg('curvesChanged', { msg: msg || null, lines: W.lines && W.lines.length, solids: W.solids && W.solids.length, curves: S.curves.length }); checkAnchors('curvesChanged'); };
+}
+{
+  const f = STAGES[5];
+  STAGES[5] = function () { const pre = selInfo(); f(); dbg('retrace', { before: pre, after: selInfo(), lines: W.lines.length, solids: W.solids.length, dragging: !!drag }); if (pre && !sel && drag) anomaly('selection dropped by a re-trace while dragging', { before: pre }); };
+}
+{
+  const f = draw;
+  draw = function () { f(); checkAnchors('draw'); };
+}
+// Pointer events on the strokes step, captured before the editor sees them.
+const ptrLog = (type) => (ev) => {
+  if (!img || STEPS[step].id !== 'strokes' || (type === 'move' && !drag)) return;
+  if (type === 'move') return;   // moves are logged by curveMove with what they did
+  const [x, y] = canvasXY(ev);
+  dbg('ptr-' + type, { x: r2(x), y: r2(y), alt: ev.altKey, shift: ev.shiftKey, detail: ev.detail, button: ev.button, tool: curveTool, drag: drag ? { kind: drag.kind, k: drag.k, part: drag.part } : null, sel: selInfo(type === 'up') });
+};
+cv.addEventListener('pointerdown', ptrLog('down'), true);
+cv.addEventListener('pointerup', ptrLog('up'), true);
+cv.addEventListener('dblclick', (ev) => { if (img && STEPS[step].id === 'strokes') { const [x, y] = canvasXY(ev); dbg('dblclick', { x: r2(x), y: r2(y), sel: selInfo() }); } }, true);
+window.addEventListener('keydown', (ev) => { if (img && STEPS[step].id === 'strokes' && !typing(ev.target)) dbg('key', { key: ev.key, alt: ev.altKey, shift: ev.shiftKey, meta: ev.metaKey || ev.ctrlKey, sel: selInfo() }); }, true);
+window.addEventListener('error', (e) => anomaly('page error', { message: e.message, at: `${e.lineno}:${e.colno}` }));
+function debugReport() {
+  const fileName = $('file').files && $('file').files[0] ? $('file').files[0].name : null;
+  return {
+    build: LIGHTBOX_BUILD, saved: new Date().toISOString(), userAgent: navigator.userAgent,
+    viewport: [innerWidth, innerHeight], devicePixelRatio, image: img ? { name: fileName, size: [img.naturalWidth, img.naturalHeight] } : null,
+    character: $('presetName').value, step: STEPS[step].id, tool: curveTool, zoom, pan: [panX, panY], screenPxPerWorkPx: r2(1 / pxToWork()),
+    working: W.w ? { w: W.w, h: W.h, crop: [W.cx, W.cy, W.cw, W.ch], scale: W.scale, lineWidth: W.fig && W.fig.width } : null,
+    selection: selInfo(true), drawnAnchors: svgEl ? svgEl.querySelectorAll('.anchor').length : 0,
+    lines: (W.lines || []).map((l) => ({ curve: l.curve ?? null, closed: l.closed, n: l.nodes ? l.nodes.length : null, from: pt(l.pts[0]), to: pt(l.pts[l.pts.length - 1]) })),
+    solids: (W.solids || []).map((l) => ({ curve: l.curve ?? null, n: l.nodes ? l.nodes.length : null, at: pt(l.pts[0]) })),
+    settings: S, parts: CH, curveUndo: curveUndo.map((j) => JSON.parse(j)), curveRedo: curveRedo.map((j) => JSON.parse(j)),
+    anomalies: DBG.anomalies, events: DBG.events,
+  };
+}
+$('debugLog').onclick = () => {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
+  download(`lightbox-debug-${stamp}.json`, JSON.stringify(debugReport(), null, 1), 'application/json');
+  status(`Saved lightbox-debug-${stamp}.json (${DBG.events.length} events, ${DBG.anomalies.length} failed checks)`);
+};
 refreshPresetList(); renderParts(); renderSteps(); renderParams();
-window.__lightbox = { get S() { return S; }, get CH() { return CH; }, W, ensure, loadFile, buildCharacter, selectPart, setStep: (i) => { step = i; renderSteps(); renderParams(); draw(); } };
+window.__lightbox = { get S() { return S; }, get CH() { return CH; }, W, ensure, loadFile, buildCharacter, selectPart, setStep: (i) => { step = i; renderSteps(); renderParams(); draw(); }, debugReport };
 </script>
 </body>
 </html>
