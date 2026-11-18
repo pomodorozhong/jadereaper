@@ -48,6 +48,8 @@ ol.steps button.cur .n{color:inherit}
 main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
 #view{position:relative;max-width:100%;max-height:100%;transform-origin:0 0}
 #zoombar{position:absolute;right:12px;bottom:10px;display:flex;gap:4px}
+#panelBtn{position:absolute;left:12px;top:10px;z-index:3;background:var(--panel);font-size:12px}
+.wrap.nopanel aside{display:none}
 #zoombar button{background:var(--panel);font-family:var(--mono);font-size:12px;min-width:30px}
 #view canvas[data-cursor=none]{cursor:none}
 #view canvas[data-cursor=crosshair]{cursor:crosshair}
@@ -83,6 +85,7 @@ main.panning,main.panning #view canvas{cursor:grab}
     <div class="params" id="params"></div>
   </aside>
   <main id="main">
+    <button id="panelBtn" title="Hide the left panel to make the view bigger (\)">◀ Hide panel</button>
     <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left: clean up and trace the whole character first, then split it into parts.</div>
     <div id="view" hidden><canvas id="cv"></canvas><svg id="brushCursor" style="display:none"></svg></div>
     <div id="status"></div>
@@ -1525,6 +1528,15 @@ function applyZoom() {
   sharpen();
   if (sel && STEPS[step].id === 'strokes') draw();   // keep the line editor's handles the same size on screen
 }
+// Hide the left panel to give the view the whole window; the button (or \\) brings it back. Remembered in this browser.
+function togglePanel(hide = !document.querySelector('.wrap').classList.contains('nopanel')) {
+  document.querySelector('.wrap').classList.toggle('nopanel', hide);
+  $('panelBtn').textContent = hide ? '▶ Show panel' : '◀ Hide panel';
+  try { localStorage.setItem('lightbox.panelHidden', hide ? '1' : ''); } catch { /* storage blocked: not remembered */ }
+  if (img) fitView();
+}
+$('panelBtn').onclick = () => togglePanel();
+try { if (localStorage.getItem('lightbox.panelHidden')) togglePanel(true); } catch { /* storage blocked */ }
 function resetZoom() { zoom = 1; panX = panY = 0; applyZoom(); }
 function zoomAt(z, cx, cy) {
   z = clamp(z, 1, 16);
@@ -1561,6 +1573,7 @@ window.addEventListener('keydown', (ev) => {
   else if (ev.key === '=' || ev.key === '+') zoomAt(zoom * 1.5, ...mainCentre());
   else if (ev.key === '-') zoomAt(zoom / 1.5, ...mainCentre());
   else if (ev.key === '0') resetZoom();
+  else if (ev.key === '\\') togglePanel();
 });
 window.addEventListener('keyup', (ev) => { if (ev.key === ' ') { if (img && !typing(ev.target)) ev.preventDefault(); spaceDown = false; $('main').classList.remove('panning'); } });   // no button click on Space
 $('main').addEventListener('mousedown', (ev) => { if (ev.button === 1) ev.preventDefault(); });   // no auto-scroll on middle-drag
