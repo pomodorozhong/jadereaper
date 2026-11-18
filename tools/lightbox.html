@@ -698,7 +698,8 @@ const toWork = (x, y) => [(x - W.cx) * W.scale, (y - W.cy) * W.scale];
 const toSrc = (x, y) => [x / W.scale + W.cx, y / W.scale + W.cy];
 
 function stage0() {
-  rot = rotated();
+  // Rotating the full-size photo is slow, so it is only redone for a new photo or rotation, not for a crop.
+  if (!rot || rot.img !== img || rot.rotate !== S.rotate) { rot = rotated(); rot.img = img; rot.rotate = S.rotate; }
   let [cx, cy, cw, ch] = S.crop || [0, 0, rot.width, rot.height];
   cx = clamp(Math.round(cx), 0, rot.width - 2); cy = clamp(Math.round(cy), 0, rot.height - 2);
   cw = clamp(Math.round(cw), 2, rot.width - cx); ch = clamp(Math.round(ch), 2, rot.height - cy);
