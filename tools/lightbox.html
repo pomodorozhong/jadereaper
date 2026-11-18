@@ -713,7 +713,9 @@ function stage0() {
 function stage1() {
   const { w, h, gray } = W;
   if (!S.bgOn) { W.flat = gray.slice(); return; }
-  const bg = boxBlur(boxBlur(slideExtreme(slideExtreme(gray, w, h, Math.round(S.bgClose * Math.max(0.3, W.scale)), true), w, h, Math.round(S.bgClose * Math.max(0.3, W.scale)), false), w, h, S.bgBlur), w, h, S.bgBlur);
+  // Sizes are in photo pixels, so they mean the same at any working size.
+  const k = Math.max(0.3, W.scale), close = Math.round(S.bgClose * k), blur = S.bgBlur * k;
+  const bg = boxBlur(boxBlur(slideExtreme(slideExtreme(gray, w, h, close, true), w, h, close, false), w, h, blur), w, h, blur);
   const flat = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) flat[i] = clamp((gray[i] / Math.max(1, bg[i])) * 255, 0, 255);
   W.flat = flat;
@@ -740,7 +742,8 @@ function stage3() {
   const closed = erode(dilate(ink, w, h, r), w, h, r);
   const outside = outsideFlood(closed, w, h);
   let sil = not(outside);
-  if (S.fillOpen > 0) sil = dilate(erode(sil, w, h, S.fillOpen), w, h, S.fillOpen);
+  const open = S.fillOpen * W.scale;
+  if (open > 0) sil = dilate(erode(sil, w, h, open), w, h, open);
   for (let i = 0; i < w * h; i++) if (ink[i]) sil[i] = 1;
   // Ink outside the fill is a stray mark: drop it. Only the automatic fill (plus fill painted on by hand)
   // decides that, so erasing paper fill with the brush never removes the ink lines under it.
@@ -760,8 +763,9 @@ function stage4() { // solid ink: decided from the sharp ink mask, before any tr
   for (let i = 0; i < w * h; i++) if (sk[i]) rs.push(dist[i]);
   const rLine = Math.max(1, median(rs));            // half the width of a typical drawn line
   // Pencil fill is grainy: close small gaps first so a coloured-in area reads as one block.
-  const inkC = S.solidClose > 0 ? erode(dilate(inkIn, w, h, S.solidClose), w, h, S.solidClose) : inkIn;
-  const distC = S.solidClose > 0 ? edt(inkC, w, h) : dist;
+  const gap = S.solidClose * W.scale;   // in photo pixels, like the other sizes
+  const inkC = gap > 0 ? erode(dilate(inkIn, w, h, gap), w, h, gap) : inkIn;
+  const distC = gap > 0 ? edt(inkC, w, h) : dist;
   const t = Math.max(1.5, rLine * S.solidK);
   let solid = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) solid[i] = distC[i] > t ? 1 : 0;   // cores: deeper inside ink than any line
