@@ -130,7 +130,7 @@ const STEPS = [
   { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
     params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
   { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue. Click a line or a solid ink shape to reshape it as a bezier curve, or draw new ones with the tools below; your edits stay when you change the sliders.',
-    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5], ['simplify', 'Simplify (bezier fit, px)', 0.1, 6, 0.05, 5, 'How far each traced curve may stray from the pencil line. Lower keeps more detail but gives more anchors to edit.'], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
+    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5, 'Set for a 4 px line; scaled to this drawing\'s line width.'], ['simplify', 'Simplify (bezier fit, px)', 0.1, 6, 0.05, 5, 'How far each traced curve may stray from the pencil line, for a 4 px line (scaled to this drawing\'s line width). Lower keeps more detail but gives more anchors to edit.'], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
   { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
     params: [['parttools', '', 'parttools']] },
   { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
@@ -777,6 +777,10 @@ function stage4() { // solid ink: decided from the sharp ink mask, before any tr
   applyEdits(solid, 'solid', w, h, 1);
   W.solid = solid; W.rLine = rLine;
 }
+// Smoothing and Simplify are set for a 4 px pencil line, the artist's usual: on a drawing with thinner lines
+// they shrink with the line, so its smaller details are not smoothed away (and a thicker line gets more).
+const lineScale = (width) => width / 4;
+const fitEps = (width) => Math.max(0.3, S.simplify * lineScale(width));
 function stage5() { // strokes
   const { w, h, alphaIn: a, sil, solid, rLine } = W;
   const blurred = gauss(a, w, h, S.lineBlur);
@@ -795,7 +799,7 @@ function stage5() { // strokes
     const spur = (deg(...p[0]) === 1) !== (deg(...p[p.length - 1]) === 1);
     if (!loop && len < Math.max(S.minLen, width)) continue;
     if (spur && len < width * 2) continue;
-    cands.push({ pts: smoothKeepCorners(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth, loop, width), len, loop });
+    cands.push({ pts: smoothKeepCorners(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth * lineScale(width), loop, width), len, loop });
   }
   // No line on top of another: keep long strokes first, cut later strokes where they come
   // within one line width of a kept stroke (caps then just touch).
@@ -846,7 +850,7 @@ function stage5() { // strokes
   // Every traced line and solid outline becomes a cubic bezier (few anchors, within `simplify` px of the
   // trace), drawn from that bezier: the same curves the line editor shows and edits, so a first click
   // changes nothing.
-  const eps = Math.max(0.3, S.simplify), bezier = (l) => { const nodes = fitNodes(l.pts, l.closed, eps); return { ...l, pts: sampleCurve(nodes, l.closed), nodes }; };
+  const eps = fitEps(width), bezier = (l) => { const nodes = fitNodes(l.pts, l.closed, eps); return { ...l, pts: sampleCurve(nodes, l.closed), nodes }; };
   W.traced = extendEnds(prune(join(prune(join(lines)))), width, S.extendLen).map(bezier);
   if (sel && sel.ci < 0) sel = null;   // a selected traced line may not exist after re-tracing
   W.tracedSolid = shape(solid, w, h, 1.2, 0.4).map((pts) => bezier({ pts, closed: true, solid: true }));
@@ -1623,7 +1627,7 @@ function selectAt(x, y) {
   if (!best) sel = null;
   else if (best.curve != null) sel = { ci: best.curve };
   else { // the traced bezier itself; a piece left over from cutting an edited line has none, so fit one
-    const nodes = best.nodes ? structuredClone(best.nodes) : fitNodes(best.pts, best.closed, Math.max(0.3, S.simplify));
+    const nodes = best.nodes ? structuredClone(best.nodes) : fitNodes(best.pts, best.closed, fitEps(W.fig.width));
     sel = { ci: -1, line: best, nodes, closed: best.closed, solid: !!best.solid };
   }
 }
@@ -1660,7 +1664,7 @@ function pickLine(x, y) {
   for (const l of W.lines) for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = l; } }
   if (!best) return null;
   const c = best.curve != null ? S.curves[best.curve] : null;
-  const nodes = c ? c.nodes.map(nodeToWork) : structuredClone(best.nodes || fitNodes(best.pts, best.closed, Math.max(0.3, S.simplify)));
+  const nodes = c ? c.nodes.map(nodeToWork) : structuredClone(best.nodes || fitNodes(best.pts, best.closed, fitEps(W.fig.width)));
   return { line: best, ci: best.curve ?? -1, nodes, closed: c ? c.closed : best.closed };
 }
 // Store new anchors for a picked line: an edited line is updated, a traced one becomes an edit made from it.
