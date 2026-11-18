@@ -394,7 +394,6 @@ function joinGaps(lines, width, gapMul, maxDeg) {
     if (d > width && ahead < 0) {
       const sideL = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
       if (turn >= cosLap && sideL <= width * 2.5 && -ahead <= Math.min(width * 15, la * 0.5, lb * 0.5)) return (sideL + width) * (2 - turn);
-      if (d > gap) return -1;
     }
     if (d > gap) return -1;
     if (turn < (d <= width ? cosTouch : cosMax)) return -1;
@@ -410,15 +409,15 @@ function joinGaps(lines, width, gapMul, maxDeg) {
   // An end's direction only depends on the line near it, so every pair can be scored up front.
   const n = out.length, ends = [];
   for (let i = 0; i < n; i++) if (!out[i].closed) for (const s of [0, 1]) ends.push({ e: 2 * i + s, p: tip(out[i].pts, !s), t: outward(out[i].pts, !s) });
-  const pairs = [], lens = out.map((l) => polyLen(l.pts));
+  const pairs = [], len = out.map((l) => polyLen(l.pts));   // line lengths; joining adds them up below
   for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
     const A = ends[a], B = ends[b], d = Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1]);
     if (d > Math.max(gap, width * 15)) continue;
-    const c = fits(A.p, A.t, B.p, B.t, d, lens[A.e >> 1], lens[B.e >> 1]);
+    const c = fits(A.p, A.t, B.p, B.t, d, len[A.e >> 1], len[B.e >> 1]);
     if (c >= 0) pairs.push([c, A.e, B.e]);
   }
   pairs.sort((x, y) => x[0] - y[0]);
-  const partner = new Int32Array(2 * n).fill(-1), root = Array.from({ length: n }, (_, i) => i), len = out.map((l) => polyLen(l.pts));
+  const partner = new Int32Array(2 * n).fill(-1), root = Array.from({ length: n }, (_, i) => i);
   const find = (i) => { while (root[i] !== i) i = root[i] = root[root[i]]; return i; };
   const loop = new Uint8Array(n);
   for (const [, ea, eb] of pairs) {
@@ -476,11 +475,10 @@ function pruneBurrs(lines, width, lenMul) {
     const a = L[Math.max(0, bk - 4)], b = L[Math.min(L.length - 1, bk + 4)], v = [b[0] - a[0], b[1] - a[1]], vn = Math.hypot(v[0], v[1]) || 1;
     return Math.abs((u[0] * v[0] + u[1] * v[1]) / (un * vn)) > Math.cos((30 * Math.PI) / 180);
   };
-  const dense = (pts) => { const o = []; for (let i = 0; i < pts.length; i++) { if (!i) { o.push(pts[0]); continue; } const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay))); for (let t = 1; t <= n; t++) o.push([ax + ((bx - ax) * t) / n, ay + ((by - ay) * t) / n]); } return o; };
   const order = lines.map((l, i) => [polyLen(l.pts), i]).sort((a, b) => b[0] - a[0]);
   const keep = new Uint8Array(lines.length), D = [];
   for (const [len, i] of order) {
-    const d = D[i] = dense(lines[i].pts);
+    const d = D[i] = densify(lines[i].pts, 1);
     if (!lines[i].closed) {
       const hit = d.map(([x, y]) => near(x, y)), hits = hit.filter((h) => h >= 0).length, a = hit[0], b = hit[hit.length - 1];
       // Touching a line at both ends, either two different lines or one line with a gap between, makes it a
@@ -831,7 +829,6 @@ function stage5() { // strokes
       }
     }
   };
-  const runLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
   let lines = [];   // strokes before simplifying; the parts step cuts these
   for (const c of cands) {
     const cov = c.pts.map(([x, y]) => near(x, y));
@@ -840,13 +837,13 @@ function stage5() { // strokes
     for (let i = 0; i < cov.length;) {
       if (!cov[i]) { i++; continue; }
       let j = i; while (j < cov.length && cov[j]) j++;
-      if (runLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
+      if (polyLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
       i = j;
     }
     if (!cov.some(Boolean)) { addPts(c.pts); lines.push({ pts: c.pts, closed: c.loop }); continue; }
     let run = [];
     const flush = () => {
-      if (run.length >= 2 && runLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); lines.push({ pts: run, closed: false }); }
+      if (run.length >= 2 && polyLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); lines.push({ pts: run, closed: false }); }
       run = [];
     };
     c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
@@ -1275,7 +1272,7 @@ function redoMark() {
 }
 window.addEventListener('keydown', (ev) => {
   if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.key.toLowerCase() !== 'z') return;
-  const t = ev.target; if (t && (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number') || t.tagName === 'TEXTAREA')) return; // keep text-field undo
+  if (typing(ev.target)) return;   // keep text-field undo
   if (!img || drag) return;
   const layer = STEPS[step].brush;
   if (layer) { ev.preventDefault(); ev.shiftKey ? redoBrush(layer) : undoBrush(layer); }
@@ -1620,7 +1617,7 @@ function curvesChanged(msg) {
 }
 function setSelNodes(nodes) { // store the edited nodes (working pixels); the first edit turns a traced line into a curve
   if (sel.ci < 0) { S.curves.push({ from: srcLine(sel.line.pts), nodes: [], closed: sel.closed, ...(sel.solid ? { solid: true } : {}) }); sel = { ci: S.curves.length - 1, anchor: sel.anchor }; }
-  S.curves[sel.ci].nodes = nodes.map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0], ...(n.c ? { c: true } : {}) }));
+  S.curves[sel.ci].nodes = storeNodes(nodes);
 }
 function deleteSelected() {
   if (!sel) return;
@@ -1814,7 +1811,7 @@ function finishPen(close) {
   const closed = p.solid || close, need = closed ? 3 : 2;
   if (p.nodes.length < need) { status(`Needs at least ${need} anchors`); draw(); return; }
   pushCurveUndo();
-  S.curves.push({ from: [], nodes: penNodes(p.nodes, closed).map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0] })), closed, ...(p.solid ? { solid: true } : {}) });
+  S.curves.push({ from: [], nodes: storeNodes(penNodes(p.nodes, closed)), closed, ...(p.solid ? { solid: true } : {}) });
   curvesChanged(p.solid ? 'Solid shape added' : 'Line added');
 }
 function penMarkup() {
@@ -1902,7 +1899,7 @@ window.addEventListener('keydown', (ev) => { // Enter finishes the line being dr
 });
 window.addEventListener('keydown', (ev) => {
   if (STEPS[step].id !== 'strokes' || !sel || ev.metaKey || ev.ctrlKey) return;
-  const t = ev.target; if (t && (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number') || t.tagName === 'TEXTAREA')) return;
+  if (typing(ev.target)) return;
   if (ev.key === 'Delete' || ev.key === 'Backspace') { // the selected anchor, else the whole line
     ev.preventDefault();
     if (selAnchor() != null) removeAnchor(selNodes(), selAnchor()); else deleteSelected();
