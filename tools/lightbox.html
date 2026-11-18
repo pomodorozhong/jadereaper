@@ -1640,8 +1640,8 @@ function curveDown(x, y, ev) {
     if (hit) {
       if (hit.part === 'p' && (ev.altKey || curveTool === 'remove')) { removeAnchor(nodes, hit.k); return; }
       sel.anchor = hit.k; renderParams(); draw();   // the anchor clicked, or the one whose handle was grabbed, is selected
-      pushCurveUndo();
-      drag = { kind: 'node', k: hit.k, part: hit.part, nodes, x0: x, y0: y, base: JSON.parse(JSON.stringify(nodes)) };
+      // The undo step is saved on the first move, so a click that only selects an anchor adds none.
+      drag = { kind: 'node', k: hit.k, part: hit.part, nodes, x0: x, y0: y, base: JSON.parse(JSON.stringify(nodes)), before: JSON.stringify(S.curves) };
       return;
     }
   }
@@ -1823,6 +1823,7 @@ function penMarkup() {
 let curveFrame = 0;
 function curveMove(x, y, ev) {
   const { k, part, nodes, base } = drag, n = nodes[k], b = base[k];
+  if (drag.before) { curveUndo.push(drag.before); curveRedo.length = 0; drag.before = null; }
   let dx = x - drag.x0, dy = y - drag.y0;
   if (part === 'p' && !selClosed() && (k === 0 || k === nodes.length - 1) && !ev.shiftKey) {
     // an end anchor snaps onto a nearby line, so closing a gap needs no precise aim (hold Shift to place it freely)
