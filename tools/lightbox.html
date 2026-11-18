@@ -1147,6 +1147,7 @@ ${strokes}
 // ====================================================================
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
+let showPivot = true;   // the red pivot cross on the boil step
 let pivotMode = false, step = 0, showOverlay = true, brushMode = 'add', brushSize = 8, boilTimer = null, boilFrame = 0;
 let partTool = 'lasso';   // on the parts step: 'lasso' or 'fill'
 const usesParts = () => ['parts', 'boil'].includes(STEPS[step].id);
@@ -1175,13 +1176,14 @@ function renderParams() {
       h += `<div class="row"><button id="mUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="mRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="mClear">Clear ${fill ? 'fill brush' : 'lassos'}</button></div>`;
     }
     else if (a === 'curve') h += curvePanel();
-    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of part'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
+    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of part'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button><button id="pivotShow" class="${showPivot ? '' : 'on'}" title="Show or hide the red pivot cross on the view">${showPivot ? 'Hide cross' : 'Show cross'}</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
     else if (a === 'export') h += `<div class="row"><button class="primary" id="dlChar">Download character JSON</button></div><span class="hint">All ${CH.parts.length} part(s) as <code>${esc(fileBase())}.json</code> for <code>assets/characters/</code>. Also download the preset to keep the settings.</span><div class="row"><button id="dlSvg">Download part SVG</button><button id="cpSvg">Copy part SVG</button></div><span class="hint" id="figStats"></span>`;
     else h += `<div class="p"><label for="r_${k}">${label}<output id="o_${k}">${S[k]}</output></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
   }
   if (st.brush) h += `<div class="p"><label>Brush (${LAYER_NAME[st.brush]})<output id="o_brush">${brushSize}px</output></label>
     <div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button><button id="bUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="bRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="bClear">Clear brush</button></div>
     <input type="range" id="brushSize" min="1" max="80" step="1" value="${brushSize}"><label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> Show photo underneath</label></div>`;
+  h += `<label class="check"><input type="checkbox" id="peekInk" ${peek ? 'checked' : ''}> Show ink (tap Tab; hold Tab to look)</label>`;
   $('params').innerHTML = h;
   $('params').querySelectorAll('input[type=range][data-k]').forEach((el) => el.oninput = () => {
     const k = el.dataset.k; S[k] = +el.value; $('o_' + k).textContent = el.value; changed(STAGE_OF[k]);
@@ -1221,6 +1223,7 @@ function renderParams() {
   on('dlSvg', () => download(fileBase() + '.' + PART().id + '.svg', svgMarkup(W.parts[cur], 0, 0, true, { pi: cur }), 'image/svg+xml'));
   on('dlChar', () => { try { const c = buildCharacter(); download(fileBase() + '.json', JSON.stringify(c), 'application/json'); status(`Exported ${c.parts.length} part(s), ${c.size[0]}×${c.size[1]}`); } catch (e) { status(e.message); } });
   on('pivotBtn', () => { pivotMode = !pivotMode; renderParams(); });
+  on('pivotShow', () => { showPivot = !showPivot; renderParams(); draw(); });
   on('pivotReset', () => { PART().pivot = null; pivotMode = false; renderParams(); draw(); });
   on('cpSvg', async () => { try { await navigator.clipboard.writeText(svgMarkup(W.parts[cur], 0, 0, true, { pi: cur })); status('SVG copied'); } catch { status('Copy was blocked by the browser'); } });
   const bs = $('brushSize'); if (bs) bs.oninput = () => { brushSize = +bs.value; $('o_brush').textContent = brushSize + 'px'; };
@@ -1326,6 +1329,21 @@ function drawFrame() {
   const ms = Math.round(performance.now() - t0);
   setSvg(null);
   queueMicrotask(fitView);
+  if (peek) { // the ink view, on any step: the pencil ink, with the traced strokes as hairlines once there are any
+    try { ensure(Math.max(st.stage, 2)); } catch (e) { status('Error: ' + e.message); console.error(e); return; }
+    cv.width = W.w; cv.height = W.h;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = valid >= 3 ? W.alphaIn : W.alpha;   // inside the paper fill once it is known
+    for (let i = 0; i < W.w * W.h; i++) { const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = 255 * (1 - v) + 30 * v; }
+    ctx.putImageData(tmp, 0, 0);
+    if (st.stage >= 5) {
+      const k = pxToWork(), path = (l, z) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}${z ? 'Z' : ''}"/>`;
+      const hair = W.lines.map((l) => path(l, l.closed)).join('') + W.solids.map((l) => path(l, true)).join('');
+      setSvg(`<g fill="none" stroke="#1f6fe0" stroke-width="${(1.2 * k).toFixed(2)}" stroke-linejoin="round" opacity=".8">${hair}</g>` + (st.id === 'strokes' ? editorMarkup(true) + penMarkup() : ''));
+    }
+    status(`Ink view · tap Tab (or untick Show ink) to go back to ${st.name.toLowerCase()}`);
+    return;
+  }
   if (st.id === 'source') {
     const s = Math.min(1, 1400 / Math.max(rot.width, rot.height));
     cv.width = Math.round(rot.width * s); cv.height = Math.round(rot.height * s);
@@ -1371,17 +1389,6 @@ function drawFrame() {
     let n = 0; { const c = components(so, W.w, W.h); n = c.n; }
     status(`${n} solid area(s) · drawn line ≈ ${(W.rLine * 2).toFixed(1)}px wide · ${ms} ms`);
     return;
-  } else if (st.id === 'strokes' && peek) {
-    // Holding Tab: the cleaned-up pencil ink the strokes were traced from, with the strokes as hairlines on top.
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
-    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn;
-    for (let i = 0; i < W.w * W.h; i++) { const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = 255 * (1 - v) + 30 * v; }
-    ctx.putImageData(tmp, 0, 0);
-    const k = pxToWork(), hair = W.lines.map((l) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}${l.closed ? 'Z' : ''}"/>`).join('')
-      + W.solids.map((l) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}Z"/>`).join('');
-    setSvg(`<g fill="none" stroke="#1f6fe0" stroke-width="${(1.2 * k).toFixed(2)}" stroke-linejoin="round" opacity=".8">${hair}</g>` + editorMarkup(true) + penMarkup());
-    status('Ink view · tap Tab (or untick Show ink) to go back to the strokes');
-    return;
   } else if (st.id === 'strokes') {
     ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
     if (showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
@@ -1400,7 +1407,7 @@ function drawFrame() {
     ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
     const pv = toWork(...partPivot(cur)), k = Math.max(W.w, W.h) / 60;
     const mark = `<g stroke="#d23c1e" stroke-width="${(k / 4).toFixed(2)}"><path d="M${pv[0] - k} ${pv[1]}H${pv[0] + k}M${pv[0]} ${pv[1] - k}V${pv[1] + k}"/><circle cx="${pv[0]}" cy="${pv[1]}" r="${(k / 2).toFixed(2)}" fill="none"/></g>`;
-    const tick = () => { boilFrame++; setSvg(byZ().map((i) => svgMarkup(W.parts[i], boilFrame % S.boilPoses, S.boilAmp, false, { pi: i })).join('\n') + mark); };
+    const tick = () => { boilFrame++; setSvg(byZ().map((i) => svgMarkup(W.parts[i], boilFrame % S.boilPoses, S.boilAmp, false, { pi: i })).join('\n') + (showPivot || pivotMode ? mark : '')); };   // the cross shows while setting it
     tick(); boilTimer = setInterval(tick, 1000 / S.boilFps);
     const n = (key) => W.parts.reduce((a, f) => a + f[key].length, 0);
     const stats = `${CH.parts.length} part(s) · ${n('strokes')} strokes · ${n('solid')} solid shapes · line width ${W.fig.width.toFixed(1)}px`;
@@ -1460,7 +1467,7 @@ cv.addEventListener('pointerdown', (ev) => {
   const st = STEPS[step], [x, y] = canvasXY(ev);
   cv.setPointerCapture(ev.pointerId);
   if (st.id === 'boil' && pivotMode) { PART().pivot = toSrc(x, y); pivotMode = false; renderParams(); draw(); return; }
-  if (st.id === 'source') { const s = +cv.dataset.s; drag = { kind: 'crop', x0: x / s, y0: y / s, s }; }
+  if (st.id === 'source') { if (peek) return; const s = +cv.dataset.s; drag = { kind: 'crop', x0: x / s, y0: y / s, s }; }   // no cropping on the ink view
   else if (st.id === 'strokes') curveDown(x, y, ev);
   else if (st.id === 'parts' && partTool === 'lasso') drag = { kind: 'lasso', pts: [toSrc(x, y)] };
   else if (st.id === 'parts') {
@@ -1843,7 +1850,7 @@ function toggleCorner(k) {
 let peekDown = 0;   // when Tab went down, while it is held
 function setPeek(on) { if (peek === on) return; peek = on; if (img) { renderParams(); draw(); } }
 window.addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Tab' || STEPS[step].id !== 'strokes' || !img || ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev.target)) return;
+  if (ev.key !== 'Tab' || !img || ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev.target)) return;
   ev.preventDefault();
   if (ev.repeat || peekDown) return;
   peekDown = performance.now();
@@ -1916,8 +1923,7 @@ function curvePanel() {
     join: 'Click near the end of a line, then near the end of another line to join them into one; ends that nearly meet become one anchor, others get a straight piece between them. Click both ends of one line to close it. Esc cancels.',
   }[curveTool];
   const tools = CURVE_TOOLS.map(([id, label]) => `<button data-ctool="${id}" class="${curveTool === id ? 'on' : ''}">${label}</button>`).join('');
-  const inkBox = `<label class="check"><input type="checkbox" id="peekInk" ${peek ? 'checked' : ''}> Show ink (tap Tab; hold Tab to look)</label>`;
-  return `${inkBox}<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? `edited ${what}` : `traced ${what}`) : ''}</output></label><div class="row">${tools}</div><span class="hint">${help}${edits}</span>
+  return `<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? `edited ${what}` : `traced ${what}`) : ''}</output></label><div class="row">${tools}</div><span class="hint">${help}${edits}</span>
     <div class="row"><button id="cReset" ${sel && sel.ci >= 0 ? '' : 'disabled'}>Reset ${what}</button><button id="cDelAnchor" ${sel && selAnchor() != null ? '' : 'disabled'}>Delete anchor</button><button id="cCorner" ${sel && selAnchor() != null ? '' : 'disabled'}>${sel && selAnchor() != null && selNodes()[selAnchor()].c ? 'Make smooth' : 'Make corner'}</button><button id="cDelete" ${sel ? '' : 'disabled'}>Delete ${what}</button><button id="cUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="cRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="cClear" ${n ? '' : 'disabled'}>Reset all lines</button></div></div>`;
 }
 
