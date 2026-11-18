@@ -1977,7 +1977,8 @@ function applyPreset(j) {
   CH = { parts: (parts && parts.length ? parts : [{ id: 'body' }]).map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, marks: p.marks || [] })) };
   if (j.name) $('presetName').value = j.name;
   redo.ink = []; redo.fill = []; redo.solid = []; sel = null; pen = null; curveUndo.length = curveRedo.length = 0;
-  invalidate(0); renderParams(); selectPart(0);
+  cur = 0;   // before rendering: the old part index may be past the new character's parts
+  invalidate(0); selectPart(0);
   return note;
 }
 $('savePreset').onclick = () => {
