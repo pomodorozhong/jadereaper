@@ -1,18 +1,21 @@
 // Bake hand-traced characters (assets/characters/<name>.json, exported by the Lightbox) into part images.
 //
 // assets/characters.json maps a part name from PART_IDS to a part of a character, or to null to hide that
-// part. Each mapped part is drawn with Canvas2D in BOIL_POSES poses, each stroke with its own seeded wobble per
+// part. Each mapped part is drawn with Canvas2D in BAKE.poses poses, each stroke with its own seeded wobble per
 // pose, as the Lightbox's boil step shows it. The renderer packs the poses into the atlas and steps through them.
 //
 // The drawing is fitted into the box the core draws the part in, keeping its proportions and standing on the
-// box's bottom edge, because the shader stretches an image to fill that box. Strokes are drawn LINE_WIDTH world
+// box's bottom edge, because the shader stretches an image to fill that box. Strokes are drawn BAKE.lineWidth world
 // units wide, not at the width traced from the photo, so every character has the same line on screen.
 
-export const BOIL_POSES = 6;
+/** Bake settings. The ?debug panel changes them at run time and re-bakes. */
+export const BAKE = {
+  lineWidth: 1.5,   // every traced stroke, in world units, whatever the drawing's own scale
+  boilAmp: 0.35,    // per-stroke wobble in world units: the Lightbox's 0.9 px on its 4 px line, at 1.5
+  poses: 6,         // boil poses per part
+  texels: 4,        // atlas pixels per world unit, so every character is equally sharp
+};
 export const BOIL_FPS = 4;
-const BOIL_AMP = 0.35;     // in world units: the Lightbox's 0.9 px on its 4 px line, at LINE_WIDTH
-const LINE_WIDTH = 1.5;    // every traced stroke, in world units, whatever the drawing's own scale
-const TEXELS = 4;          // atlas pixels per world unit, so every character is equally sharp
 const INK = '#2b2622';
 const PAPER = '#fffdf6';
 
@@ -69,7 +72,7 @@ function bounds(part, margin) {
 }
 
 /** Draw one pose of a part into a new canvas shaped like its box. */
-function bakePose(part, pi, pose, [boxW, boxH]) {
+function bakePose(part, pi, pose, [boxW, boxH], bake) {
   // Fit in two passes: the margin for the line and the boil depends on the scale, which depends on the margin.
   let world = 1, lineW = part.width, amp = 0.9, box;
   for (let k = 0; k < 2; k++) {
@@ -78,14 +81,14 @@ function bakePose(part, pi, pose, [boxW, boxH]) {
     // The box in drawing units: big enough for the drawing, with the drawing on its bottom edge, centred.
     const bw = Math.max(w, h * boxW / boxH);
     world = boxW / bw;
-    lineW = LINE_WIDTH / world;
-    amp = BOIL_AMP / world;
+    lineW = bake.lineWidth / world;
+    amp = bake.boilAmp / world;
     box = { x0, y0, w, h, bw, bh: bw * boxH / boxW };
   }
-  const s = world * TEXELS;
+  const s = world * bake.texels;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(boxW * TEXELS);
-  canvas.height = Math.round(boxH * TEXELS);
+  canvas.width = Math.round(boxW * bake.texels);
+  canvas.height = Math.round(boxH * bake.texels);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(s, 0, 0, s, ((box.bw - box.w) / 2 - box.x0) * s, (box.bh - box.h - box.y0) * s);
   const seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
@@ -112,9 +115,10 @@ function bakePose(part, pi, pose, [boxW, boxH]) {
 /**
  * Load assets/characters.json and bake every mapped part.
  * @param {Record<string, number>} partIds part name to part id
+ * @param {typeof BAKE} bake bake settings
  * @returns {Promise<{id: number, poses: (HTMLCanvasElement|null)[]}[]>} null poses hide the part
  */
-export async function bakeCharacters(partIds) {
+export async function bakeCharacters(partIds, bake = BAKE) {
   let manifest = {};
   try {
     const res = await fetch('assets/characters.json', { cache: 'no-cache' });
@@ -133,7 +137,7 @@ export async function bakeCharacters(partIds) {
       const pi = ch.parts.findIndex((p) => p.id === ref.part);
       if (pi < 0) throw new Error(`no part "${ref.part}"`);
       const poses = [];
-      for (let k = 0; k < BOIL_POSES; k++) poses.push(bakePose(ch.parts[pi], pi, k, BOX[name] ?? [64, 64]));
+      for (let k = 0; k < bake.poses; k++) poses.push(bakePose(ch.parts[pi], pi, k, BOX[name] ?? [64, 64], bake));
       out.push({ id: partIds[name], poses });
     } catch (err) {
       console.warn(`Could not bake "${name}" from character "${ref.character}"`, err);
