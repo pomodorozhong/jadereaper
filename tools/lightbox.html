@@ -40,6 +40,9 @@ ol.steps button.cur .n{color:inherit}
 .params h2{font-size:13px;margin:0}
 .params p.help{margin:0;color:var(--muted)}
 .p label{display:flex;justify-content:space-between;gap:8px}
+.p label .val{display:flex;gap:4px;align-items:center}
+.p label .rs{padding:0 5px;font-size:12px;line-height:1.4;color:var(--muted)}
+.p label .rs:disabled{visibility:hidden}
 .p label output{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .p input[type=range]{width:100%;accent-color:var(--accent)}
 .p .hint{color:var(--muted);font-size:12px}
@@ -1193,7 +1196,7 @@ function renderParams() {
     else if (a === 'curve') h += curvePanel();
     else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of part'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button><button id="pivotShow" class="${showPivot ? '' : 'on'}" title="Show or hide the red pivot cross on the view">${showPivot ? 'Hide cross' : 'Show cross'}</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
     else if (a === 'export') h += `<div class="row"><button class="primary" id="dlChar">Download character JSON</button></div><span class="hint">All ${CH.parts.length} part(s) as <code>${esc(fileBase())}.json</code> for <code>assets/characters/</code>. Also download the preset to keep the settings.</span><div class="row"><button id="dlSvg">Download part SVG</button><button id="cpSvg">Copy part SVG</button></div><span class="hint" id="figStats"></span>`;
-    else h += `<div class="p"><label for="r_${k}">${label}<output id="o_${k}">${S[k]}</output></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
+    else h += `<div class="p"><label for="r_${k}">${label}<span class="val"><output id="o_${k}">${S[k]}</output><button class="rs" data-reset="${k}" title="Reset to default (${DEFAULTS[k]})" aria-label="Reset ${esc(label)} to default" ${S[k] === DEFAULTS[k] ? 'disabled' : ''}>↺</button></span></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
   }
   if (st.brush) h += `<div class="p"><label>Brush (${LAYER_NAME[st.brush]})<output id="o_brush">${brushSize}px</output></label>
     <div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button><button id="bUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="bRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="bClear">Clear brush</button></div>
@@ -1202,6 +1205,11 @@ function renderParams() {
   $('params').innerHTML = h;
   $('params').querySelectorAll('input[type=range][data-k]').forEach((el) => el.oninput = () => {
     const k = el.dataset.k; S[k] = +el.value; $('o_' + k).textContent = el.value; changed(STAGE_OF[k]);
+    el.closest('.p').querySelector('[data-reset]').disabled = S[k] === DEFAULTS[k];
+  });
+  $('params').querySelectorAll('[data-reset]').forEach((b) => b.onclick = (e) => {
+    e.preventDefault(); const k = b.dataset.reset; if (S[k] === DEFAULTS[k]) return;
+    S[k] = DEFAULTS[k]; changed(STAGE_OF[k]); renderParams();
   });
   $('params').querySelectorAll('input[type=checkbox][data-k]').forEach((el) => el.onchange = () => { S[el.dataset.k] = el.checked; changed(STAGE_OF[el.dataset.k]); });
   $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => {
