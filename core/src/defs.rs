@@ -99,7 +99,7 @@ pub const K_ELITE: u8 = 3;
 
 pub const KINDS: [Kind; 4] = [
     Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 18.0, hh: 18.0, rate: 5.0 },
-    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 22.0, hh: 13.0, rate: 9.0 },
+    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 20.0, hh: 17.0, rate: 9.0 },
     Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0 },
     Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_BRUTE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5 },
 ];

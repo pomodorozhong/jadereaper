@@ -1,0 +1,8 @@
+{
+  "player_body": { "character": "normal-jipandan", "part": "body" },
+  "player_head": null,
+  "scythe": { "character": "normal-jipandan", "part": "sword" },
+  "blot": { "character": "mon1", "part": "body" },
+  "wisp": { "character": "mon2", "part": "body" },
+  "brute": { "character": "mon3", "part": "body" }
+}

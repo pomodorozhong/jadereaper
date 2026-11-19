@@ -1,15 +1,19 @@
 // WebGPU renderer: one background pass and one instanced draw of paper parts.
 import { t } from './i18n.js';
 import { PART_IDS } from './data.js';
+import { BOIL_FPS, BOIL_POSES, bakeCharacters } from './characters.js';
 
 const INSTANCE_BYTES = 48;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 640; // world units across the shorter screen side
 const STOP_MOTION_FPS = 8;
 
-/** Load optional part images listed in assets/parts.json and pack them into one atlas canvas. */
+/**
+ * Pack the part images into one atlas canvas: optional images listed in assets/parts.json, and the hand-traced
+ * characters mapped in assets/characters.json, baked in BOIL_POSES poses. Returns one rect table per pose.
+ */
 async function loadPartImages() {
-  const rects = new Float32Array(32 * 4);
+  const posesRects = Array.from({ length: BOIL_POSES }, () => new Float32Array(32 * 4));
   let manifest = {};
   try {
     const res = await fetch('assets/parts.json', { cache: 'no-cache' });
@@ -18,17 +22,19 @@ async function loadPartImages() {
     // No manifest: every part is drawn in code.
   }
   const entries = Object.entries(manifest).filter(([name]) => name in PART_IDS);
-  if (!entries.length) return { rects, canvas: null };
-
-  const images = await Promise.all(entries.map(async ([name, path]) => {
-    try {
-      const blob = await (await fetch(`assets/${path}`)).blob();
-      return { id: PART_IDS[name], bmp: await createImageBitmap(blob) };
-    } catch (err) {
-      console.warn(`Could not load part image for "${name}"`, err);
-      return null;
-    }
-  }));
+  const [images, baked] = await Promise.all([
+    Promise.all(entries.map(async ([name, path]) => {
+      try {
+        const blob = await (await fetch(`assets/${path}`)).blob();
+        return { id: PART_IDS[name], bmp: await createImageBitmap(blob) };
+      } catch (err) {
+        console.warn(`Could not load part image for "${name}"`, err);
+        return null;
+      }
+    })),
+    bakeCharacters(PART_IDS),
+  ]);
+  if (!images.some(Boolean) && !baked.length) return { posesRects, canvas: null };
 
   const SIZE = 2048;
   const GAP = 4;
@@ -36,19 +42,32 @@ async function loadPartImages() {
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d');
   let x = GAP, y = GAP, rowH = 0;
-  for (const img of images) {
-    if (!img) continue;
+  /** Place one image; returns its rect, or null when the atlas is full. */
+  const place = (bmp) => {
     // Shrink anything larger than a quarter of the atlas.
-    const scale = Math.min(1, 512 / Math.max(img.bmp.width, img.bmp.height));
-    const w = Math.round(img.bmp.width * scale), h = Math.round(img.bmp.height * scale);
+    const scale = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
     if (x + w + GAP > SIZE) { x = GAP; y += rowH + GAP; rowH = 0; }
-    if (y + h + GAP > SIZE) { console.warn('Part atlas is full, skipping an image'); continue; }
-    ctx.drawImage(img.bmp, x, y, w, h);
-    rects.set([x / SIZE, y / SIZE, w / SIZE, h / SIZE], img.id * 4);
+    if (y + h + GAP > SIZE) { console.warn('Part atlas is full, skipping an image'); return null; }
+    ctx.drawImage(bmp, x, y, w, h);
+    const rect = [x / SIZE, y / SIZE, w / SIZE, h / SIZE];
     x += w + GAP;
     rowH = Math.max(rowH, h);
+    return rect;
+  };
+  for (const img of images) {
+    const rect = img && place(img.bmp);
+    if (rect) for (const rects of posesRects) rects.set(rect, img.id * 4);
   }
-  return { rects, canvas };
+  // A hidden part points at the atlas's last pixel, which nothing draws on, so it samples as clear.
+  const clear = [(SIZE - 1) / SIZE, (SIZE - 1) / SIZE, 0.5 / SIZE, 0.5 / SIZE];
+  for (const { id, poses } of baked) {
+    for (let k = 0; k < BOIL_POSES; k++) {
+      const rect = poses ? place(poses[k]) : clear;
+      if (rect) posesRects[k].set(rect, id * 4);
+    }
+  }
+  return { posesRects, canvas };
 }
 
 export async function createRenderer(canvas) {
@@ -74,8 +93,9 @@ export async function createRenderer(canvas) {
 
   const globals = new Float32Array(12);
   const globalsBuf = device.createBuffer({ size: globals.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const rectsBuf = device.createBuffer({ size: parts.rects.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(rectsBuf, 0, parts.rects);
+  const rectsBuf = device.createBuffer({ size: parts.posesRects[0].byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(rectsBuf, 0, parts.posesRects[0]);
+  let pose = 0;
   const instBuf = device.createBuffer({ size: MAX_INSTANCES * INSTANCE_BYTES, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
 
   const atlasSize = parts.canvas ? [parts.canvas.width, parts.canvas.height] : [1, 1];
@@ -169,6 +189,9 @@ export async function createRenderer(canvas) {
   function draw(memory, ptr, count, camX, camY, time) {
     globals.set([view.w, view.h, camX, camY, canvas.width, canvas.height, time, Math.floor(time * STOP_MOTION_FPS), view.px]);
     device.queue.writeBuffer(globalsBuf, 0, globals);
+    // Step the traced characters' line boil: every part shows the same pose, so only the rect table changes.
+    const nextPose = Math.floor(time * BOIL_FPS) % BOIL_POSES;
+    if (nextPose !== pose) { pose = nextPose; device.queue.writeBuffer(rectsBuf, 0, parts.posesRects[pose]); }
     const n = Math.min(count, MAX_INSTANCES);
     if (n > 0) device.queue.writeBuffer(instBuf, 0, memory, ptr, n * INSTANCE_BYTES);
 

@@ -1005,7 +1005,8 @@ impl Game {
             self.put(px - f * 15.0, py - 46.0 + bob, 20.0 * f, 34.0, -f * 0.45 + tilt, P_SCYTHE, flash, 0.21, scythe);
         }
         let top_x = px + 26.0 * tilt.sin();
-        self.put(px, py - 26.0 + bob, 20.0 * f, 26.0, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
+        // The traced player is one square drawing, so the robe's box is square and stands on the shadow.
+        self.put(px, py - 40.0 + bob, 40.0 * f, 40.0, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
         self.put(top_x + f * 2.0, py - 60.0 + bob * 1.5, 15.0 * f, 15.0, -tilt * 0.6, P_HOOD, flash, 0.53, [0.15, 0.33, 0.29, a]);
         if swinging {
             let t = 1.0 - attack / 0.25;
