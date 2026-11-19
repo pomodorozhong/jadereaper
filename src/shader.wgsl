@@ -128,7 +128,7 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
       s.d = min(body, wing) * m;
       s.light = dab(min(length(q - vec2f(-0.14, -0.15)), length(q - vec2f(0.18, -0.15))) - 0.1);
     }
-    case 6 { // brute: horned block
+    case 6, 19 { // brute (19: elite, the same shape drawn bigger): horned block
       let body = sdBox(q - vec2f(0.0, 0.15), vec2f(0.5, 0.45)) - 0.3;
       let a = vec2f(abs(q.x), q.y);
       let horn = sdSeg(a, vec2f(0.4, -0.5), vec2f(0.72, -0.93)) - 0.1;

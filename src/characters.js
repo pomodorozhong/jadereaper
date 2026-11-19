@@ -5,18 +5,20 @@
 // pose, as the Lightbox's boil step shows it. The renderer packs the poses into the atlas and steps through them.
 //
 // The drawing is fitted into the box the core draws the part in, keeping its proportions and standing on the
-// box's bottom edge, because the shader stretches an image to fill that box.
+// box's bottom edge, because the shader stretches an image to fill that box. Strokes are drawn LINE_WIDTH world
+// units wide, not at the width traced from the photo, so every character has the same line on screen.
 
 export const BOIL_POSES = 6;
 export const BOIL_FPS = 4;
-const BOIL_AMP = 0.9;      // the Lightbox default, in photo pixels
-const MAX_SIDE = 320;      // longest side of one baked pose, in atlas pixels
+const BOIL_AMP = 0.35;     // in world units: the Lightbox's 0.9 px on its 4 px line, at LINE_WIDTH
+const LINE_WIDTH = 1.5;    // every traced stroke, in world units, whatever the drawing's own scale
+const TEXELS = 4;          // atlas pixels per world unit, so every character is equally sharp
 const INK = '#2b2622';
 const PAPER = '#fffdf6';
 
-/** Width / height of the box the core draws each part in (core/src/game.rs and defs.rs). */
-const BOX_ASPECT = {
-  player_body: 1, scythe: 20 / 34, blot: 1, wisp: 20 / 17, brute: 1,
+/** Width and height, in world units, of the box the core draws each part in (core/src/game.rs and defs.rs). */
+const BOX = {
+  player_body: [80, 80], scythe: [40, 68], blot: [48, 48], wisp: [50, 42], brute: [60, 60], elite: [104, 104],
 };
 
 // Same jitter as tools/lightbox.html, so the game boils like the Lightbox preview.
@@ -58,43 +60,50 @@ function curve(ctx, p, closed) {
   if (closed) ctx.closePath();
 }
 
-function bounds(part) {
+function bounds(part, margin) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const l of [...part.paper, ...part.solid, ...part.strokes.map((s) => s.pts)]) {
     for (const [x, y] of l) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
   }
-  const m = part.width + BOIL_AMP * 2;
-  return [x0 - m, y0 - m, x1 + m, y1 + m];
+  return [x0 - margin, y0 - margin, x1 + margin, y1 + margin];
 }
 
 /** Draw one pose of a part into a new canvas shaped like its box. */
-function bakePose(part, pi, pose, aspect) {
-  const [x0, y0, x1, y1] = bounds(part);
-  const w = x1 - x0, h = y1 - y0;
-  // The box in drawing units: wide enough for the drawing, with the drawing on its bottom edge, centred.
-  const bw = Math.max(w, h * aspect), bh = bw / aspect;
-  const s = MAX_SIDE / Math.max(bw, bh);
+function bakePose(part, pi, pose, [boxW, boxH]) {
+  // Fit in two passes: the margin for the line and the boil depends on the scale, which depends on the margin.
+  let world = 1, lineW = part.width, amp = 0.9, box;
+  for (let k = 0; k < 2; k++) {
+    const [x0, y0, x1, y1] = bounds(part, lineW / 2 + amp * 2);
+    const w = x1 - x0, h = y1 - y0;
+    // The box in drawing units: big enough for the drawing, with the drawing on its bottom edge, centred.
+    const bw = Math.max(w, h * boxW / boxH);
+    world = boxW / bw;
+    lineW = LINE_WIDTH / world;
+    amp = BOIL_AMP / world;
+    box = { x0, y0, w, h, bw, bh: bw * boxH / boxW };
+  }
+  const s = world * TEXELS;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bw * s);
-  canvas.height = Math.round(bh * s);
+  canvas.width = Math.round(boxW * TEXELS);
+  canvas.height = Math.round(boxH * TEXELS);
   const ctx = canvas.getContext('2d');
-  ctx.setTransform(s, 0, 0, s, (bw - w) / 2 * s - x0 * s, (bh - h) * s - y0 * s);
+  ctx.setTransform(s, 0, 0, s, ((box.bw - box.w) / 2 - box.x0) * s, (box.bh - box.h - box.y0) * s);
   const seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
 
   ctx.beginPath();
-  part.paper.forEach((l, i) => curve(ctx, jitter(l, true, seed(1, i), BOIL_AMP * 0.6), true));
+  part.paper.forEach((l, i) => curve(ctx, jitter(l, true, seed(1, i), amp * 0.6), true));
   ctx.fillStyle = PAPER;
   ctx.fill('evenodd');
   ctx.beginPath();
-  part.solid.forEach((l, i) => curve(ctx, jitter(l, true, seed(2, i), BOIL_AMP * 0.6), true));
+  part.solid.forEach((l, i) => curve(ctx, jitter(l, true, seed(2, i), amp * 0.6), true));
   ctx.fillStyle = INK;
   ctx.fill('evenodd');
   ctx.strokeStyle = INK;
-  ctx.lineWidth = part.width;
+  ctx.lineWidth = lineW;
   ctx.lineCap = ctx.lineJoin = 'round';
   part.strokes.forEach((st, i) => {
     ctx.beginPath();
-    curve(ctx, jitter(st.pts, st.closed, seed(3, i), BOIL_AMP), st.closed);
+    curve(ctx, jitter(st.pts, st.closed, seed(3, i), amp), st.closed);
     ctx.stroke();
   });
   return canvas;
@@ -124,7 +133,7 @@ export async function bakeCharacters(partIds) {
       const pi = ch.parts.findIndex((p) => p.id === ref.part);
       if (pi < 0) throw new Error(`no part "${ref.part}"`);
       const poses = [];
-      for (let k = 0; k < BOIL_POSES; k++) poses.push(bakePose(ch.parts[pi], pi, k, BOX_ASPECT[name] ?? 1));
+      for (let k = 0; k < BOIL_POSES; k++) poses.push(bakePose(ch.parts[pi], pi, k, BOX[name] ?? [64, 64]));
       out.push({ id: partIds[name], poses });
     } catch (err) {
       console.warn(`Could not bake "${name}" from character "${ref.character}"`, err);

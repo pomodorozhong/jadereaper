@@ -4,5 +4,6 @@
   "scythe": { "character": "normal-jipandan", "part": "sword" },
   "blot": { "character": "mon1", "part": "body" },
   "wisp": { "character": "mon2", "part": "body" },
-  "brute": { "character": "mon3", "part": "body" }
+  "brute": { "character": "mon3", "part": "body" },
+  "elite": { "character": "mon3", "part": "body" }
 }
