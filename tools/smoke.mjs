@@ -6,9 +6,10 @@
 // With WebGPU, it starts a run and plays a few seconds. This includes the CI
 // runner, which has no GPU but gets a software adapter from Chromium. Without
 // WebGPU, it checks that the "Cannot start" screen shows the WebGPU reason.
+// Then it opens the Lightbox and checks that it loads cleanly.
 
 import { chromium } from 'playwright';
-import { serve } from './serve.mjs';
+import { isLocalOnly, serve } from './serve.mjs';
 
 const PLAY_MS = 3000;
 const TIMEOUT_MS = 20000;
@@ -19,6 +20,7 @@ const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu'] });
 const problems = [];
 let consoleErrors = [];
 let outcome;
+let inGame = true;
 
 try {
   const page = await browser.newPage();
@@ -29,6 +31,11 @@ try {
   page.on('requestfailed', (req) => problems.push(`request failed: ${req.url()} (${req.failure()?.errorText})`));
   page.on('response', (res) => {
     if (res.status() >= 400) problems.push(`HTTP ${res.status()}: ${res.url()}`);
+    // These are served locally but not published, so the game would 404 on them on Pages.
+    const rel = new URL(res.url()).pathname.slice(1);
+    if (inGame && isLocalOnly(rel)) {
+      problems.push(`the game loaded a local-only file: ${rel}`);
+    }
   });
 
   await page.goto(url);
@@ -54,6 +61,11 @@ try {
     if (!(await page.locator('#hud').isVisible())) problems.push('the HUD disappeared during the run');
     outcome = `WebGPU available; played ${PLAY_MS / 1000} s of a run`;
   }
+
+  inGame = false;
+  await page.goto(`${url}tools/lightbox.html`);
+  await page.locator('h1', { hasText: 'Lightbox' }).waitFor({ timeout: TIMEOUT_MS });
+  outcome += '; the Lightbox loads';
 } catch (err) {
   problems.push(`smoke test failed: ${err.message}`);
 } finally {

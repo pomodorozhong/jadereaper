@@ -14,7 +14,7 @@ Serve the folder with any static file server and open it in a browser with WebGP
 npm start
 ```
 
-Then open http://localhost:5173.
+Then open http://localhost:5173. The same server has the Lightbox, the tool for tracing character art, at http://localhost:5173/tools/lightbox.html (see [docs/character-art-pipeline.md](docs/character-art-pipeline.md)).
 
 The built `wasm/jadereaper_core.wasm` is checked in, so Rust is only needed if you change the core.
 
@@ -67,7 +67,7 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 | `src/data.js` | Part names, upgrade text, state and event ids |
 | `assets/parts.json` | Optional image overrides for parts |
 | `assets/fonts/` | Bundled UI fonts, cut down to the game's characters, with their licenses |
-| `tools/` | Font subset and check scripts, the local server and the smoke test |
+| `tools/` | Font subset and check scripts, the local server, the smoke test and the Lightbox |
 
 ## Fonts
 

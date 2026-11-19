@@ -1,0 +1,2198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lightbox</title>
+<style>
+/* Layout: header bar, then a step rail with that step's controls on the left and the working view on the right */
+:root{--bg:#e4e6dc;--panel:#f3f4ee;--stage:#cfd4c2;--fg:#24261f;--muted:#5d6153;--accent:#3f7a5e;--accent-fg:#fff;--line:#c2c7b4;--warn:#a2462e;
+--body:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1e19;--panel:#24281f;--stage:#30352b;--fg:#e6e8de;--muted:#a3a896;--accent:#7cc39e;--accent-fg:#13241b;--line:#3d4237;--warn:#e08a6c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1e19;--panel:#24281f;--stage:#30352b;--fg:#e6e8de;--muted:#a3a896;--accent:#7cc39e;--accent-fg:#13241b;--line:#3d4237;--warn:#e08a6c;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--body);display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:15px;margin:0 8px 0 0}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+button,select,input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px 9px}
+button{cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.wrap{flex:1;display:flex;min-height:0}
+aside{width:320px;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+.parts{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.parts[hidden]{display:none}
+.parts .tabs{display:flex;flex-wrap:wrap;gap:4px}
+.parts .tabs button.cur{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.parts .tabs button .sw{display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.parts .fields{display:grid;grid-template-columns:auto 1fr auto 4.5em;gap:6px;align-items:center}
+.parts .fields input{min-width:0;width:100%}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+ol.steps button{width:100%;text-align:left;border:none;background:none;padding:6px 8px;border-radius:5px;display:flex;gap:8px}
+ol.steps button .n{color:var(--muted);font-variant-numeric:tabular-nums;width:1.4em}
+ol.steps button.cur{background:var(--accent);color:var(--accent-fg)}
+ol.steps button.cur .n{color:inherit}
+.params{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.params h2{font-size:13px;margin:0}
+.params p.help{margin:0;color:var(--muted)}
+.p label{display:flex;justify-content:space-between;gap:8px}
+.p label output{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.p input[type=range]{width:100%;accent-color:var(--accent)}
+.p .hint{color:var(--muted);font-size:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.check{display:flex;gap:6px;align-items:center}
+main{flex:1;min-width:0;position:relative;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
+#view{position:relative;max-width:100%;max-height:100%;transform-origin:0 0}
+#zoombar{position:absolute;right:12px;bottom:10px;display:flex;gap:4px}
+#panelBtn{position:absolute;left:12px;top:10px;z-index:3;background:var(--panel);font-size:12px}
+.wrap.nopanel aside{display:none}
+#zoombar button{background:var(--panel);font-family:var(--mono);font-size:12px;min-width:30px}
+#view canvas[data-cursor=none]{cursor:none}
+#view canvas[data-cursor=crosshair]{cursor:crosshair}
+main.panning,main.panning #view canvas{cursor:grab}
+#view canvas{display:block;touch-action:none}
+#view canvas.px{image-rendering:pixelated}
+#view svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.empty{text-align:center;color:var(--muted);max-width:40ch;padding:24px;border:2px dashed var(--line);border-radius:10px}
+#status{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);padding:3px 8px;border-radius:4px}
+#view svg#brushCursor{z-index:2;overflow:visible}
+#brushCursor path{fill:none;stroke-linecap:square}
+@media (max-width:760px){.wrap{flex-direction:column}aside{width:auto;border-right:none;border-bottom:1px solid var(--line);max-height:50vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lightbox</h1>
+  <div class="grp"><label for="file">Photo</label><input type="file" id="file" accept="image/*"></div>
+  <div class="grp">
+    <label for="presetName">Character</label>
+    <input type="text" id="presetName" placeholder="e.g. reaper" size="12">
+    <button id="savePreset" title="Keep this character's parts and settings in this browser">Save character</button>
+    <select id="presetList" aria-label="Saved characters"><option value="">Load saved…</option></select>
+    <button id="exportPreset" title="Download <name>.preset.json: the settings, and each part's lassos, fill brush and pivot">Download preset</button>
+    <button id="importPresetBtn" title="Open a <name>.preset.json">Open preset</button><input type="file" id="importPreset" accept=".json" hidden>
+    <button id="debugLog" title="Download a report of recent line-editor activity, to send with a bug">Save debug log</button>
+  </div>
+</header>
+<div class="wrap">
+  <aside>
+    <ol class="steps" id="steps"></ol>
+    <div class="parts" id="parts" hidden></div>
+    <div class="params" id="params"></div>
+  </aside>
+  <main id="main">
+    <button id="panelBtn" title="Hide the left panel to make the view bigger (\)">◀ Hide panel</button>
+    <div class="empty" id="empty">Open a photo or scan of a drawing (or drop it here).<br>Then go through the steps on the left: clean up and trace the whole character first, then split it into parts.</div>
+    <div id="view" hidden><canvas id="cv"></canvas><svg id="brushCursor" style="display:none"></svg></div>
+    <div id="status"></div>
+    <div id="zoombar" hidden><button id="zOut" title="Zoom out (-)">−</button><button id="zFit" title="Fit to the view (0)">100%</button><button id="zIn" title="Zoom in (=)">+</button></div>
+  </main>
+</div>
+<script>
+'use strict';
+// ====================================================================
+// Settings. Each parameter knows which pipeline stage it invalidates.
+// Stages: 0 source, 1 paper, 2 ink, 3 fill, 4 solid, 5 strokes, 6 parts (7 = view only)
+// ====================================================================
+const DEFAULTS = {
+  rotate: 0, crop: null, maxSize: 900,
+  // Tuned on the artist's pencil photos: clean, smooth lines rather than a copy of every pencil wobble.
+  bgOn: true, bgClose: 30, bgBlur: 150,
+  lo: 20, hi: 60, cut: 0.35, speck: 20,   // lo and hi at these values mean "not set yet": auto levels runs on load
+  fillClose: 10, fillOpen: 0,
+  lineBlur: 0.5, lineT: 0.15, minLen: 7, burrLen: 5, extendLen: 6, smooth: 6, simplify: 3, widthScale: 1, overlapLen: 6.5, joinGap: 3, joinAngle: 40, solidK: 2.2, solidMin: 5, solidDepth: 1, solidClose: 1.5, fillSmooth: 4.5,
+  boilAmp: 0.9, boilFps: 4, boilPoses: 6,
+  edits: [],   // brush edits: {layer:'ink'|'fill', mode:'add'|'erase', r, pts:[[x,y]...]} in rotated-source pixels
+  // line edits on the strokes step, in rotated-source pixels: {from: the traced line it replaces, nodes:
+  // [{p, i, o}] cubic bezier anchors with in and out handles, closed} or {from, del: true} for a deleted line
+  curves: [],
+};
+let S = structuredClone(DEFAULTS);   // one set of settings for the whole character
+// Parts split the traced character. marks: {kind:'lasso', pts} regions and {kind:'fill', mode, r, pts} paper brush
+// strokes, in rotated-source pixels. Pixels outside every lasso belong to the first part.
+const newPart = (id, z) => ({ id, z, pivot: null, marks: [] });
+let CH = { parts: [newPart('body', 0)] }, cur = 0;   // the character being traced
+const PART_COLORS = ['#d9822b', '#3f7ab8', '#5f9e3a', '#b8487a', '#8a62c4', '#2b9c94', '#c4a92b', '#a0522d'];
+const partColor = (i) => PART_COLORS[i % PART_COLORS.length];
+const PART = () => CH.parts[cur];
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const STEPS = [
+  { id: 'source', name: 'Source', stage: 0, help: 'Rotate the page and drag a box around ONE character. Everything after works on that box.',
+    params: [['rotate', 'Rotate', 'rot'], ['maxSize', 'Working size (px, long side)', 300, 1600, 50, 0]] },
+  { id: 'paper', name: 'Paper', stage: 1, help: 'Removes uneven lighting and paper colour. The view should look like even white paper with grey lines.',
+    params: [['bgOn', 'Flatten lighting', 'bool', 1], ['bgClose', 'Line removal size', 1, 60, 1, 1, 'Larger than the thickest line. Too small leaves lines in the light estimate.'], ['bgBlur', 'Lighting smoothness', 5, 300, 1, 1]] },
+  { id: 'ink', name: 'Ink', stage: 2, brush: 'ink', help: 'Picks which pixels are pencil. Paint with the brush to add missed lines or erase smudges, specks and stray marks.',
+    params: [['lo', 'Paper level (below = paper)', 0, 120, 1, 2], ['hi', 'Full ink level', 1, 200, 1, 2], ['cut', 'Line cut-off', 0.05, 0.9, 0.01, 2], ['speck', 'Remove specks smaller than (px)', 0, 400, 1, 2], ['auto', 'Auto levels', 'btn']] },
+  { id: 'fill', name: 'Paper fill', stage: 3, brush: 'fill', help: 'The white cutout under the drawing. Raise gap closing if it leaks inside, or paint/erase the fill directly. Erasing fill never removes the ink lines under it.',
+    params: [['fillClose', 'Gap closing (px)', 1, 60, 1, 3], ['fillOpen', 'Trim thin bits (px)', 0, 10, 1, 3]] },
+  { id: 'solid', name: 'Solid ink', stage: 4, brush: 'solid', help: 'Areas coloured in solid (shoes, ear insides, a nose) become filled shapes, decided here before any strokes are traced. Shown in orange. Paint or erase to fix them.',
+    params: [['solidK', 'Solid if thicker than × line', 1.2, 6, 0.1, 4, 'Lower finds more solid areas; higher only the boldest.'], ['solidDepth', 'Must be this much thicker than the cut-off × line', 0, 4, 0.1, 4, 'Rejects thick junctions and doubled lines.'], ['solidMin', 'Ignore solid areas smaller than × line', 1, 20, 0.5, 4], ['solidClose', 'Fill pencil gaps inside solids (px)', 0, 6, 0.5, 4]] },
+  { id: 'strokes', name: 'Strokes', stage: 5, help: 'Traces the remaining lines as centerline strokes, all the same width. Where two strokes would lie on top of each other, the shorter one is cut back, and pieces of one line that meet or carry on in the same direction are joined into one stroke. With the photo underneath, strokes are blue. Click a line or a solid ink shape to reshape it as a bezier curve, or draw new ones with the tools below; your edits stay when you change the sliders.',
+    params: [['lineBlur', 'Merge pencil grain', 0, 4, 0.1, 5], ['lineT', 'Line threshold', 0.05, 0.6, 0.01, 5], ['widthScale', 'Line width (× drawn line)', 0.4, 3, 0.05, 5], ['overlapLen', 'Remove doubled lines longer than × width', 1, 15, 0.5, 5, 'Where two strokes run side by side for longer than this, the shorter is cut.'], ['joinGap', 'Join line ends closer than × width', 0, 10, 0.5, 5, 'Where one line stops and another carries on in the same direction, they become one stroke.'], ['joinAngle', 'Join only if the line turns less than (°)', 5, 90, 1, 5], ['extendLen', 'Extend line ends to meet a line within × width', 0, 15, 0.5, 5, 'A line that stops just short of the line it heads for is carried on to meet it.'], ['minLen', 'Drop strokes shorter than', 0, 60, 1, 5], ['burrLen', 'Remove burrs shorter than × width', 0, 12, 0.5, 5, 'A short stroke that sticks out of, or runs along, a longer line is a burr from a ragged pencil line.'], ['smooth', 'Smoothing', 0, 8, 0.1, 5, 'Set for a 4 px line; scaled to this drawing\'s line width.'], ['simplify', 'Simplify (bezier fit, px)', 0.1, 6, 0.05, 5, 'How far each traced curve may stray from the pencil line, for a 4 px line (scaled to this drawing\'s line width). Lower keeps more detail but gives more anchors to edit.'], ['fillSmooth', 'Fill outline smoothing', 0, 8, 0.5, 5], ['overlay', 'Show photo underneath', 'view'], ['curve', '', 'curve']] },
+  { id: 'parts', name: 'Parts', stage: 6, help: 'Splits the clean drawing into parts that move on their own. Draw a lasso around each part; anything outside every lasso belongs to the first part, and a stroke that crosses a lasso is cut there. Where a part covers another, paint extra paper fill under it with the fill brush, so no hole shows when it moves.',
+    params: [['parttools', '', 'parttools']] },
+  { id: 'boil', name: 'Boil & export', stage: 6, help: 'Each stroke is redrawn per pose with its own wobble, as the game will bake it. Set each part\'s pivot, then export the whole character.',
+    params: [['boilAmp', 'Boil strength', 0, 4, 0.1, 7], ['boilFps', 'Frames per second', 2, 24, 1, 7], ['boilPoses', 'Poses in cycle', 2, 6, 1, 7], ['pivot', '', 'pivot'], ['export', '', 'export']] },
+];
+const STAGE_OF = {};
+for (const st of STEPS) for (const p of st.params) if (typeof p[2] === 'number') STAGE_OF[p[0]] = p[5]; else if (p[2] === 'bool') STAGE_OF[p[0]] = p[3];
+STAGE_OF.rotate = 0;
+
+// ====================================================================
+// Image helpers (plain JS, no libraries)
+// ====================================================================
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+function slideExtreme(src, w, h, r, isMax) { // separable square max/min filter, monotonic deque, O(n)
+  if (r < 1) return src.slice();
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  const q = new Int32Array(Math.max(w, h) + 2 * r + 2);
+  const better = isMax ? (a, b) => a >= b : (a, b) => a <= b;
+  const pass = (inp, outp, n, m, stride, step) => {
+    for (let j = 0; j < m; j++) {
+      const base = j * stride;
+      let head = 0, tail = 0;
+      for (let i = -r; i < n; i++) {
+        const k = i + r;
+        if (k < n) {
+          const v = inp[base + k * step];
+          while (tail > head && better(v, inp[base + q[tail - 1] * step])) tail--;
+          q[tail++] = k;
+        }
+        if (q[head] < i - r) head++;
+        if (i >= 0) outp[base + i * step] = inp[base + q[head] * step];
+      }
+    }
+  };
+  pass(src, tmp, w, h, w, 1);
+  pass(tmp, out, h, w, 1, w);
+  return out;
+}
+
+function boxBlur(src, w, h, r) {
+  r = Math.round(r);
+  if (r < 1) return src.slice();
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  const pass = (inp, outp, n, m, stride, step) => {
+    const inv = 1 / (2 * r + 1);
+    for (let j = 0; j < m; j++) {
+      const b = j * stride;
+      let acc = 0;
+      for (let k = -r; k <= r; k++) acc += inp[b + clamp(k, 0, n - 1) * step];
+      for (let i = 0; i < n; i++) {
+        outp[b + i * step] = acc * inv;
+        acc += inp[b + clamp(i + r + 1, 0, n - 1) * step] - inp[b + clamp(i - r, 0, n - 1) * step];
+      }
+    }
+  };
+  pass(src, tmp, w, h, w, 1);
+  pass(tmp, out, h, w, 1, w);
+  return out;
+}
+function gauss(src, w, h, sigma) { // three box passes ~ gaussian
+  if (sigma <= 0.3) return src.slice();
+  const r = Math.max(1, Math.round(Math.sqrt((12 * sigma * sigma) / 3 + 1) / 2 - 0.5 + 0.5));
+  return boxBlur(boxBlur(boxBlur(src, w, h, r), w, h, r), w, h, r);
+}
+
+// Exact Euclidean distance transform (Felzenszwalb). Returns distance from each pixel to the nearest pixel where mask==0.
+function edt(mask, w, h) {
+  const INF = 1e20, f = new Float64Array(Math.max(w, h)), d = new Float64Array(Math.max(w, h));
+  const v = new Int32Array(Math.max(w, h)), z = new Float64Array(Math.max(w, h) + 1);
+  const g = new Float64Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = mask[i] ? INF : 0;
+  const tr = (n) => {
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = g[y * w + x]; tr(h); for (let y = 0; y < h; y++) g[y * w + x] = d[y]; }
+  for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = g[y * w + x]; tr(w); for (let x = 0; x < w; x++) g[y * w + x] = d[x]; }
+  const out = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) out[i] = Math.sqrt(g[i]);
+  return out;
+}
+const not = (m) => { const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = m[i] ? 0 : 1; return o; };
+function dilate(m, w, h, r) { if (r <= 0) return m.slice(); const d = edt(not(m), w, h); const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = d[i] <= r ? 1 : 0; return o; }
+function erode(m, w, h, r) { if (r <= 0) return m.slice(); const d = edt(m, w, h); const o = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) o[i] = d[i] > r ? 1 : 0; return o; }
+
+function components(m, w, h) { // 8-connected labels and areas
+  const lab = new Int32Array(w * h), areas = [0], stack = new Int32Array(w * h);
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i] || lab[i]) continue;
+    n++; let sp = 0, a = 0; stack[sp++] = i; lab[i] = n;
+    while (sp) {
+      const p = stack[--sp]; a++;
+      const x = p % w, y = (p / w) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const q = yy * w + xx;
+        if (m[q] && !lab[q]) { lab[q] = n; stack[sp++] = q; }
+      }
+    }
+    areas.push(a);
+  }
+  return { lab, areas, n };
+}
+function dropSmall(m, w, h, minA) {
+  if (minA <= 1) return m.slice();
+  const { lab, areas } = components(m, w, h);
+  const o = new Uint8Array(m.length);
+  for (let i = 0; i < m.length; i++) o[i] = lab[i] && areas[lab[i]] >= minA ? 1 : 0;
+  return o;
+}
+function outsideFlood(blocked, w, h) { // pixels reachable from the border without crossing `blocked`
+  const out = new Uint8Array(w * h), st = new Int32Array(w * h); let sp = 0;
+  const push = (p) => { if (!blocked[p] && !out[p]) { out[p] = 1; st[sp++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (sp) {
+    const p = st[--sp], x = p % w, y = (p / w) | 0;
+    if (x > 0) push(p - 1); if (x < w - 1) push(p + 1); if (y > 0) push(p - w); if (y < h - 1) push(p + w);
+  }
+  return out;
+}
+
+function thin(m, w, h) { // Zhang-Suen thinning
+  const s = m.slice();
+  for (let x = 0; x < w; x++) { s[x] = 0; s[(h - 1) * w + x] = 0; }
+  for (let y = 0; y < h; y++) { s[y * w] = 0; s[y * w + w - 1] = 0; }
+  const del = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let iter = 0; iter < 2; iter++) {
+      del.length = 0;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x; if (!s[i]) continue;
+        const p2 = s[i - w], p3 = s[i - w + 1], p4 = s[i + 1], p5 = s[i + w + 1], p6 = s[i + w], p7 = s[i + w - 1], p8 = s[i - 1], p9 = s[i - w - 1];
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const A = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+        if (A !== 1) continue;
+        if (iter === 0 ? (p2 * p4 * p6 || p4 * p6 * p8) : (p2 * p4 * p8 || p2 * p6 * p8)) continue;
+        del.push(i);
+      }
+      for (const i of del) s[i] = 0;
+      if (del.length) changed = true;
+    }
+  }
+  return s;
+}
+
+// Skeleton -> polylines (node to node, plus closed loops)
+function skeletonPaths(sk, w, h) {
+  const NB = [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1];
+  const nbrs = (p) => { const o = []; for (const d of NB) if (sk[p + d]) o.push(p + d); return o; };
+  const deg = new Map(), nodes = new Set();
+  for (let i = 0; i < w * h; i++) if (sk[i]) { const d = nbrs(i).length; deg.set(i, d); if (d !== 2) nodes.add(i); }
+  const used = new Set();
+  const key = (a, b) => (a < b ? a * 4194304 + b : b * 4194304 + a);
+  const paths = [];
+  const walk = (start, nxt) => {
+    const path = [start, nxt]; used.add(key(start, nxt));
+    let prev = start, cur = nxt;
+    while (!nodes.has(cur)) {
+      const cand = nbrs(cur).filter((q) => q !== prev && !used.has(key(cur, q)));
+      if (!cand.length) break;
+      cand.sort((a, b) => Math.abs(a - cur) === 1 || Math.abs(a - cur) === w ? -1 : 1);
+      const q = cand[0]; used.add(key(cur, q)); path.push(q); prev = cur; cur = q;
+      if (cur === start) break;
+    }
+    return path;
+  };
+  for (const n of nodes) for (const q of nbrs(n)) if (!used.has(key(n, q))) paths.push(walk(n, q));
+  for (const p of deg.keys()) for (const q of nbrs(p)) if (!used.has(key(p, q))) { nodes.add(p); paths.push(walk(p, q)); nodes.delete(p); }
+  return { paths: paths.map((p) => p.map((i) => [i % w, (i / w) | 0])), deg: (x, y) => deg.get(y * w + x) || 0 };
+}
+
+function joinPaths(paths) { // join strokes that continue straight through a junction
+  const dir = (p, atStart) => { const s = atStart ? p.slice(0, 6) : p.slice(-6).reverse(); const vx = s[s.length - 1][0] - s[0][0], vy = s[s.length - 1][1] - s[0][1]; const n = Math.hypot(vx, vy) || 1; return [vx / n, vy / n]; };
+  const k = (pt) => pt[0] + ',' + pt[1];
+  const closed = (p) => p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1];
+  for (let guard = 0; guard < 5000; guard++) {
+    const ends = new Map();
+    paths.forEach((p, i) => { if (closed(p)) return; for (const s of [true, false]) { const kk = k(s ? p[0] : p[p.length - 1]); if (!ends.has(kk)) ends.set(kk, []); ends.get(kk).push([i, s]); } });
+    let best = null;
+    for (const lst of ends.values()) {
+      if (lst.length < 2) continue;
+      for (let a = 0; a < lst.length; a++) for (let b = a + 1; b < lst.length; b++) {
+        const [i, si] = lst[a], [j, sj] = lst[b]; if (i === j) continue;
+        const da = dir(paths[i], si), db = dir(paths[j], sj), c = da[0] * db[0] + da[1] * db[1];
+        if (c < -0.5 && (!best || c < best[0])) best = [c, i, si, j, sj];
+      }
+      if (best) break;
+    }
+    if (!best) break;
+    const [, i, si, j, sj] = best;
+    const pi = si ? paths[i].slice().reverse() : paths[i];
+    const pj = sj ? paths[j] : paths[j].slice().reverse();
+    const merged = pi.concat(pj.slice(1));
+    paths = paths.filter((_, x) => x !== i && x !== j); paths.push(merged);
+  }
+  return paths;
+}
+
+// Direction a polyline is heading as it leaves its start (atStart) or its end, over the last `span` pixels.
+function heading(p, atStart, span) {
+  const q = atStart ? p : p.slice().reverse(), e = q[0];
+  let L = 0, k = 1;
+  for (; k < q.length - 1; k++) { L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); if (L >= span) break; }
+  const vx = e[0] - q[k][0], vy = e[1] - q[k][1], n = Math.hypot(vx, vy) || 1;
+  return [vx / n, vy / n];
+}
+// Append b to a. Where they carry on in the same direction, cut back any overlap to the midpoint of the
+// two ends first, so the joined line does not zigzag back and forth.
+function splice(a, b, width, cosMax) {
+  const u = heading(a, false, width * 3), v = heading(b, true, width * 3);
+  if (a.length < 2 || b.length < 2 || -(u[0] * v[0] + u[1] * v[1]) < cosMax) return a.concat(b);
+  const p = a[a.length - 1], q = b[0], m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  const ahead = (r) => (r[0] - m[0]) * u[0] + (r[1] - m[1]) * u[1];
+  let i = a.length, j = 0;
+  while (i > 2 && ahead(a[i - 1]) > 0) i--;
+  while (j < b.length - 2 && ahead(b[j]) < 0) j++;
+  const out = a.slice(0, i).concat([m], b.slice(j));
+  // ease the step where the two lines sat a little apart, over a few line widths either side of the joint
+  const k = Math.max(2, Math.round(width * 2)), src = out.map((q) => q.slice());
+  for (let x = Math.max(1, i - 2 * k); x <= Math.min(out.length - 2, i + 2 * k); x++) {
+    let sx = 0, sy = 0, n = 0;
+    for (let y = Math.max(0, x - k); y <= Math.min(out.length - 1, x + k); y++) { sx += src[y][0]; sy += src[y][1]; n++; }
+    out[x] = [sx / n, sy / n];
+  }
+  return out;
+}
+
+// One drawn line often comes out as several strokes: pencil fades for a moment, a junction splits it,
+// or a doubled stretch was cut out. Join line ends that are close and carry on in the same direction,
+// best match first, and close a stroke whose own ends meet that way. Ends that touch (within one line
+// width) join even at a sharp corner, as long as the line does not double back on itself.
+function joinGaps(lines, width, gapMul, maxDeg) {
+  const gap = width * gapMul;
+  if (gap <= 0) return lines;
+  const cosMax = Math.cos((maxDeg * Math.PI) / 180), cosTouch = Math.min(cosMax, Math.cos((120 * Math.PI) / 180)), span = Math.max(gap, width * 3);
+  const out = lines.map((l) => ({ pts: l.pts.slice(), closed: l.closed }));
+  const tip = (p, atStart) => (atStart ? p[0] : p[p.length - 1]);
+  const outward = (p, atStart) => heading(p, atStart, span);   // direction the line is heading as it leaves this end
+  const cosLap = Math.cos((25 * Math.PI) / 180);
+  const fits = (pa, ta, pb, tb, d, la, lb) => { // end a heads into end b; la, lb: the two lines' lengths
+    const turn = -(ta[0] * tb[0] + ta[1] * tb[1]);
+    const ahead = ta[0] * (pb[0] - pa[0]) + ta[1] * (pb[1] - pa[1]);
+    // A new pencil stroke started a little before the last one ended, up to 2.5 widths to the side: the ends
+    // overlap side by side for a short stretch. Join them; splice() cuts the overlap out and eases the step.
+    if (d > width && ahead < 0) {
+      const sideL = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
+      if (turn >= cosLap && sideL <= width * 2.5 && -ahead <= Math.min(width * 15, la * 0.5, lb * 0.5)) return (sideL + width) * (2 - turn);
+    }
+    if (d > gap) return -1;
+    if (turn < (d <= width ? cosTouch : cosMax)) return -1;
+    // Ends that overlap side by side, where the pencil started a new stroke a little before the last one ended.
+    const side = Math.abs(ta[0] * (pb[1] - pa[1]) - ta[1] * (pb[0] - pa[0]));
+    if (d > width && !(turn >= cosMax && side <= width)) {
+      const ux = (pb[0] - pa[0]) / d, uy = (pb[1] - pa[1]) / d;
+      if (ta[0] * ux + ta[1] * uy < cosMax || -(tb[0] * ux + tb[1] * uy) < cosMax) return -1;
+    }
+    return (d + width) * (2 - turn);   // closer and straighter is better
+  };
+  // Ends are numbered 2i (start of line i) and 2i+1 (its end). Each end joins at most once, best pairs first.
+  // An end's direction only depends on the line near it, so every pair can be scored up front.
+  const n = out.length, ends = [];
+  for (let i = 0; i < n; i++) if (!out[i].closed) for (const s of [0, 1]) ends.push({ e: 2 * i + s, p: tip(out[i].pts, !s), t: outward(out[i].pts, !s) });
+  const pairs = [], len = out.map((l) => polyLen(l.pts));   // line lengths; joining adds them up below
+  for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
+    const A = ends[a], B = ends[b], d = Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1]);
+    if (d > Math.max(gap, width * 15)) continue;
+    const c = fits(A.p, A.t, B.p, B.t, d, len[A.e >> 1], len[B.e >> 1]);
+    if (c >= 0) pairs.push([c, A.e, B.e]);
+  }
+  pairs.sort((x, y) => x[0] - y[0]);
+  const partner = new Int32Array(2 * n).fill(-1), root = Array.from({ length: n }, (_, i) => i);
+  const find = (i) => { while (root[i] !== i) i = root[i] = root[root[i]]; return i; };
+  const loop = new Uint8Array(n);
+  for (const [, ea, eb] of pairs) {
+    if (partner[ea] >= 0 || partner[eb] >= 0) continue;
+    const ra = find(ea >> 1), rb = find(eb >> 1);
+    if (ra === rb) { if (len[ra] < gap * 4) continue; loop[ra] = 1; }   // closes a loop; a short one is not a loop
+    else { root[rb] = ra; len[ra] += len[rb]; }
+    partner[ea] = eb; partner[eb] = ea;
+  }
+  const res = [], seen = new Uint8Array(n);
+  const chain = (e) => { // walk from free end e (or any end of a loop) through the joined lines
+    const pts = [];
+    for (let cur = e; cur >= 0 && !seen[cur >> 1];) {
+      const i = cur >> 1; seen[i] = 1;
+      const p = cur & 1 ? out[i].pts.slice().reverse() : out[i].pts;
+      const joined = pts.length ? splice(pts, p, width, cosMax) : p.slice();
+      pts.length = 0; for (const q of joined) pts.push(q);
+      cur = partner[cur ^ 1];
+    }
+    return pts;
+  };
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    if (out[i].closed) { seen[i] = 1; res.push(out[i]); continue; }
+    let e = 2 * i;   // walk back to the chain's free end
+    for (let p = partner[e]; p >= 0 && (p >> 1) !== i; p = partner[e]) e = p ^ 1;
+    const closed = !!loop[find(i)];
+    const pts = chain(closed ? 2 * i : e);
+    if (closed) pts.push(pts[0].slice());
+    res.push({ pts, closed });
+  }
+  return res;
+}
+
+// A thick, wavering pencil line traces as one main stroke plus burrs: short ticks sticking out of it, and
+// short pieces running alongside it where the pencil went over it twice. Longest strokes first, drop an
+// open stroke that is shorter than lenMul line widths and touches a kept stroke, or that lies mostly
+// along kept strokes whatever its length. Short strokes on their own, such as a mouth, and short pieces
+// that bridge two lines stay. Then trim tails that overshoot the line they meet.
+function pruneBurrs(lines, width, lenMul) {
+  if (lenMul <= 0) return lines;
+  const maxLen = width * lenMul, touch = width * 1.5, cell = touch, grid = new Map(), gk = (x, y) => x * 65536 + y;
+  const near = (x, y, self = -1) => {
+    const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const l = grid.get(gk(cx + dx, cy + dy)); if (!l) continue;
+      for (let i = 0; i < l.length; i += 3) if (l[i + 2] !== self && (l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return l[i + 2];
+    }
+    return -1;
+  };
+  const continues = (d, j, self) => { // does the start of d run the same way as line j where it touches it?
+    if (j < 0 || !D[j]) return false;
+    const e = d[0], f = d[Math.min(d.length - 1, Math.round(width * 3))], u = [f[0] - e[0], f[1] - e[1]], un = Math.hypot(u[0], u[1]) || 1;
+    const L = D[j]; let bk = 0, bd = 1e9; L.forEach((q, k) => { const dd = (q[0] - e[0]) ** 2 + (q[1] - e[1]) ** 2; if (dd < bd) { bd = dd; bk = k; } });
+    const a = L[Math.max(0, bk - 4)], b = L[Math.min(L.length - 1, bk + 4)], v = [b[0] - a[0], b[1] - a[1]], vn = Math.hypot(v[0], v[1]) || 1;
+    return Math.abs((u[0] * v[0] + u[1] * v[1]) / (un * vn)) > Math.cos((30 * Math.PI) / 180);
+  };
+  const order = lines.map((l, i) => [polyLen(l.pts), i]).sort((a, b) => b[0] - a[0]);
+  const keep = new Uint8Array(lines.length), D = [];
+  for (const [len, i] of order) {
+    const d = D[i] = densify(lines[i].pts, 1);
+    if (!lines[i].closed) {
+      const hit = d.map(([x, y]) => near(x, y)), hits = hit.filter((h) => h >= 0).length, a = hit[0], b = hit[hit.length - 1];
+      // Touching a line at both ends, either two different lines or one line with a gap between, makes it a
+      // connector: a strut or rung between two lines is drawn on purpose once it is two line widths long. A
+      // shorter one only stays if it carries on the way a line it touches runs; otherwise it is a stray mark.
+      const bridge = a >= 0 && b >= 0 && (a !== b || hit.some((h) => h < 0)) && (len >= Math.min(maxLen, width * 2) || continues(d, a, i) || continues(d.slice().reverse(), b, i));
+      if (!bridge && ((hits && len < maxLen) || hits > d.length * 0.6)) continue;
+    }
+    keep[i] = 1;
+    for (const [x, y] of d) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, y, i); }
+  }
+  // A line that runs a little past the line it meets overshoots: trim the free tail back to the contact.
+  const trimmed = lines.map((l, i) => {
+    if (!keep[i] || l.closed) return l;
+    let d = D[i];
+    for (const atEnd of [false, true]) {
+      if (atEnd) d = d.slice().reverse();
+      let k = 0; while (k < d.length && k <= maxLen && near(d[k][0], d[k][1], i) < 0) k++;
+      if (k > 0 && k <= maxLen && k < d.length - 2) d = d.slice(k);
+      if (atEnd) d = d.reverse();
+    }
+    return d === D[i] ? l : { pts: d, closed: false };
+  });
+  return trimmed.filter((_, i) => keep[i]);
+}
+
+// A line that stops just short of the line it heads for leaves a gap the artist meant to close. Carry a free
+// end straight on, along the way it is heading, to the first line it would reach within lenMul line widths.
+// An end that already touches a line, or heads into empty paper, stays as it is.
+function extendEnds(lines, width, lenMul) {
+  if (lenMul <= 0) return lines;
+  const maxLen = width * lenMul, out = lines.map((l) => ({ ...l, pts: l.pts.slice() }));
+  const segsOf = out.map((l) => l.pts);
+  const touching = (e, self, skipNear) => segsOf.some((p, j) => { for (let k = 1; k < p.length; k++) { if (j === self && skipNear(k)) continue; if (distSeg(e, p[k - 1], p[k]) < width) return true; } return false; });
+  for (let i = 0; i < out.length; i++) {
+    if (out[i].closed || out[i].pts.length < 2) continue;
+    for (const atStart of [true, false]) {
+      const P = out[i].pts, e = atStart ? P[0] : P[P.length - 1], t = heading(P, atStart, width * 3);
+      // parts of this same line near the end do not count as something to reach
+      let acc = 0; const nearIdx = new Set();
+      for (let q = 1; q < P.length && acc < width * 6; q++) { const k = atStart ? q : P.length - q; acc += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]); nearIdx.add(k); }
+      const skipNear = (k) => nearIdx.has(k);
+      if (touching(e, i, skipNear)) continue;
+      let best = null;
+      segsOf.forEach((p, j) => {
+        for (let k = 1; k < p.length; k++) {
+          if (j === i && skipNear(k)) continue;
+          const [ax, ay] = p[k - 1], [bx, by] = p[k], sx = bx - ax, sy = by - ay, den = t[0] * sy - t[1] * sx;
+          if (Math.abs(den) < 1e-9) continue;
+          const u = ((ax - e[0]) * sy - (ay - e[1]) * sx) / den, v = ((ax - e[0]) * t[1] - (ay - e[1]) * t[0]) / den;   // ray e + u t meets segment at v
+          if (u > 0 && u <= maxLen && v >= 0 && v <= 1 && (!best || u < best.u)) best = { u };
+        }
+      });
+      let q = best ? [e[0] + t[0] * best.u, e[1] + t[1] * best.u] : null;
+      if (!q) { // the line heads just past the other one: take the nearest point on a line within 20° of the heading
+        let bd = maxLen;
+        segsOf.forEach((p, j) => { p.forEach((r, k) => { if (j === i && skipNear(Math.max(1, k))) return; const vx = r[0] - e[0], vy = r[1] - e[1], dd = Math.hypot(vx, vy); if (dd > 0 && dd < bd && (vx * t[0] + vy * t[1]) / dd > Math.cos((20 * Math.PI) / 180)) { bd = dd; q = r.slice(); } }); });
+      }
+      if (!q) continue;
+      if (atStart) P.unshift(q); else P.push(q);
+    }
+  }
+  return out;
+}
+
+function smoothPoly(a, sigma, closed) {
+  if (sigma < 0.3 || a.length < 5) return a.map((p) => p.slice());
+  const k = Math.ceil(sigma * 3), g = [];
+  let sum = 0; for (let x = -k; x <= k; x++) { const v = Math.exp(-(x * x) / (2 * sigma * sigma)); g.push(v); sum += v; }
+  const n = closed ? a.length - 1 : a.length, out = [];
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0;
+    for (let t = -k; t <= k; t++) {
+      let j = i + t;
+      if (closed) j = ((j % n) + n) % n; else j = clamp(j, 0, n - 1);
+      sx += a[j][0] * g[t + k]; sy += a[j][1] * g[t + k];
+    }
+    out.push([sx / sum, sy / sum]);
+  }
+  if (closed) out.push(out[0].slice()); else { out[0] = a[0].slice(); out[n - 1] = a[n - 1].slice(); }
+  return out;
+}
+// smoothPoly that keeps sharp corners: find where the raw path turns by more than `deg` degrees, measured
+// `spanMul` line widths either side, take the sharpest point of each such turn as a corner, and smooth each
+// stretch between corners on its own, so a corner stays a corner instead of being rounded off.
+function smoothKeepCorners(a, sigma, closed, width, deg = 50, spanMul = 1.5) {
+  const n = closed ? a.length - 1 : a.length;
+  if (sigma < 0.3 || n < 7) return smoothPoly(a, sigma, closed);
+  const span = Math.max(3, width * spanMul), cum = [0];
+  for (let i = 1; i < a.length; i++) cum.push(cum[i - 1] + Math.hypot(a[i][0] - a[i - 1][0], a[i][1] - a[i - 1][1]));
+  const total = cum[a.length - 1];
+  const along = (i, dir) => { // the point `span` px along the path from i, in direction dir
+    let j = i;
+    if (closed) { for (let L = 0; L < span;) { const k = (j + dir + n) % n; L += Math.hypot(a[k][0] - a[j][0], a[k][1] - a[j][1]); j = k; if (j === i) break; } return a[j]; }
+    while (j + dir >= 0 && j + dir < n && Math.abs(cum[j] - cum[i]) < span) j += dir;
+    return a[j];
+  };
+  const turn = new Float32Array(n), cosLim = Math.cos((deg * Math.PI) / 180);
+  for (let i = 0; i < n; i++) {
+    if (!closed && (cum[i] < span || total - cum[i] < span)) continue;   // no corner right at an open end
+    const p = a[i], b = along(i, -1), c = along(i, 1), ux = p[0] - b[0], uy = p[1] - b[1], vx = c[0] - p[0], vy = c[1] - p[1], L = Math.hypot(ux, uy) * Math.hypot(vx, vy);
+    if (!L) continue;
+    const cs = (ux * vx + uy * vy) / L;
+    if (cs < cosLim) turn[i] = 1 - cs;
+  }
+  const corners = [], reach = Math.ceil(span);
+  for (let i = 0; i < n; i++) { // the sharpest point of each turn
+    if (!turn[i]) continue;
+    let top = true;
+    for (let k = 1; k <= reach && top; k++) {
+      const l = closed ? (i - k + n) % n : i - k, r = closed ? (i + k) % n : i + k;
+      if ((l >= 0 && turn[l] > turn[i]) || (r < n && r !== i && turn[r] >= turn[i])) top = false;
+    }
+    if (top) corners.push(i);
+  }
+  if (!corners.length) return smoothPoly(a, sigma, closed);
+  const piece = (seg) => (seg.length >= 5 ? smoothPoly(seg, sigma, false) : seg.map((q) => q.slice()));   // ends stay put
+  const out = [];
+  if (closed) {
+    for (let c = 0; c < corners.length; c++) {
+      const s0 = corners[c], e0 = c + 1 < corners.length ? corners[c + 1] : corners[0] + n, seg = [];
+      for (let i = s0; i <= e0; i++) seg.push(a[i % n]);
+      const sm = piece(seg); out.push(...(out.length ? sm.slice(1) : sm));
+    }
+    out[out.length - 1] = out[0].slice();
+  } else {
+    const cuts = [0, ...corners, n - 1];
+    for (let c = 0; c + 1 < cuts.length; c++) { const sm = piece(a.slice(cuts[c], cuts[c + 1] + 1)); out.push(...(out.length ? sm.slice(1) : sm)); }
+  }
+  return out;
+}
+function rdp(pts, eps) {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const st = [[0, pts.length - 1]];
+  while (st.length) {
+    const [a, b] = st.pop(); let md = 0, mi = -1;
+    const [ax, ay] = pts[a], [bx, by] = pts[b], dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+    for (let i = a + 1; i < b; i++) {
+      const d = L ? Math.abs(dy * pts[i][0] - dx * pts[i][1] + bx * ay - by * ax) / L : Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
+      if (d > md) { md = d; mi = i; }
+    }
+    if (md > eps && mi > 0) { keep[mi] = 1; st.push([a, mi], [mi, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+function contours(m, w, h) { // pixel-edge loops; holes come out as separate loops (use evenodd)
+  const W = w + 1, out = new Map();
+  const add = (a, b) => { if (!out.has(a)) out.set(a, []); out.get(a).push(b); };
+  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && m[y * w + x];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!m[y * w + x]) continue;
+    if (!at(x, y - 1)) add(y * W + x, y * W + x + 1);
+    if (!at(x + 1, y)) add(y * W + x + 1, (y + 1) * W + x + 1);
+    if (!at(x, y + 1)) add((y + 1) * W + x + 1, (y + 1) * W + x);
+    if (!at(x - 1, y)) add((y + 1) * W + x, y * W + x);
+  }
+  const loops = [];
+  for (const start of out.keys()) {
+    while (out.get(start).length) {
+      const loop = [start]; let cur = start;
+      for (let guard = 0; guard < 4e6; guard++) {
+        const nx = out.get(cur); if (!nx || !nx.length) break;
+        cur = nx.pop(); loop.push(cur); if (cur === start) break;
+      }
+      if (loop.length > 8) loops.push(loop.map((v) => [v % W, (v / W) | 0]));
+    }
+  }
+  return loops;
+}
+
+// The pixels a brush dab covers. The dab is centred on the middle of the pixel under (x, y), so it is always
+// the same shape for a given radius, wherever in that pixel the pointer is: every pixel whose centre lies
+// within r of that middle. Pixel i spans [i, i+1), the same as pointer positions.
+function dab(w, h, x, y, r, fn) {
+  const cx = Math.floor(x), cy = Math.floor(y), n = Math.floor(r);
+  for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) {
+    const xx = cx + dx, yy = cy + dy;
+    if (dx * dx + dy * dy <= r * r + 1e-6 && xx >= 0 && yy >= 0 && xx < w && yy < h) fn(xx, yy);
+  }
+}
+// Dabs along a brush segment from a to b (just b when a is null), close enough together to leave no gaps.
+function dabLine(w, h, a, b, r, fn) {
+  const [x, y] = b;
+  if (!a) { dab(w, h, x, y, r, fn); return; }
+  const [px, py] = a, n = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / Math.max(0.5, r / 2)));
+  for (let t = 1; t <= n; t++) dab(w, h, px + ((x - px) * t) / n, py + ((y - py) * t) / n, r, fn);
+}
+function applyEdits(arr, layer, w, h, val) { paintEdits(arr, S.edits.filter((e) => e.layer === layer), w, h, val); }
+function paintEdits(arr, edits, w, h, val) {
+  for (const e of edits) {
+    const v = e.mode === 'add' ? val : 0, set = (xx, yy) => { arr[yy * w + xx] = v; };
+    const pts = e.pts.map(([x, y]) => toWork(x, y)), r = e.r * W.scale;
+    pts.forEach((pt, i) => dabLine(w, h, i ? pts[i - 1] : null, pt, r, set));
+  }
+}
+
+// ====================================================================
+// Pipeline
+// ====================================================================
+let img = null;            // loaded HTMLImageElement
+let rot = null;            // rotated full-res canvas
+const W = {};              // working data per stage
+let valid = -1;            // highest valid stage
+
+function rotated() {
+  const c = document.createElement('canvas'), q = ((S.rotate % 360) + 360) % 360;
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  c.width = q % 180 ? sh : sw; c.height = q % 180 ? sw : sh;
+  const x = c.getContext('2d'); x.translate(c.width / 2, c.height / 2); x.rotate((q * Math.PI) / 180); x.drawImage(img, -sw / 2, -sh / 2);
+  return c;
+}
+const toWork = (x, y) => [(x - W.cx) * W.scale, (y - W.cy) * W.scale];
+const toSrc = (x, y) => [x / W.scale + W.cx, y / W.scale + W.cy];
+
+function stage0() {
+  // Rotating the full-size photo is slow, so it is only redone for a new photo or rotation, not for a crop.
+  if (!rot || rot.img !== img || rot.rotate !== S.rotate) { rot = rotated(); rot.img = img; rot.rotate = S.rotate; }
+  let [cx, cy, cw, ch] = S.crop || [0, 0, rot.width, rot.height];
+  cx = clamp(Math.round(cx), 0, rot.width - 2); cy = clamp(Math.round(cy), 0, rot.height - 2);
+  cw = clamp(Math.round(cw), 2, rot.width - cx); ch = clamp(Math.round(ch), 2, rot.height - cy);
+  const scale = Math.min(1, S.maxSize / Math.max(cw, ch)), w = Math.max(2, Math.round(cw * scale)), h = Math.max(2, Math.round(ch * scale));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(rot, cx, cy, cw, ch, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data, gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  Object.assign(W, { w, h, cx, cy, cw, ch, scale, photo: c, gray });
+}
+function stage1() {
+  const { w, h, gray } = W;
+  if (!S.bgOn) { W.flat = gray.slice(); return; }
+  // Sizes are in photo pixels, so they mean the same at any working size.
+  const k = Math.max(0.3, W.scale), close = Math.round(S.bgClose * k), blur = S.bgBlur * k;
+  const bg = boxBlur(boxBlur(slideExtreme(slideExtreme(gray, w, h, close, true), w, h, close, false), w, h, blur), w, h, blur);
+  const flat = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) flat[i] = clamp((gray[i] / Math.max(1, bg[i])) * 255, 0, 255);
+  W.flat = flat;
+}
+function autoLevels() {
+  const { flat } = W, dark = Array.from(flat, (v) => 255 - v).sort((a, b) => a - b);
+  const pct = (arr, p) => arr[Math.min(arr.length - 1, Math.floor((p / 100) * arr.length))];
+  const lo = pct(dark, 90) + 6, ink = dark.filter((v) => v > lo);
+  const hi = Math.max(lo + 20, ink.length ? pct(ink, 60) : lo + 60);
+  S.lo = Math.round(lo); S.hi = Math.round(hi);
+}
+function stage2() {
+  const { w, h, flat } = W, a = new Float32Array(w * h), ink = new Uint8Array(w * h);
+  const lo = S.lo, span = Math.max(1, S.hi - S.lo);
+  for (let i = 0; i < w * h; i++) { a[i] = clamp((255 - flat[i] - lo) / span, 0, 1); ink[i] = a[i] > S.cut ? 1 : 0; }
+  let keep = dropSmall(ink, w, h, S.speck * W.scale * W.scale);
+  const near = dilate(keep, w, h, 2);
+  for (let i = 0; i < w * h; i++) if (!near[i]) a[i] = 0;
+  applyEdits(a, 'ink', w, h, 1); applyEdits(keep, 'ink', w, h, 1);
+  W.alpha = a; W.ink = keep;
+}
+function stage3() {
+  const { w, h, ink } = W, r = S.fillClose * W.scale;
+  const closed = erode(dilate(ink, w, h, r), w, h, r);
+  const outside = outsideFlood(closed, w, h);
+  let sil = not(outside);
+  const open = S.fillOpen * W.scale;
+  if (open > 0) sil = dilate(erode(sil, w, h, open), w, h, open);
+  for (let i = 0; i < w * h; i++) if (ink[i]) sil[i] = 1;
+  // Ink outside the fill is a stray mark: drop it. Only the automatic fill (plus fill painted on by hand)
+  // decides that, so erasing paper fill with the brush never removes the ink lines under it.
+  const keep = sil.slice();
+  paintEdits(keep, S.edits.filter((e) => e.layer === 'fill' && e.mode === 'add'), w, h, 1);
+  applyEdits(sil, 'fill', w, h, 1);
+  const a = W.alpha.slice();
+  for (let i = 0; i < w * h; i++) if (!keep[i]) a[i] = 0;
+  W.sil = sil; W.inkKeep = keep; W.alphaIn = a;
+}
+function median(arr) { if (!arr.length) return 0; const s = Float32Array.from(arr).sort(); return s[s.length >> 1]; }
+function stage4() { // solid ink: decided from the sharp ink mask, before any tracing
+  const { w, h, ink, inkKeep } = W;
+  let inkIn = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) inkIn[i] = ink[i] && inkKeep[i] ? 1 : 0;
+  const dist = edt(inkIn, w, h), sk = thin(inkIn, w, h), rs = [];
+  for (let i = 0; i < w * h; i++) if (sk[i]) rs.push(dist[i]);
+  const rLine = Math.max(1, median(rs));            // half the width of a typical drawn line
+  // Pencil fill is grainy: close small gaps first so a coloured-in area reads as one block.
+  const gap = S.solidClose * W.scale;   // in photo pixels, like the other sizes
+  const inkC = gap > 0 ? erode(dilate(inkIn, w, h, gap), w, h, gap) : inkIn;
+  const distC = gap > 0 ? edt(inkC, w, h) : dist;
+  const t = Math.max(1.5, rLine * S.solidK);
+  let solid = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) solid[i] = distC[i] > t ? 1 : 0;   // cores: deeper inside ink than any line
+  solid = dilate(solid, w, h, t + 1);                                // grow back to the drawn edge
+  for (let i = 0; i < w * h; i++) solid[i] &= inkC[i];
+  { // keep only blobs that are big AND clearly deeper than a line (thick junctions and doubled lines are not)
+    const { lab, areas, n } = components(solid, w, h), depth = new Float32Array(n + 1);
+    for (let i = 0; i < w * h; i++) if (lab[i] && distC[i] > depth[lab[i]]) depth[lab[i]] = distC[i];
+    const minA = (rLine * S.solidMin) ** 2, minD = t + rLine * S.solidDepth;
+    for (let i = 0; i < w * h; i++) if (lab[i] && (areas[lab[i]] < minA || depth[lab[i]] < minD)) solid[i] = 0;
+  }
+  // fill small enclosed holes (white grain specks inside a shoe)
+  const out = outsideFlood(solid, w, h), holes = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) holes[i] = !solid[i] && !out[i] ? 1 : 0;
+  const { lab, areas } = components(holes, w, h), maxHole = (rLine * 6) ** 2;
+  for (let i = 0; i < w * h; i++) if (lab[i] && areas[lab[i]] <= maxHole) solid[i] = 1;
+  applyEdits(solid, 'solid', w, h, 1);
+  W.solid = solid; W.rLine = rLine;
+}
+// Smoothing and Simplify are set for a 4 px pencil line, the artist's usual: on a drawing with thinner lines
+// they shrink with the line, so its smaller details are not smoothed away (and a thicker line gets more).
+const lineScale = (width) => width / 4;
+const fitEps = (width) => Math.max(0.3, S.simplify * lineScale(width));
+function stage5() { // strokes
+  const { w, h, alphaIn: a, sil, solid, rLine } = W;
+  const blurred = gauss(a, w, h, S.lineBlur);
+  const solidPad = dilate(solid, w, h, 1 + S.lineBlur);
+  let line = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) line[i] = blurred[i] > S.lineT && !solidPad[i] ? 1 : 0;
+  line = dropSmall(line, w, h, 20);
+  const { paths: raw, deg } = skeletonPaths(thin(line, w, h), w, h);
+  const paths = joinPaths(raw);
+  const width = Math.max(0.8, 2 * rLine * S.widthScale);           // one width for every stroke
+  const cands = [];
+  for (const p of paths) {
+    if (p.length < 2) continue;
+    let len = 0; for (let i = 1; i < p.length; i++) len += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    const loop = p.length > 3 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1];
+    const spur = (deg(...p[0]) === 1) !== (deg(...p[p.length - 1]) === 1);
+    if (!loop && len < Math.max(S.minLen, width)) continue;
+    if (spur && len < width * 2) continue;
+    cands.push({ pts: smoothKeepCorners(p.map(([x, y]) => [x + 0.5, y + 0.5]), S.smooth * lineScale(width), loop, width), len, loop });
+  }
+  // No line on top of another: keep long strokes first, cut later strokes where they come
+  // within one line width of a kept stroke (caps then just touch).
+  cands.sort((p, q) => q.len - p.len);
+  const cell = Math.max(2, width), grid = new Map(), gk = (cx, cy) => cx * 65536 + cy;
+  const near = (x, y) => {
+    const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const l = grid.get(gk(cx + dx, cy + dy)); if (!l) continue;
+      for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < width * width) return true;
+    }
+    return false;
+  };
+  const addPts = (pts) => {
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = pts[i], n = i ? Math.ceil(Math.hypot(x - pts[i - 1][0], y - pts[i - 1][1])) : 1;
+      for (let t = 1; t <= n; t++) {
+        const px = i ? pts[i - 1][0] + ((x - pts[i - 1][0]) * t) / n : x, py = i ? pts[i - 1][1] + ((y - pts[i - 1][1]) * t) / n : y;
+        const k = gk(Math.floor(px / cell), Math.floor(py / cell));
+        if (!grid.has(k)) grid.set(k, []); grid.get(k).push(px, py);
+      }
+    }
+  };
+  let lines = [];   // strokes before simplifying; the parts step cuts these
+  for (const c of cands) {
+    const cov = c.pts.map(([x, y]) => near(x, y));
+    // Short covered runs are joints and crossings: keep them so lines stay connected.
+    // Only runs that follow another stroke for a while count as drawn twice.
+    for (let i = 0; i < cov.length;) {
+      if (!cov[i]) { i++; continue; }
+      let j = i; while (j < cov.length && cov[j]) j++;
+      if (polyLen(c.pts.slice(i, j)) < width * S.overlapLen) for (let k = i; k < j; k++) cov[k] = false;
+      i = j;
+    }
+    if (!cov.some(Boolean)) { addPts(c.pts); lines.push({ pts: c.pts, closed: c.loop }); continue; }
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2 && polyLen(run) >= Math.max(S.minLen, width * 1.5)) { addPts(run); lines.push({ pts: run, closed: false }); }
+      run = [];
+    };
+    c.pts.forEach((pt, i) => { if (cov[i]) flush(); else run.push(pt); });
+    flush();
+  }
+  // Join pieces and drop burrs, then join again: a burr or overshoot taken out at a junction frees the line
+  // ends it was holding apart.
+  const join = (ls) => joinGaps(ls, width, S.joinGap, S.joinAngle), prune = (ls) => pruneBurrs(ls, width, S.burrLen);
+  // Every traced line and solid outline becomes a cubic bezier (few anchors, within `simplify` px of the
+  // trace), drawn from that bezier: the same curves the line editor shows and edits, so a first click
+  // changes nothing.
+  const eps = fitEps(width), bezier = (l) => { const nodes = fitNodes(l.pts, l.closed, eps); return { ...l, pts: sampleCurve(nodes, l.closed), nodes }; };
+  W.traced = extendEnds(prune(join(prune(join(lines)))), width, S.extendLen).map(bezier);
+  if (sel && sel.ci < 0) sel = null;   // a selected traced line may not exist after re-tracing
+  W.tracedSolid = shape(solid, w, h, 1.2, 0.4).map((pts) => bezier({ pts, closed: true, solid: true }));
+  W.fig = { w, h, paper: shape(sil, w, h, S.fillSmooth, 0.8), solid: [], strokes: [], rLine, width };
+  applyCurves();
+}
+// Line edits from the bezier editor go on top of the traced lines, so they survive re-tracing: each edit takes
+// out the traced line it was made from (wherever the new trace still runs along it) and adds its own curve.
+// This is cheap, so editing a curve does not re-trace.
+function applyCurves() {
+  const { width } = W.fig, touch = width, cell = touch * 1.5;
+  const curves = S.curves.map((c, ci) => ({ ci, c, from: c.from.length ? densify(c.from.map((pt) => toWork(...pt)), 1) : [] }));
+  // Edits to a traced line take it out of the trace; the same for solid shapes, matched only against solid edits.
+  // Each edit (a reshaped or deleted line) was made from exactly one traced line: the one that still shares the
+  // longest stretch with the line the edit recorded, if it shares at least half of it. Only that line is taken
+  // out (whole, when the edit covers most of it) or trimmed (where it runs along the edit, when a re-trace has
+  // carried it on past the edited part). Every other line is left alone, even one that overlaps or crosses it.
+  const takeOut = (lines, edits, cutLong) => {
+    const dense = lines.map((l) => densify(l.pts, 1)), lens = dense.map(polyLen);
+    const whole = new Set(), cuts = new Map(), along = new Map();   // line index -> cut mask / edits' coverage masks
+    for (const { from } of edits) {
+      if (!from.length) continue;   // a line drawn by hand was made from nothing
+      const grid = new Map(), gk = (x, y) => x * 65536 + y;
+      for (const [x, y] of from) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(x, y); }
+      const near = (x, y) => {
+        const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const l = grid.get(gk(cx + dx, cy + dy)); if (l) for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return true; }
+        return false;
+      };
+      let best = -1, bestLen = 0, bestOn = null;
+      dense.forEach((d, li) => {
+        const on = d.map(([x, y]) => near(x, y));
+        let shared = 0; for (let i = 1; i < d.length; i++) if (on[i] && on[i - 1]) shared += Math.hypot(d[i][0] - d[i - 1][0], d[i][1] - d[i - 1][1]);
+        if (shared > bestLen) { bestLen = shared; best = li; bestOn = on; }
+      });
+      if (best < 0 || bestLen < polyLen(from) * 0.5) continue;   // the line it was made from is not traced any more
+      if (bestLen >= lens[best] * 0.6 || !cutLong) { if (bestLen >= lens[best] * 0.6) whole.add(best); continue; }
+      const d = dense[best], cut = cuts.get(best) || new Array(d.length).fill(false);
+      for (let i = 0; i < d.length;) { // trim where it runs along the edit; a brief touch is a crossing and stays
+        if (!bestOn[i]) { i++; continue; }
+        let j = i; while (j < d.length && bestOn[j]) j++;
+        if (polyLen(d.slice(i, j)) >= width * 2) for (let q = i; q < j; q++) cut[q] = true;
+        i = j;
+      }
+      cuts.set(best, cut); if (!along.has(best)) along.set(best, []); along.get(best).push(bestOn);
+    }
+    const keep = [];
+    lines.forEach((l, li) => {
+      if (whole.has(li)) return;
+      const cut = cuts.get(li);
+      if (!cut || !cut.some(Boolean)) { keep.push(l); return; }
+      // What is left between cuts stays, unless it is a short end that still lies along the edit.
+      const d = dense[li], ons = along.get(li);
+      let run = [], idx = [];
+      const flush = () => {
+        const lying = ons.some((on) => idx.filter((i) => on[i]).length >= idx.length * 0.6);
+        if (run.length >= 2 && polyLen(run) >= width * 3 && !lying) keep.push({ pts: run, closed: false });
+        run = []; idx = [];
+      };
+      d.forEach((pt, i) => { if (cut[i]) flush(); else { run.push(pt); idx.push(i); } });
+      flush();
+    });
+    return keep;
+  };
+  const lineEdits = curves.filter(({ c }) => !c.solid), solidEdits = curves.filter(({ c }) => c.solid);
+  const lines = takeOut(W.traced, lineEdits, true), solids = takeOut(W.tracedSolid, solidEdits, false);
+  const userLines = [];
+  for (const { ci, c } of lineEdits) if (!c.del) userLines.push({ pts: sampleCurve(c.nodes.map(nodeToWork), c.closed), closed: c.closed, curve: ci });
+  // A traced line lying almost entirely under one of the artist's own lines (one they drew, or reshaped from
+  // another trace) is already drawn by it: hide it, so it does not show doubled. Deleted lines never hide anything.
+  if (userLines.length) {
+    const g = new Map(), gk = (x, y) => x * 65536 + y;
+    for (const u of userLines) for (const [x, y] of densify(u.pts, 1)) { const k = gk(Math.floor(x / cell), Math.floor(y / cell)); if (!g.has(k)) g.set(k, []); g.get(k).push(x, y); }
+    const under = (x, y) => { const cx = Math.floor(x / cell), cy = Math.floor(y / cell); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const l = g.get(gk(cx + dx, cy + dy)); if (l) for (let i = 0; i < l.length; i += 2) if ((l[i] - x) ** 2 + (l[i + 1] - y) ** 2 < touch * touch) return true; } return false; };
+    for (let i = lines.length - 1; i >= 0; i--) { const d = densify(lines[i].pts, 1); if (d.filter(([x, y]) => under(x, y)).length >= d.length * 0.8) lines.splice(i, 1); }
+  }
+  lines.push(...userLines);
+  for (const { ci, c } of solidEdits) if (!c.del) solids.push({ pts: sampleCurve(c.nodes.map(nodeToWork), true), closed: true, curve: ci, solid: true });
+  W.lines = lines; W.solids = solids;
+  // Lines are sampled beziers, so a fine simplify keeps them true to the curve.
+  W.fig.strokes = lines.map((l) => ({ pts: fmt(rdp(l.pts, 0.25)), w: +width.toFixed(2), closed: l.closed }));
+  W.fig.solid = solids.map((l) => fmt(rdp(l.pts, 0.25)));
+}
+function fillMask(loops) { // closed loops (working pixels) filled even-odd into a 0/1 mask
+  const { w, h } = W, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.beginPath();
+  for (const l of loops) { l.forEach(([px, py], k) => (k ? x.lineTo(px, py) : x.moveTo(px, py))); x.closePath(); }
+  x.fill('evenodd');
+  const d = x.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) m[p] = d[p * 4 + 3] >= 128 ? 1 : 0;
+  return m;
+}
+// An anchor is smooth (its two handles point opposite ways, and dragging one swings the other) or a corner
+// (c: true, the handles move on their own). Line edits saved before corners existed have no flag, so a
+// corner is told from its handles.
+const bentHandles = (n) => {
+  const ax = n.p[0] - n.i[0], ay = n.p[1] - n.i[1], bx = n.o[0] - n.p[0], by = n.o[1] - n.p[1], La = Math.hypot(ax, ay), Lb = Math.hypot(bx, by);
+  return La > 0.05 && Lb > 0.05 && (ax * bx + ay * by) / (La * Lb) < 0.9986;   // more than 3° off straight
+};
+const nodeToWork = (n) => ({ p: toWork(...n.p), i: toWork(...n.i), o: toWork(...n.o), c: n.c ?? bentHandles(n) });
+const nodeToSrc = (n) => ({ p: toSrc(...n.p), i: toSrc(...n.i), o: toSrc(...n.o), c: !!n.c });
+// Few bezier anchors for a traced line, so it is easy to edit: anchors where the line bends (simplified to
+// within `eps`), a tangent through each anchor (two at a sharp corner), and handle lengths fitted to the
+// line between anchors by least squares.
+function fitNodes(pts, closed, eps) {
+  const P = closed ? pts.slice(0, -1) : pts, n = P.length;
+  if (n < 3) return P.map((q, k) => { const r = P[k ? k - 1 : Math.min(1, n - 1)]; const dx = (q[0] - r[0]) / 3, dy = (q[1] - r[1]) / 3, s = k ? 1 : -1; return { p: q.slice(), i: [q[0] - dx * s, q[1] - dy * s], o: [q[0] + dx * s, q[1] + dy * s] }; });
+  // anchor indices: simplify the line, splitting a loop at its start and at its farthest point
+  const idx = (a, b) => { const keep = [a, b], st = [[a, b]]; while (st.length) { const [i, j] = st.pop(); let md = 0, mi = -1; for (let k = i + 1; k < j; k++) { const d = distSeg(P[k], P[i], P[j]); if (d > md) { md = d; mi = k; } } if (md > eps) { keep.push(mi); st.push([i, mi], [mi, j]); } } return keep; };
+  let A;
+  if (closed) { let far = 1; for (let k = 1; k < n; k++) if (Math.hypot(P[k][0] - P[0][0], P[k][1] - P[0][1]) > Math.hypot(P[far][0] - P[0][0], P[far][1] - P[0][1])) far = k; A = [...new Set([...idx(0, far), ...idx(far, n - 1)])].sort((x, y) => x - y); }
+  else A = [...new Set(idx(0, n - 1))].sort((x, y) => x - y);
+  const unit = (v) => { const L = Math.hypot(v[0], v[1]) || 1; return [v[0] / L, v[1] / L]; };
+  const at = (k) => P[((k % n) + n) % n], reach = eps * 2.5;
+  const fit = (A) => {
+  const m = A.length, tin = [], tout = [], corners = new Set();
+  for (let j = 0; j < m; j++) { // tangents from the line a few pixels either side of the anchor
+    const k = A[j], span = (dir, limit) => { // the point about `reach` px along the line, not past the next anchor
+      let L = 0, q = k; while (Math.abs(q - k) < limit && L < reach) { const a = at(q), b = at(q + dir); L += Math.hypot(b[0] - a[0], b[1] - a[1]); q += dir; } return at(q); };
+    const prevGap = j > 0 ? k - A[j - 1] : (closed ? k + n - A[m - 1] : 0), nextGap = j < m - 1 ? A[j + 1] - k : (closed ? A[0] + n - k : 0);
+    const back = closed || j > 0 ? span(-1, Math.max(1, prevGap >> 1)) : P[k], fwd = closed || j < m - 1 ? span(1, Math.max(1, nextGap >> 1)) : P[k];
+    const vin = unit([P[k][0] - back[0], P[k][1] - back[1]]), vout = unit([fwd[0] - P[k][0], fwd[1] - P[k][1]]);
+    if (!closed && j === 0) { tin.push(vout); tout.push(vout); continue; }
+    if (!closed && j === m - 1) { tin.push(vin); tout.push(vin); continue; }
+    if (vin[0] * vout[0] + vin[1] * vout[1] < 0.5) { tin.push(vin); tout.push(vout); corners.add(j); }   // a corner: keep both directions
+    else { const t = unit([vin[0] + vout[0], vin[1] + vout[1]]); tin.push(t); tout.push(t); }
+  }
+  const nodes = A.map((k, j) => ({ p: P[k].slice(), i: P[k].slice(), o: P[k].slice(), ...(corners.has(j) ? { c: true } : {}) }));
+  for (let j = 0; j < (closed ? m : m - 1); j++) { // fit the two handle lengths of each segment
+    const j2 = (j + 1) % m, k0 = A[j], k1 = j2 ? A[j2] : (closed ? n : A[j2]);
+    const Q = []; for (let k = k0; k <= k1; k++) Q.push(at(k));
+    const p0 = Q[0], p3 = Q[Q.length - 1], t0 = tout[j], t1 = tin[j2], chord = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]);
+    const u = [0]; for (let q = 1; q < Q.length; q++) u.push(u[q - 1] + Math.hypot(Q[q][0] - Q[q - 1][0], Q[q][1] - Q[q - 1][1]));
+    const T = u[u.length - 1] || 1;
+    let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+    Q.forEach((q, r) => {
+      const t = u[r] / T, s = 1 - t, b0 = s * s * s, b1 = 3 * s * s * t, b2 = 3 * s * t * t, b3 = t * t * t;
+      const a1 = [t0[0] * b1, t0[1] * b1], a2 = [-t1[0] * b2, -t1[1] * b2];
+      const rx = q[0] - (b0 + b1) * p0[0] - (b2 + b3) * p3[0], ry = q[1] - (b0 + b1) * p0[1] - (b2 + b3) * p3[1];
+      c00 += a1[0] * a1[0] + a1[1] * a1[1]; c01 += a1[0] * a2[0] + a1[1] * a2[1]; c11 += a2[0] * a2[0] + a2[1] * a2[1];
+      x0 += a1[0] * rx + a1[1] * ry; x1 += a2[0] * rx + a2[1] * ry;
+    });
+    const det = c00 * c11 - c01 * c01;
+    let al = det ? (x0 * c11 - x1 * c01) / det : 0, be = det ? (c00 * x1 - c01 * x0) / det : 0;
+    if (!(al > chord * 0.05 && be > chord * 0.05 && al < chord * 2 && be < chord * 2)) al = be = chord / 3;   // fall back to a plain curve
+    nodes[j].o = [p0[0] + t0[0] * al, p0[1] + t0[1] * al];
+    nodes[j2].i = [p3[0] - t1[0] * be, p3[1] - t1[1] * be];
+  }
+  if (!closed) { const a0 = nodes[0], z = nodes[m - 1]; a0.i = [2 * a0.p[0] - a0.o[0], 2 * a0.p[1] - a0.o[1]]; z.o = [2 * z.p[0] - z.i[0], 2 * z.p[1] - z.i[1]]; }
+  return nodes;
+  };
+  // Where a segment strays more than eps from the line, add an anchor at its worst point and fit again.
+  for (let round = 0; ; round++) {
+    const nodes = fit(A), m = A.length;
+    if (round >= 20) return nodes;
+    let worst = null;
+    for (let j = 0; j < (closed ? m : m - 1); j++) {
+      const k0 = A[j], k1 = j + 1 < m ? A[j + 1] : n, smp = sampleCurve([nodes[j], nodes[(j + 1) % m]], false);
+      for (let k = k0 + 1; k < k1; k++) { let d = 1e9; for (let q = 1; q < smp.length; q++) d = Math.min(d, distSeg(at(k), smp[q - 1], smp[q])); if (d > eps && (!worst || d > worst.d)) worst = { k, d }; }
+    }
+    if (!worst) return nodes;
+    A = [...A, worst.k].sort((x, y) => x - y);
+  }
+}
+const segs = (nodes, closed) => { const s = []; for (let k = 0; k < nodes.length - (closed ? 0 : 1); k++) s.push([nodes[k], nodes[(k + 1) % nodes.length]]); return s; };
+const cubic = (a, b, t) => { const u = 1 - t, A = a.p, B = a.o, C = b.i, D = b.p; return [u * u * u * A[0] + 3 * u * u * t * B[0] + 3 * u * t * t * C[0] + t * t * t * D[0], u * u * u * A[1] + 3 * u * u * t * B[1] + 3 * u * t * t * C[1] + t * t * t * D[1]]; };
+function sampleCurve(nodes, closed) { // a polyline through the curve, about every 2px
+  const out = [nodes[0].p.slice()];
+  for (const [a, b] of segs(nodes, closed)) {
+    const L = Math.hypot(a.o[0] - a.p[0], a.o[1] - a.p[1]) + Math.hypot(b.i[0] - a.o[0], b.i[1] - a.o[1]) + Math.hypot(b.p[0] - b.i[0], b.p[1] - b.i[1]);
+    const n = Math.max(2, Math.ceil(L / 2));
+    for (let t = 1; t <= n; t++) out.push(cubic(a, b, t / n));
+  }
+  return out;
+}
+const curvePath = (nodes, closed) => { const f = (v) => v.toFixed(1); let d = `M${f(nodes[0].p[0])} ${f(nodes[0].p[1])}`; for (const [a, b] of segs(nodes, closed)) d += `C${f(a.o[0])} ${f(a.o[1])} ${f(b.i[0])} ${f(b.i[1])} ${f(b.p[0])} ${f(b.p[1])}`; return closed ? d + 'Z' : d; };
+const fmt = (r) => r.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]);
+const shape = (mask, w, h, sm, eps) => contours(mask, w, h).map((l) => rdp(smoothPoly(l, sm, true), eps)).filter((l) => l.length >= 4).map(fmt);
+const polyLen = (r) => { let L = 0; for (let i = 1; i < r.length; i++) L += Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); return L; };
+
+// Which part each working pixel belongs to: the topmost part whose lasso covers it, else the first part.
+function partLabels() {
+  const { w, h } = W, lab = new Uint8Array(w * h);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  const order = CH.parts.map((_, i) => i).sort((a, b) => CH.parts[a].z - CH.parts[b].z || a - b);
+  for (const i of order) {
+    const regions = CH.parts[i].marks.filter((m) => m.kind === 'lasso');
+    if (!regions.length) continue;
+    x.clearRect(0, 0, w, h); x.beginPath();
+    for (const r of regions) { r.pts.forEach((pt, k) => { const [px, py] = toWork(...pt); k ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); }
+    x.fill();
+    const d = x.getImageData(0, 0, w, h).data;
+    for (let p = 0; p < w * h; p++) if (d[p * 4 + 3] >= 128) lab[p] = i;
+  }
+  return lab;
+}
+function densify(pts, step) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let t = 1; t <= n; t++) out.push([ax + ((bx - ax) * t) / n, ay + ((by - ay) * t) / n]);
+  }
+  return out;
+}
+function stage6() { // split the traced character into parts
+  const { w, h, sil, lines, fig } = W, lab = partLabels(), n = CH.parts.length, width = fig.width;
+  const at = ([x, y]) => lab[clamp(Math.floor(y), 0, h - 1) * w + clamp(Math.floor(x), 0, w - 1)];
+  const strokesOf = Array.from({ length: n }, () => []);
+  for (const ln of lines) {
+    // Cut each stroke where it crosses into another part. Neighbouring pieces share their end point.
+    let runs = [];
+    for (const pt of densify(ln.pts, 1)) {
+      const l = at(pt), last = runs[runs.length - 1];
+      if (last && last.part === l) last.pts.push(pt);
+      else runs.push({ part: l, pts: last ? [last.pts[last.pts.length - 1], pt] : [pt] });
+    }
+    if (ln.closed && runs.length > 1 && runs[0].part === runs[runs.length - 1].part) { const first = runs.shift(); runs[runs.length - 1].pts.push(...first.pts.slice(1)); }
+    // A piece too short to read as a line joins its neighbour, so a lasso edge never leaves a dot.
+    for (let i; runs.length > 1 && (i = runs.findIndex((r) => polyLen(r.pts) < width * 1.5)) >= 0;) {
+      const r = runs[i];
+      if (i > 0) runs[i - 1].pts.push(...r.pts.slice(1)); else runs[1].pts = r.pts.concat(runs[1].pts.slice(1));
+      runs.splice(i, 1);
+      for (let j = runs.length - 1; j > 0; j--) if (runs[j].part === runs[j - 1].part) { runs[j - 1].pts.push(...runs[j].pts.slice(1)); runs.splice(j, 1); }
+    }
+    for (const r of runs) strokesOf[r.part].push({ pts: fmt(rdp(r.pts, 0.25)), w: +width.toFixed(2), closed: ln.closed && runs.length === 1 });
+  }
+  W.lab = lab;
+  // A solid shape that lies inside one part keeps its bezier outline. Only shapes a lasso cuts through are
+  // cut from the mask, with the pixel outline of each piece.
+  const solidOf = Array.from({ length: n }, () => []), cutLoops = [];
+  for (const loop of fig.solid) {
+    const m = fillMask([loop]), parts = new Set();
+    for (let q = 0; q < w * h; q++) if (m[q]) parts.add(lab[q]);
+    for (const pt of loop) parts.add(at(pt));
+    if (parts.size === 1) solidOf[[...parts][0]].push(loop); else cutLoops.push(loop);
+  }
+  const cutSolid = cutLoops.length ? fillMask(cutLoops) : null;
+  W.parts = CH.parts.map((p, i) => {
+    // Each part's share of the paper fill, grown a little into the fill so neighbouring parts overlap
+    // instead of leaving a hairline gap, then the part's own fill brush strokes.
+    const own = new Uint8Array(w * h);
+    for (let q = 0; q < w * h; q++) own[q] = lab[q] === i ? 1 : 0;
+    const sol = [...solidOf[i]];
+    if (cutSolid) { const piece = new Uint8Array(w * h); for (let q = 0; q < w * h; q++) piece[q] = own[q] && cutSolid[q] ? 1 : 0; sol.push(...shape(piece, w, h, 1.2, 0.4)); }
+    const paper = dilate(own, w, h, 1.5);
+    for (let q = 0; q < w * h; q++) paper[q] &= sil[q];
+    paintEdits(paper, p.marks.filter((m) => m.kind === 'fill'), w, h, 1);
+    return { w, h, paper: shape(paper, w, h, S.fillSmooth, 0.8), solid: sol, strokes: strokesOf[i], width };
+  });
+}
+const STAGES = [stage0, stage1, stage2, stage3, stage4, stage5, stage6];
+function ensure(stage) {
+  for (let s = valid + 1; s <= stage; s++) { STAGES[s](); valid = s; }
+}
+function invalidate(stage) { valid = Math.min(valid, stage - 1); }
+
+// ====================================================================
+// SVG output and boil
+// ====================================================================
+function bez(p, closed) {
+  if (p.length === 2) return `M${p[0][0]} ${p[0][1]}L${p[1][0]} ${p[1][1]}`;
+  let e;
+  if (closed) { p = p.slice(0, -1); e = [p[p.length - 1], ...p, p[0], p[1]]; } else e = [p[0], ...p, p[p.length - 1]];
+  const f = (v) => +v.toFixed(1);
+  let d = `M${f(e[1][0])} ${f(e[1][1])}`;
+  for (let i = 1; i < e.length - 2; i++) {
+    const [a, b, c, q] = [e[i - 1], e[i], e[i + 1], e[i + 2]];
+    d += `C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (q[0] - b[0]) / 6)} ${f(c[1] - (q[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`;
+  }
+  return closed ? d + 'Z' : d;
+}
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function jitter(pts, closed, seed, amp) {
+  if (!amp) return pts;
+  const r = rng(seed), len = [0];
+  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const T = len[len.length - 1] || 1, ox = (r() - 0.5) * amp, oy = (r() - 0.5) * amp, waves = [];
+  for (let k = 0; k < 2; k++) { const lam = 20 + r() * 50; waves.push({ fr: closed ? (2 * Math.PI * Math.max(1, Math.round(T / lam))) / T : (2 * Math.PI) / lam, px: r() * 6.283, py: r() * 6.283, w: k ? 0.35 : 0.65 }); }
+  return pts.map(([x, y], i) => { let dx = 0, dy = 0; for (const v of waves) { dx += v.w * Math.sin(len[i] * v.fr + v.px); dy += v.w * Math.sin(len[i] * v.fr + v.py); } return [x + ox + dx * amp * 0.8, y + oy + dy * amp * 0.8]; });
+}
+const INK = '#2b2622', PAPER = '#fffdf6';
+// opts: pi (part index, so parts boil apart), tint and tintOpacity (a coloured wash over the paper),
+// paperOpacity, strokeColor. The defaults give the plain drawing.
+function svgMarkup(fig, pose, amp, standalone, opts = {}) {
+  const pi = opts.pi || 0, seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
+  const paper = fig.paper.map((l, i) => bez(jitter(l, true, seed(1, i), amp * 0.6), true)).join('');
+  const solid = fig.solid.map((l, i) => bez(jitter(l, true, seed(2, i), amp * 0.6), true)).join('');
+  const strokes = fig.strokes.map((s, i) => {
+    const sw = s.w;
+    return `<path stroke-width="${sw.toFixed(2)}" d="${bez(jitter(s.pts, s.closed, seed(3, i), amp), s.closed)}"/>`;
+  }).join('\n');
+  const head = standalone ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${fig.w} ${fig.h}" width="${fig.w}" height="${fig.h}">` : '';
+  const tint = opts.tint ? `<path fill="${opts.tint}" fill-opacity="${opts.tintOpacity ?? 0.4}" fill-rule="evenodd" d="${paper}"/>` : '';
+  return `${head}<g id="paper"><path fill="${PAPER}" fill-opacity="${opts.paperOpacity ?? 1}" fill-rule="evenodd" d="${paper}"/>${tint}</g>
+<g id="solid"><path fill="${INK}" fill-rule="evenodd" d="${solid}"/></g>
+<g id="ink" fill="none" stroke="${opts.strokeColor || INK}" stroke-linecap="round" stroke-linejoin="round">
+${strokes}
+</g>${standalone ? '</svg>\n' : ''}`;
+}
+
+// ====================================================================
+// UI
+// ====================================================================
+const $ = (id) => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let showPivot = true;   // the red pivot cross on the boil step
+let pivotMode = false, step = 0, showOverlay = true, brushMode = 'add', brushSize = 8, boilTimer = null, boilFrame = 0;
+let partTool = 'lasso';   // on the parts step: 'lasso' or 'fill'
+const usesParts = () => ['parts', 'boil'].includes(STEPS[step].id);
+let svgEl = null;
+
+function renderSteps() {
+  $('steps').innerHTML = STEPS.map((s, i) => `<li><button data-i="${i}" class="${i === step ? 'cur' : ''}"><span class="n">${i + 1}</span>${s.name}</button></li>`).join('');
+  $('steps').querySelectorAll('button').forEach((b) => b.onclick = () => { step = +b.dataset.i; pivotMode = false; pen = null; renderSteps(); renderParams(); draw(); });
+  $('parts').hidden = !usesParts();
+  if (usesParts()) renderParts();
+}
+function renderParams() {
+  const st = STEPS[step];
+  let h = `<h2>${step + 1}. ${st.name}</h2><p class="help">${st.help}</p>`;
+  for (const p of st.params) {
+    const [k, label, a] = p;
+    if (a === 'rot') h += `<div class="p"><label>${label}<output>${S.rotate}°</output></label><div class="row"><button data-rot="-90">↺ 90°</button><button data-rot="90">↻ 90°</button><button id="resetCrop">Use whole image</button></div></div>`;
+    else if (a === 'bool') h += `<label class="check"><input type="checkbox" data-k="${k}" ${S[k] ? 'checked' : ''}> ${label}</label>`;
+    else if (a === 'btn') h += `<div class="row"><button id="autoBtn">${label}</button><span class="hint">Sets the two levels from this image.</span></div>`;
+    else if (a === 'view') h += `<label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> ${label}</label>`;
+    else if (a === 'parttools') {
+      const fill = partTool === 'fill';
+      h += `<div class="p"><label>Tool for "${esc(PART().id)}"</label><div class="row"><button id="tLasso" class="${fill ? '' : 'on'}">Lasso</button><button id="tFill" class="${fill ? 'on' : ''}">Fill brush</button></div>
+        <span class="hint">${fill ? 'Paint paper fill this part needs under the parts that cover it, or erase fill it should not have.' : 'Drag around the part. Each lasso adds to it; where lassos of two parts overlap, the higher draw order wins.'}</span></div>`;
+      if (fill) h += `<div class="p"><label>Brush (paper fill of "${esc(PART().id)}")<output id="o_brush">${brushSize}px</output></label><div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button></div><input type="range" id="brushSize" min="1" max="80" step="1" value="${brushSize}"></div>`;
+      h += `<div class="row"><button id="mUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="mRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="mClear">Clear ${fill ? 'fill brush' : 'lassos'}</button></div>`;
+    }
+    else if (a === 'curve') h += curvePanel();
+    else if (a === 'pivot') h += `<div class="p"><label>Pivot of "${esc(PART().id)}"<output>${PART().pivot ? PART().pivot.map(Math.round).join(', ') : 'centre of part'}</output></label><div class="row"><button id="pivotBtn" class="${pivotMode ? 'on' : ''}">${pivotMode ? 'Click the view…' : 'Set pivot'}</button><button id="pivotReset">Reset</button><button id="pivotShow" class="${showPivot ? '' : 'on'}" title="Show or hide the red pivot cross on the view">${showPivot ? 'Hide cross' : 'Show cross'}</button></div><span class="hint">The point this part turns around, shown as a red cross.</span></div>`;
+    else if (a === 'export') h += `<div class="row"><button class="primary" id="dlChar">Download character JSON</button></div><span class="hint">All ${CH.parts.length} part(s) as <code>${esc(fileBase())}.json</code> for <code>assets/characters/</code>. Also download the preset to keep the settings.</span><div class="row"><button id="dlSvg">Download part SVG</button><button id="cpSvg">Copy part SVG</button></div><span class="hint" id="figStats"></span>`;
+    else h += `<div class="p"><label for="r_${k}">${label}<output id="o_${k}">${S[k]}</output></label><input type="range" id="r_${k}" data-k="${k}" min="${a}" max="${p[3]}" step="${p[4]}" value="${S[k]}">${p[6] ? `<span class="hint">${p[6]}</span>` : ''}</div>`;
+  }
+  if (st.brush) h += `<div class="p"><label>Brush (${LAYER_NAME[st.brush]})<output id="o_brush">${brushSize}px</output></label>
+    <div class="row"><button id="bAdd" class="${brushMode === 'add' ? 'on' : ''}">Paint</button><button id="bErase" class="${brushMode === 'erase' ? 'on' : ''}">Erase</button><button id="bUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="bRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="bClear">Clear brush</button></div>
+    <input type="range" id="brushSize" min="1" max="80" step="1" value="${brushSize}"><label class="check"><input type="checkbox" id="overlay" ${showOverlay ? 'checked' : ''}> Show photo underneath</label></div>`;
+  h += `<label class="check"><input type="checkbox" id="peekInk" ${peek ? 'checked' : ''}> Show ink (tap Tab; hold Tab to look)</label>`;
+  $('params').innerHTML = h;
+  $('params').querySelectorAll('input[type=range][data-k]').forEach((el) => el.oninput = () => {
+    const k = el.dataset.k; S[k] = +el.value; $('o_' + k).textContent = el.value; changed(STAGE_OF[k]);
+  });
+  $('params').querySelectorAll('input[type=checkbox][data-k]').forEach((el) => el.onchange = () => { S[el.dataset.k] = el.checked; changed(STAGE_OF[el.dataset.k]); });
+  $('params').querySelectorAll('[data-rot]').forEach((b) => b.onclick = () => {
+    // Brush edits, lassos and pivots are in rotated-photo pixels, so a new rotation drops them.
+    S.rotate = (S.rotate + +b.dataset.rot + 360) % 360; S.crop = null; S.edits = []; S.curves = []; sel = null; pen = null; curveUndo.length = curveRedo.length = 0; redo.ink = []; redo.fill = []; redo.solid = [];
+    for (const p of CH.parts) { p.marks = []; p.pivot = null; } partRedo.length = 0;
+    changed(0); renderParams();
+  });
+  const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
+  on('resetCrop', () => { S.crop = null; changed(0); });
+  on('autoBtn', () => { ensure(1); autoLevels(); changed(2); renderParams(); });
+  on('bAdd', () => { brushMode = 'add'; renderParams(); });
+  on('bErase', () => { brushMode = 'erase'; renderParams(); });
+  on('bUndo', () => undoBrush(st.brush));
+  on('bRedo', () => redoBrush(st.brush));
+  on('bClear', () => { S.edits = S.edits.filter((e) => e.layer !== st.brush); redo[st.brush] = []; changed(LAYER_STAGE[st.brush]); });
+  on('tLasso', () => { partTool = 'lasso'; renderParams(); });
+  on('tFill', () => { partTool = 'fill'; renderParams(); });
+  on('mUndo', undoMark);
+  on('mRedo', redoMark);
+  on('mClear', () => { const kind = partTool; PART().marks = PART().marks.filter((m) => m.kind !== kind); partRedo.length = 0; changed(6); });
+  on('cReset', () => { if (!sel || sel.ci < 0) return; pushCurveUndo(); S.curves.splice(sel.ci, 1); sel = null; curvesChanged('Line reset to the trace'); });
+  on('cDelete', deleteSelected);
+  const pk = $('peekInk'); if (pk) pk.onchange = () => setPeek(pk.checked);
+  on('cCorner', () => { if (selAnchor() != null) toggleCorner(selAnchor()); });
+  on('cDelAnchor', () => { if (selAnchor() != null) removeAnchor(selNodes(), selAnchor()); });
+  $('params').querySelectorAll('[data-ctool]').forEach((b) => b.onclick = () => {
+    curveTool = b.dataset.ctool; pen = null; joinFrom = null; if (curveTool === 'line' || curveTool === 'solid') sel = null;
+    renderParams(); draw();
+  });
+  on('cUndo', () => curveHistory(true));
+  on('cRedo', () => curveHistory(false));
+  on('cClear', () => { if (!S.curves.length) return; pushCurveUndo(); S.curves = []; sel = null; curvesChanged('All line edits cleared'); });
+  on('dlSvg', () => download(fileBase() + '.' + PART().id + '.svg', svgMarkup(W.parts[cur], 0, 0, true, { pi: cur }), 'image/svg+xml'));
+  on('dlChar', () => { try { const c = buildCharacter(); download(fileBase() + '.json', JSON.stringify(c), 'application/json'); status(`Exported ${c.parts.length} part(s), ${c.size[0]}×${c.size[1]}`); } catch (e) { status(e.message); } });
+  on('pivotBtn', () => { pivotMode = !pivotMode; renderParams(); });
+  on('pivotShow', () => { showPivot = !showPivot; renderParams(); draw(); });
+  on('pivotReset', () => { PART().pivot = null; pivotMode = false; renderParams(); draw(); });
+  on('cpSvg', async () => { try { await navigator.clipboard.writeText(svgMarkup(W.parts[cur], 0, 0, true, { pi: cur })); status('SVG copied'); } catch { status('Copy was blocked by the browser'); } });
+  const bs = $('brushSize'); if (bs) bs.oninput = () => { brushSize = +bs.value; $('o_brush').textContent = brushSize + 'px'; };
+  const ov = $('overlay'); if (ov) ov.onchange = () => { showOverlay = ov.checked; draw(); };
+}
+// Undo/redo for brush strokes, one history per layer (ink, fill). Redo is not saved with settings.
+const LAYER_STAGE = { ink: 2, fill: 3, solid: 4 }, LAYER_NAME = { ink: 'ink', fill: 'paper fill', solid: 'solid ink' };
+const redo = { ink: [], fill: [], solid: [] };
+function undoBrush(layer) {
+  for (let i = S.edits.length - 1; i >= 0; i--) if (S.edits[i].layer === layer) {
+    redo[layer].push(S.edits.splice(i, 1)[0]); changed(LAYER_STAGE[layer]); status(`Undid ${LAYER_NAME[layer]} brush stroke`); return;
+  }
+  status('Nothing to undo');
+}
+function redoBrush(layer) {
+  const e = redo[layer].pop();
+  if (!e) { status('Nothing to redo'); return; }
+  S.edits.push(e); changed(LAYER_STAGE[layer]); status(`Redid ${LAYER_NAME[layer]} brush stroke`);
+}
+// Undo/redo for the current part's lassos and fill brush strokes. Redo is not saved with settings.
+const partRedo = [];
+function undoMark() {
+  const m = PART().marks.pop();
+  if (!m) { status('Nothing to undo'); return; }
+  partRedo.push(m); changed(6); status(`Undid ${m.kind === 'lasso' ? 'lasso' : 'fill brush stroke'}`);
+}
+function redoMark() {
+  const m = partRedo.pop();
+  if (!m) { status('Nothing to redo'); return; }
+  PART().marks.push(m); changed(6); status(`Redid ${m.kind === 'lasso' ? 'lasso' : 'fill brush stroke'}`);
+}
+window.addEventListener('keydown', (ev) => {
+  if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.key.toLowerCase() !== 'z') return;
+  if (typing(ev.target)) return;   // keep text-field undo
+  if (!img || drag) return;
+  const layer = STEPS[step].brush;
+  if (layer) { ev.preventDefault(); ev.shiftKey ? redoBrush(layer) : undoBrush(layer); }
+  else if (STEPS[step].id === 'strokes') { ev.preventDefault(); curveHistory(!ev.shiftKey); }
+  else if (STEPS[step].id === 'parts') { ev.preventDefault(); ev.shiftKey ? redoMark() : undoMark(); }
+});
+const fileBase = () => ($('presetName').value.trim() || 'character').replace(/[^\w-]+/g, '_');
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function status(t) { $('status').textContent = t; }
+
+let pending = null, drawMs = 0;
+function cancelPending() {
+  if (!pending) return;
+  if (pending.t) clearTimeout(pending.t); else cancelAnimationFrame(pending.raf);
+  pending = null;
+}
+function changed(stage) {
+  invalidate(stage);
+  if (pending) return;
+  // The stroke step takes a few hundred ms, so wait for the slider to settle there. While brushing, a step
+  // that is slow to recompute catches up a few times a second; brushPreview shows the stroke meanwhile.
+  const wait = !drag ? (STEPS[step].stage >= 4 ? 150 : 0) : (drawMs > 30 ? 250 : 0);
+  const run = () => { pending = null; draw(); };
+  pending = wait ? { t: setTimeout(run, wait) } : { raf: requestAnimationFrame(run) };
+}
+// Paint a brush segment straight onto the canvas, so the stroke follows the pointer before the recompute.
+// The colours match what draw() shows for that layer; the recompute then replaces it with the real result.
+const PREVIEW = { ink: ['rgb(30,28,26)', '#fff'], fill: ['#eef0ec', '#7d8a74'], solid: ['rgb(232,120,40)', '#fff'] };
+function brushPreview(layer, mode, r, a, b) { // the same pixels the edit will change, not a smooth line
+  ctx.fillStyle = PREVIEW[layer][mode === 'add' ? 0 : 1];
+  dabLine(cv.width, cv.height, a, b, r, (xx, yy) => ctx.fillRect(xx, yy, 1, 1));
+}
+function fitView() { // scale the working canvas up or down to fill the view area
+  const m = $('main').getBoundingClientRect(), pad = 32;
+  const s = Math.min((m.width - pad) / cv.width, (m.height - pad - 24) / cv.height, 4);
+  cv.style.width = Math.round(cv.width * s) + 'px'; cv.style.height = Math.round(cv.height * s) + 'px';
+  sharpen();
+}
+// Show each pixel as a sharp square once it is drawn 2× or larger; below that, smoothing reads better.
+function sharpen() { cv.classList.toggle('px', cv.getBoundingClientRect().width >= 2 * cv.width); }
+window.addEventListener('resize', () => img && fitView());
+
+function putGray(arrFn) {
+  const { w, h } = W, id = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const [r, g, b, a] = arrFn(i); id.data[i * 4] = r; id.data[i * 4 + 1] = g; id.data[i * 4 + 2] = b; id.data[i * 4 + 3] = a; }
+  ctx.putImageData(id, 0, 0);
+}
+function setSvg(markup) {
+  if (!markup) { if (svgEl) { svgEl.remove(); svgEl = null; } return; }
+  if (!svgEl) { svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); $('view').append(svgEl); }
+  svgEl.setAttribute('viewBox', `0 0 ${W.w} ${W.h}`);
+  svgEl.innerHTML = markup;
+}
+
+function draw() {
+  const t0 = performance.now();
+  drawFrame();
+  drawMs = performance.now() - t0;
+}
+function drawFrame() {
+  if (!img) return;
+  setCursor();
+  clearInterval(boilTimer); boilTimer = null;
+  const st = STEPS[step], t0 = performance.now();
+  try { ensure(st.stage); } catch (e) { status('Error: ' + e.message); console.error(e); return; }
+  const ms = Math.round(performance.now() - t0);
+  setSvg(null);
+  queueMicrotask(fitView);
+  if (peek) { // the ink view, on any step: the pencil ink, with the traced strokes as hairlines once there are any
+    try { ensure(Math.max(st.stage, 2)); } catch (e) { status('Error: ' + e.message); console.error(e); return; }
+    cv.width = W.w; cv.height = W.h;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = valid >= 3 ? W.alphaIn : W.alpha;   // inside the paper fill once it is known
+    for (let i = 0; i < W.w * W.h; i++) { const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = 255 * (1 - v) + 30 * v; }
+    ctx.putImageData(tmp, 0, 0);
+    if (st.stage >= 5) {
+      const k = pxToWork(), path = (l, z) => `<path d="M${l.pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join('L')}${z ? 'Z' : ''}"/>`;
+      const hair = W.lines.map((l) => path(l, l.closed)).join('') + W.solids.map((l) => path(l, true)).join('');
+      setSvg(`<g fill="none" stroke="#1f6fe0" stroke-width="${(1.2 * k).toFixed(2)}" stroke-linejoin="round" opacity=".8">${hair}</g>` + (st.id === 'strokes' ? editorMarkup(true) + penMarkup() : ''));
+    }
+    status(`Ink view · tap Tab (or untick Show ink) to go back to ${st.name.toLowerCase()}`);
+    return;
+  }
+  if (st.id === 'source') {
+    const s = Math.min(1, 1400 / Math.max(rot.width, rot.height));
+    cv.width = Math.round(rot.width * s); cv.height = Math.round(rot.height * s);
+    ctx.drawImage(rot, 0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(20,30,20,.45)';
+    const [x, y, w, h] = [W.cx * s, W.cy * s, W.cw * s, W.ch * s];
+    ctx.fillRect(0, 0, cv.width, y); ctx.fillRect(0, y + h, cv.width, cv.height - y - h); ctx.fillRect(0, y, x, h); ctx.fillRect(x + w, y, cv.width - x - w, h);
+    ctx.strokeStyle = '#e08a6c'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    cv.dataset.s = s;
+    status(`${rot.width}×${rot.height} source · crop ${W.cw}×${W.ch} → working ${W.w}×${W.h} · drag to crop`);
+    return;
+  }
+  cv.width = W.w; cv.height = W.h;
+  if (st.id === 'paper') { const f = W.flat; putGray((i) => [f[i], f[i], f[i], 255]); }
+  else if (st.id === 'ink') {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alpha, k = W.ink;
+    for (let i = 0; i < W.w * W.h; i++) {
+      const v = a[i]; if (v <= 0) continue;
+      const col = k[i] ? [30, 28, 26] : [200, 70, 40]; // red = soft ink that did not pass the cut-off
+      for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + col[c] * v;
+    }
+    ctx.putImageData(tmp, 0, 0);
+  } else if (st.id === 'fill') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn, sil = W.sil;
+    for (let i = 0; i < W.w * W.h; i++) {
+      if (sil[i]) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * 0.15 + 255 * 0.85;
+      const v = a[i]; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + 30 * v;
+    }
+    ctx.putImageData(tmp, 0, 0);
+  } else if (st.id === 'solid') {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.35; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const tmp = ctx.getImageData(0, 0, W.w, W.h), a = W.alphaIn, so = W.solid;
+    for (let i = 0; i < W.w * W.h; i++) {
+      const v = a[i] * 0.7; if (v > 0) for (let c = 0; c < 3; c++) tmp.data[i * 4 + c] = tmp.data[i * 4 + c] * (1 - v) + 30 * v;
+      if (so[i]) { tmp.data[i * 4] = 232; tmp.data[i * 4 + 1] = 120; tmp.data[i * 4 + 2] = 40; }
+    }
+    ctx.putImageData(tmp, 0, 0);
+    let n = 0; { const c = components(so, W.w, W.h); n = c.n; }
+    status(`${n} solid area(s) · drawn line ≈ ${(W.rLine * 2).toFixed(1)}px wide · ${ms} ms`);
+    return;
+  } else if (st.id === 'strokes') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    if (showOverlay) { ctx.globalAlpha = 0.5; ctx.drawImage(W.photo, 0, 0); ctx.globalAlpha = 1; }
+    const fig = W.fig;
+    // tint the paper translucent so the photo stays visible under it
+    setSvg(svgMarkup(fig, 0, 0, false, showOverlay ? { paperOpacity: 0.55, strokeColor: '#1f4fbf' } : {}) + editorMarkup() + penMarkup() + joinMarkup());
+    status(`${fig.strokes.length} strokes · ${fig.solid.length} solid shapes · ${fig.paper.length} fill outline(s) · line width ${fig.width.toFixed(1)}px · ${ms} ms`);
+    return;
+  } else if (st.id === 'parts') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    setSvg(partsMarkup());
+    const f = W.parts[cur];
+    status(`${CH.parts.length} part(s) · "${PART().id}": ${f.strokes.length} strokes, ${f.solid.length} solid shapes, ${f.paper.length} fill outline(s) · ${ms} ms`);
+    return;
+  } else if (st.id === 'boil') {
+    ctx.fillStyle = '#7d8a74'; ctx.fillRect(0, 0, W.w, W.h);
+    const pv = toWork(...partPivot(cur)), k = Math.max(W.w, W.h) / 60;
+    const mark = `<g stroke="#d23c1e" stroke-width="${(k / 4).toFixed(2)}"><path d="M${pv[0] - k} ${pv[1]}H${pv[0] + k}M${pv[0]} ${pv[1] - k}V${pv[1] + k}"/><circle cx="${pv[0]}" cy="${pv[1]}" r="${(k / 2).toFixed(2)}" fill="none"/></g>`;
+    const tick = () => { boilFrame++; setSvg(byZ().map((i) => svgMarkup(W.parts[i], boilFrame % S.boilPoses, S.boilAmp, false, { pi: i })).join('\n') + (showPivot || pivotMode ? mark : '')); };   // the cross shows while setting it
+    tick(); boilTimer = setInterval(tick, 1000 / S.boilFps);
+    const n = (key) => W.parts.reduce((a, f) => a + f[key].length, 0);
+    const stats = `${CH.parts.length} part(s) · ${n('strokes')} strokes · ${n('solid')} solid shapes · line width ${W.fig.width.toFixed(1)}px`;
+    const fs = $('figStats'); if (fs) fs.textContent = stats;
+    status(stats + ` · ${ms} ms`);
+    return;
+  }
+  status(`working ${W.w}×${W.h} · ${ms} ms`);
+}
+
+// Parts in draw order, lowest first.
+const byZ = () => CH.parts.map((_, i) => i).sort((a, b) => CH.parts[a].z - CH.parts[b].z || a - b);
+// The part's pivot in rotated-photo pixels: the one set by hand, else the centre of the part's paper fill.
+function partPivot(i) {
+  if (CH.parts[i].pivot) return CH.parts[i].pivot;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const l of W.parts[i].paper) for (const [x, y] of l) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return x0 <= x1 ? toSrc((x0 + x1) / 2, (y0 + y1) / 2) : [W.cx + W.cw / 2, W.cy + W.ch / 2];
+}
+// The parts step: every part in its own colour, the current one stronger, with its lassos dashed on top.
+function partsMarkup() {
+  const k = Math.max(W.w, W.h) / 400, path = (pts) => 'M' + pts.map((pt) => toWork(...pt).map((v) => v.toFixed(1)).join(' ')).join('L') + 'Z';
+  const body = byZ().map((i) => svgMarkup(W.parts[i], 0, 0, false, { pi: i, tint: partColor(i), tintOpacity: i === cur ? 0.55 : 0.2 })).join('\n');
+  const lassos = PART().marks.filter((m) => m.kind === 'lasso').map((m) => path(m.pts)).join('');
+  const live = drag && drag.kind === 'lasso' && drag.pts.length > 1 ? path(drag.pts) : '';
+  const outline = (d) => d ? `<path d="${d}" fill="none" stroke="${partColor(cur)}" stroke-width="${(2 * k).toFixed(2)}" stroke-dasharray="${(6 * k).toFixed(1)} ${(4 * k).toFixed(1)}"/>` : '';
+  return body + outline(lassos) + outline(live);
+}
+
+// ---- pointer: crop on step 1, brush on ink/fill/solid, lasso and fill brush on parts
+const cursor = $('brushCursor');
+const brushOn = () => !!STEPS[step].brush || (STEPS[step].id === 'parts' && partTool === 'fill');
+// With a brush, the pixel outline is the cursor, so the pointer arrow is hidden instead of covering it.
+function setCursor() { cv.dataset.cursor = brushOn() ? 'none' : STEPS[step].id === 'strokes' && curveTool !== 'edit' ? 'crosshair' : ''; }
+// The brush cursor outlines exactly the pixels one dab paints at the pointer, drawn in canvas pixels on top
+// of the view so it zooms with it.
+function showBrushCursor(x, y) {
+  const w = cv.width, h = cv.height, k = w / cv.getBoundingClientRect().width, r = (brushSize / 2) * k, on = new Set();
+  dab(w, h, x, y, r, (xx, yy) => on.add(yy * w + xx));
+  let d = '';
+  for (const i of on) { // the edges a covered pixel shares with an uncovered one
+    const xx = i % w, yy = (i - xx) / w;
+    if (!on.has(i - w) || yy === 0) d += `M${xx} ${yy}h1`;
+    if (!on.has(i + w) || yy === h - 1) d += `M${xx} ${yy + 1}h1`;
+    if (!on.has(i - 1) || xx === 0) d += `M${xx} ${yy}v1`;
+    if (!on.has(i + 1) || xx === w - 1) d += `M${xx + 1} ${yy}v1`;
+  }
+  cursor.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // A 1.5px line on screen at any zoom. (vector-effect: non-scaling-stroke ignores the view's CSS zoom.)
+  cursor.innerHTML = `<path d="${d}" stroke="#d23c1e" stroke-width="${(1.5 * k).toFixed(3)}"/>`;
+  cursor.style.display = '';
+}
+function canvasXY(ev) { const r = cv.getBoundingClientRect(); return [((ev.clientX - r.left) / r.width) * cv.width, ((ev.clientY - r.top) / r.height) * cv.height]; }
+let drag = null;
+cv.addEventListener('pointerdown', (ev) => {
+  if (!img) return;
+  const st = STEPS[step], [x, y] = canvasXY(ev);
+  cv.setPointerCapture(ev.pointerId);
+  if (st.id === 'boil' && pivotMode) { PART().pivot = toSrc(x, y); pivotMode = false; renderParams(); draw(); return; }
+  if (st.id === 'source') { if (peek) return; const s = +cv.dataset.s; drag = { kind: 'crop', x0: x / s, y0: y / s, s }; }   // no cropping on the ink view
+  else if (st.id === 'strokes') curveDown(x, y, ev);
+  else if (st.id === 'parts' && partTool === 'lasso') drag = { kind: 'lasso', pts: [toSrc(x, y)] };
+  else if (st.id === 'parts') {
+    const m = { kind: 'fill', mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
+    PART().marks.push(m); partRedo.length = 0; drag = { kind: 'mark', m }; changed(6);
+  }
+  else if (st.brush) {
+    const e = { layer: st.brush, mode: brushMode, r: (brushSize / 2) / W.scale * (cv.width / cv.getBoundingClientRect().width), pts: [toSrc(x, y)] };
+    S.edits.push(e); redo[st.brush] = []; drag = { kind: 'brush', e, last: [x, y] }; changed(LAYER_STAGE[st.brush]);
+    brushPreview(e.layer, e.mode, e.r * W.scale, null, [x, y]);
+  }
+});
+cv.addEventListener('pointermove', (ev) => {
+  const st = STEPS[step];
+  setCursor();
+  if (brushOn()) {
+    showBrushCursor(...canvasXY(ev));
+  } else cursor.style.display = 'none';
+  if (!drag) return;
+  const [x, y] = canvasXY(ev);
+  if (drag.kind === 'crop') {
+    const x1 = x / drag.s, y1 = y / drag.s;
+    S.crop = [Math.min(drag.x0, x1), Math.min(drag.y0, y1), Math.abs(x1 - drag.x0), Math.abs(y1 - drag.y0)];
+    if (S.crop[2] > 8 && S.crop[3] > 8) changed(0);
+  } else if (drag.kind === 'node') curveMove(x, y, ev);
+  else if (drag.kind === 'pen') penMove(x, y);
+  else if (drag.kind === 'lasso') { drag.pts.push(toSrc(x, y)); setSvg(partsMarkup()); }
+  else if (drag.kind === 'mark') { drag.m.pts.push(toSrc(x, y)); changed(6); }
+  else {
+    const e = drag.e; e.pts.push(toSrc(x, y)); changed(LAYER_STAGE[e.layer]);
+    brushPreview(e.layer, e.mode, e.r * W.scale, drag.last, [x, y]); drag.last = [x, y];
+  }
+});
+const endDrag = () => {
+  if (drag && drag.kind === 'crop' && (!S.crop || S.crop[2] < 8 || S.crop[3] < 8)) S.crop = null;
+  const lasso = drag && drag.kind === 'lasso' ? drag : null;
+  const painted = drag && (drag.kind === 'brush' || drag.kind === 'mark');
+  drag = null;
+  if (painted && pending && pending.t) { cancelPending(); draw(); }   // show the real result now, not after the catch-up wait
+  if (lasso) {
+    if (lasso.pts.length >= 3) { PART().marks.push({ kind: 'lasso', pts: lasso.pts.map(([x, y]) => [+x.toFixed(1), +y.toFixed(1)]) }); partRedo.length = 0; changed(6); }
+    else draw();
+  }
+};
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('pointerleave', () => { cursor.style.display = 'none'; });
+
+// ---- zoom and pan. Pinch or Ctrl/⌘-scroll zooms at the pointer (a mouse wheel zooms too); two-finger
+// scroll pans; Space-drag or middle-drag pans. Pointer positions go through getBoundingClientRect, so every
+// tool keeps working while zoomed.
+let zoom = 1, panX = 0, panY = 0, spaceDown = false, pan = null;
+function applyZoom() {
+  $('view').style.transform = zoom === 1 ? '' : `translate(${panX.toFixed(1)}px,${panY.toFixed(1)}px) scale(${zoom})`;
+  $('zFit').textContent = Math.round(zoom * 100) + '%';
+  sharpen();
+  if (sel && STEPS[step].id === 'strokes') draw();   // keep the line editor's handles the same size on screen
+}
+// Hide the left panel to give the view the whole window; the button (or \\) brings it back. Remembered in this browser.
+function togglePanel(hide = !document.querySelector('.wrap').classList.contains('nopanel')) {
+  document.querySelector('.wrap').classList.toggle('nopanel', hide);
+  $('panelBtn').textContent = hide ? '▶ Show panel' : '◀ Hide panel';
+  try { localStorage.setItem('lightbox.panelHidden', hide ? '1' : ''); } catch { /* storage blocked: not remembered */ }
+  if (img) fitView();
+}
+$('panelBtn').onclick = () => togglePanel();
+try { if (localStorage.getItem('lightbox.panelHidden')) togglePanel(true); } catch { /* storage blocked */ }
+function resetZoom() { zoom = 1; panX = panY = 0; applyZoom(); }
+function zoomAt(z, cx, cy) {
+  z = clamp(z, 1, 16);
+  if (z === 1) { resetZoom(); return; }
+  const r = $('view').getBoundingClientRect(), bx = r.left - panX, by = r.top - panY;   // where the view sits unzoomed
+  const ux = (cx - r.left) / zoom, uy = (cy - r.top) / zoom;                         // the point under the pointer
+  zoom = z; panX = cx - bx - ux * z; panY = cy - by - uy * z; applyZoom();
+}
+const mainCentre = () => { const r = $('main').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+$('zIn').onclick = () => zoomAt(zoom * 1.5, ...mainCentre());
+$('zOut').onclick = () => zoomAt(zoom / 1.5, ...mainCentre());
+$('zFit').onclick = resetZoom;
+$('main').addEventListener('wheel', (ev) => {
+  if (!img) return;
+  ev.preventDefault();
+  // A trackpad pinch arrives as Ctrl+wheel with small steps; a mouse wheel as one big vertical step per notch.
+  if (ev.ctrlKey || ev.metaKey) zoomAt(zoom * Math.exp(-clamp(ev.deltaY, -50, 50) * 0.01), ev.clientX, ev.clientY);
+  else if (!ev.deltaX && (ev.deltaMode === 1 || Math.abs(ev.deltaY) >= 50)) zoomAt(zoom * (ev.deltaY < 0 ? 1.25 : 0.8), ev.clientX, ev.clientY);
+  else if (zoom > 1) { panX -= ev.deltaX; panY -= ev.deltaY; applyZoom(); }
+}, { passive: false });
+$('main').addEventListener('pointerdown', (ev) => { // capture phase: a pan never reaches the drawing tools
+  if (!img || !(spaceDown || ev.button === 1)) return;
+  ev.preventDefault(); ev.stopPropagation();
+  try { $('main').setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+  pan = { x: ev.clientX, y: ev.clientY, px: panX, py: panY };
+}, true);
+$('main').addEventListener('pointermove', (ev) => { if (!pan) return; panX = pan.px + ev.clientX - pan.x; panY = pan.py + ev.clientY - pan.y; if (zoom > 1) applyZoom(); });
+const endPan = () => { pan = null; };
+$('main').addEventListener('pointerup', endPan); $('main').addEventListener('pointercancel', endPan);
+const typing = (t) => t && ((t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number')) || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+window.addEventListener('keydown', (ev) => {
+  if (!img || typing(ev.target) || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; $('main').classList.add('panning'); } }
+  else if (ev.key === '=' || ev.key === '+') zoomAt(zoom * 1.5, ...mainCentre());
+  else if (ev.key === '-') zoomAt(zoom / 1.5, ...mainCentre());
+  else if (ev.key === '0') resetZoom();
+  else if (ev.key === '\\') togglePanel();
+});
+window.addEventListener('keyup', (ev) => { if (ev.key === ' ') { if (img && !typing(ev.target)) ev.preventDefault(); spaceDown = false; $('main').classList.remove('panning'); } });   // no button click on Space
+$('main').addEventListener('mousedown', (ev) => { if (ev.button === 1) ev.preventDefault(); });   // no auto-scroll on middle-drag
+window.addEventListener('blur', () => { spaceDown = false; $('main').classList.remove('panning'); });
+
+// ---- line editor on the strokes step: click a line, then drag its bezier anchors and handles
+let sel = null;   // {ci} for an edited line (index into S.curves), or {ci: -1, line, nodes, closed, solid} for a traced one;
+                  // either may carry `anchor`, the index of the selected anchor, which Delete removes
+// 'edit' drags anchors and handles; 'line' and 'solid' draw a new line or filled shape anchor by anchor;
+// 'add' and 'remove' add or remove an anchor with one click.
+let curveTool = 'edit', pen = null, peek = false;   // peek: the ink view, showing the ink instead of the strokes   // pen: the line being drawn, {nodes, solid, dragging}
+const curveUndo = [], curveRedo = [];
+const pxToWork = () => { const r = cv.getBoundingClientRect(); return r.width ? cv.width / r.width : 1; };
+const selNodes = () => (sel.ci >= 0 ? S.curves[sel.ci].nodes.map(nodeToWork) : sel.nodes);
+const selClosed = () => (sel.ci >= 0 ? S.curves[sel.ci].closed : sel.closed);
+const selSolid = () => !!(sel.ci >= 0 ? S.curves[sel.ci].solid : sel.solid);
+const srcLine = (pts) => fmt(rdp(pts, 0.5).map((pt) => toSrc(...pt)));
+function pushCurveUndo() { curveUndo.push(JSON.stringify(S.curves)); curveRedo.length = 0; }
+function curveHistory(undo) {
+  const from = undo ? curveUndo : curveRedo, to = undo ? curveRedo : curveUndo;
+  if (!from.length) { status(undo ? 'Nothing to undo' : 'Nothing to redo'); return; }
+  to.push(JSON.stringify(S.curves)); S.curves = JSON.parse(from.pop());
+  if (sel && (sel.ci >= S.curves.length || (sel.ci >= 0 && S.curves[sel.ci].del))) sel = null;
+  curvesChanged(undo ? 'Undid line edit' : 'Redid line edit');
+}
+function curvesChanged(msg) {
+  if (valid >= 5) { applyCurves(); invalidate(6); }
+  renderParams(); draw(); if (msg) status(msg);
+}
+function setSelNodes(nodes) { // store the edited nodes (working pixels); the first edit turns a traced line into a curve
+  if (sel.ci < 0) { S.curves.push({ from: srcLine(sel.line.pts), nodes: [], closed: sel.closed, ...(sel.solid ? { solid: true } : {}) }); sel = { ci: S.curves.length - 1, anchor: sel.anchor }; }
+  S.curves[sel.ci].nodes = storeNodes(nodes);
+}
+function deleteSelected() {
+  if (!sel) return;
+  pushCurveUndo();
+  const solid = selSolid() ? { solid: true } : {}, what = solid.solid ? 'Solid shape' : 'Line';
+  if (sel.ci >= 0) S.curves[sel.ci] = { from: S.curves[sel.ci].from, del: true, ...solid };
+  else S.curves.push({ from: srcLine(sel.line.pts), del: true, ...solid });
+  sel = null; curvesChanged(what + ' deleted');
+}
+const distSeg = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy, t = L ? clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L, 0, 1) : 0; return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+function curveDown(x, y, ev) {
+  if (curveTool === 'line' || curveTool === 'solid') { penDown(x, y, ev); return; }
+  if (curveTool === 'split') { splitAt(x, y); return; }
+  if (curveTool === 'join') { joinClick(x, y); return; }
+  const R = 8 * pxToWork();
+  if (sel && curveTool !== 'add') { // grab a handle or anchor of the selected line
+    const nodes = selNodes(), closed = selClosed();
+    let hit = null;
+    if (curveTool === 'edit') nodes.forEach((n, k) => { for (const part of ['i', 'o']) { if (!closed && ((part === 'i' && k === 0) || (part === 'o' && k === nodes.length - 1))) continue; const d = Math.hypot(n[part][0] - x, n[part][1] - y); if (d < R && (!hit || d < hit.d)) hit = { k, part, d }; } });
+    nodes.forEach((n, k) => { const d = Math.hypot(n.p[0] - x, n.p[1] - y); if (d < R && (!hit || hit.part !== 'p' || d < hit.d)) hit = { k, part: 'p', d }; });
+    if (hit) {
+      if (hit.part === 'p' && (ev.altKey || curveTool === 'remove')) { removeAnchor(nodes, hit.k); return; }
+      sel.anchor = hit.k; renderParams(); draw();   // the anchor clicked, or the one whose handle was grabbed, is selected
+      // The undo step is saved on the first move, so a click that only selects an anchor adds none.
+      drag = { kind: 'node', k: hit.k, part: hit.part, nodes, x0: x, y0: y, base: JSON.parse(JSON.stringify(nodes)), before: JSON.stringify(S.curves) };
+      return;
+    }
+  }
+  if (curveTool === 'add' && sel && addAnchorAt(x, y)) return;
+  selectAt(x, y);
+  if (curveTool === 'add' && sel) addAnchorAt(x, y);
+  renderParams(); draw();
+}
+// Select the line or solid shape under the pointer, or nothing. A line wins over the shape it lies on.
+function selectAt(x, y) {
+  let best = null, bd = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  for (const l of [...W.lines, ...W.solids]) for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = l; } }
+  if (!best) best = W.solids.find((l) => inside([x, y], l.pts)) || null;
+  if (!best) sel = null;
+  else if (best.curve != null) sel = { ci: best.curve };
+  else { // the traced bezier itself; a piece left over from cutting an edited line has none, so fit one
+    const nodes = best.nodes ? structuredClone(best.nodes) : fitNodes(best.pts, best.closed, fitEps(W.fig.width));
+    sel = { ci: -1, line: best, nodes, closed: best.closed, solid: !!best.solid };
+  }
+}
+const inside = ([x, y], pts) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
+function removeAnchor(nodes, k) {
+  if (nodes.length <= (selClosed() ? 3 : 2)) { status(selClosed() ? 'A closed shape needs at least 3 anchors' : 'A line needs at least 2 anchors'); return; }
+  pushCurveUndo(); nodes.splice(k, 1); setSelNodes(nodes); sel.anchor = null; curvesChanged('Anchor removed');
+}
+const selAnchor = () => (sel && sel.anchor != null && sel.anchor < selNodes().length ? sel.anchor : null);
+// Insert an anchor where (x, y) is nearest the curve, without changing its shape (de Casteljau split). Returns
+// the new anchor's index, or -1 when (x, y) is too far from the curve.
+function insertAnchor(nodes, closed, x, y) {
+  let best = null;
+  segs(nodes, closed).forEach(([a, b], s) => { for (let t = 0.02; t < 1; t += 0.02) { const q = cubic(a, b, t), d = Math.hypot(q[0] - x, q[1] - y); if (!best || d < best.d) best = { s, t, d }; } });
+  if (!best || best.d > Math.max(W.fig.width * 2, 10 * pxToWork())) return -1;
+  const a = nodes[best.s], b = nodes[(best.s + 1) % nodes.length], t = best.t, L = (u, v) => [u[0] + (v[0] - u[0]) * t, u[1] + (v[1] - u[1]) * t];
+  const ab = L(a.p, a.o), bc = L(a.o, b.i), cd = L(b.i, b.p), abc = L(ab, bc), bcd = L(bc, cd), m = L(abc, bcd);
+  a.o = ab; b.i = cd;
+  nodes.splice(best.s + 1, 0, { p: m, i: abc, o: bcd });
+  return best.s + 1;
+}
+function addAnchorAt(x, y) { // add an anchor to the selected curve at the point nearest (x, y); false if that is too far
+  const nodes = selNodes(), before = JSON.stringify(S.curves);
+  if (insertAnchor(nodes, selClosed(), x, y) < 0) return false;
+  curveUndo.push(before); curveRedo.length = 0;
+  setSelNodes(nodes); curvesChanged('Anchor added');
+  return true;
+}
+// ---- split and join. Both work on any line, traced or edited; the result is stored as line edits.
+const storeNodes = (nodes) => nodes.map(nodeToSrc).map((n) => ({ p: fmt([n.p])[0], i: fmt([n.i])[0], o: fmt([n.o])[0], ...(n.c ? { c: true } : {}) }));
+// The line (not solid shape) under the pointer, with its anchors in working pixels.
+function pickLine(x, y) {
+  let best = null, bd = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  for (const l of W.lines) for (let i = 1; i < l.pts.length; i++) { const d = distSeg([x, y], l.pts[i - 1], l.pts[i]); if (d < bd) { bd = d; best = l; } }
+  if (!best) return null;
+  const c = best.curve != null ? S.curves[best.curve] : null;
+  const nodes = c ? c.nodes.map(nodeToWork) : structuredClone(best.nodes || fitNodes(best.pts, best.closed, fitEps(W.fig.width)));
+  return { line: best, ci: best.curve ?? -1, nodes, closed: c ? c.closed : best.closed };
+}
+// Store new anchors for a picked line: an edited line is updated, a traced one becomes an edit made from it.
+function putLine(pick, nodes, closed) {
+  if (pick.ci >= 0) { S.curves[pick.ci] = { ...S.curves[pick.ci], nodes: storeNodes(nodes), closed }; return pick.ci; }
+  S.curves.push({ from: srcLine(pick.line.pts), nodes: storeNodes(nodes), closed }); return S.curves.length - 1;
+}
+function dropLine(pick) { // remove a picked line that was joined into another
+  if (pick.ci >= 0) S.curves[pick.ci] = { from: S.curves[pick.ci].from, del: true };
+  else S.curves.push({ from: srcLine(pick.line.pts), del: true });
+}
+const plainEnd = (n) => { const m = { ...n }; delete m.c; return m; };
+// Cut the line under the pointer there: at an anchor if one is close, else at a new anchor on the curve. An open
+// line becomes two lines; a closed loop opens there.
+function splitAt(x, y) {
+  sel = null;
+  const pick = pickLine(x, y);
+  if (!pick) { draw(); status(W.solids.some((l) => inside([x, y], l.pts)) ? 'A solid shape cannot be split' : 'Click on a line to split it there'); return; }
+  const nodes = pick.nodes, R = 8 * pxToWork();
+  let k = nodes.findIndex((n) => Math.hypot(n.p[0] - x, n.p[1] - y) < R);
+  if (k < 0) k = insertAnchor(nodes, pick.closed, x, y);
+  if (k < 0) { draw(); status('Click on a line to split it there'); return; }
+  if (!pick.closed && (k === 0 || k === nodes.length - 1)) { draw(); status('That is the end of the line; split it somewhere along it'); return; }
+  pushCurveUndo();
+  if (pick.closed) { // open the loop at k: it starts and ends there
+    const ring = [...nodes.slice(k), ...nodes.slice(0, k + 1)].map((n, j, all) => (j === 0 || j === all.length - 1 ? plainEnd(n) : n));
+    ring[ring.length - 1] = structuredClone(ring[ring.length - 1]);
+    putLine(pick, ring, false);
+    curveTool = 'edit'; curvesChanged('Loop opened · back to Edit');
+    return;
+  }
+  const first = nodes.slice(0, k + 1).map((n, j) => (j === k ? plainEnd(n) : n)), second = nodes.slice(k).map((n, j) => (j === 0 ? plainEnd(structuredClone(n)) : n));
+  putLine(pick, first, false);
+  S.curves.push({ from: [], nodes: storeNodes(second), closed: false });   // the second piece was made from nothing traced
+  curveTool = 'edit'; curvesChanged('Split into two lines · back to Edit');
+}
+// Join: click near one end of a line, then near an end of another (or the other end of the same line, to close it).
+let joinFrom = null;   // {pick, end: 0 | 1} after the first click
+const reverseNodes = (nodes) => nodes.slice().reverse().map((n) => ({ ...n, i: n.o, o: n.i }));
+function joinClick(x, y) {
+  sel = null;
+  const pick = pickLine(x, y);
+  if (!pick || pick.closed) { draw(); status(pick ? 'A closed line has no ends to join' : 'Click near the end of a line'); return; }
+  const ends = [pick.nodes[0].p, pick.nodes[pick.nodes.length - 1].p], end = Math.hypot(ends[0][0] - x, ends[0][1] - y) <= Math.hypot(ends[1][0] - x, ends[1][1] - y) ? 0 : 1;
+  if (!joinFrom || !W.lines.includes(joinFrom.pick.line)) { joinFrom = { pick, end }; draw(); status('Now click near the end to join it to (Esc cancels)'); return; }
+  const A = joinFrom, same = A.pick.line === pick.line;
+  joinFrom = null;
+  if (same && A.end === end) { draw(); status('That is the same end: pick the other end, or another line'); return; }
+  const snap = Math.max(W.fig.width * 1.5, 10 * pxToWork());
+  const a = A.end === 1 ? A.pick.nodes : reverseNodes(A.pick.nodes);   // A runs into the join
+  pushCurveUndo();
+  if (same) { // close the loop
+    const first = a[0], last = a[a.length - 1];
+    if (Math.hypot(first.p[0] - last.p[0], first.p[1] - last.p[1]) < snap) { first.i = [last.i[0] + first.p[0] - last.p[0], last.i[1] + first.p[1] - last.p[1]]; a.pop(); first.c = bentHandles(first); }
+    else bridge(last, first);
+    putLine(A.pick, a, true);
+    curvesChanged('Line closed into a loop');
+    return;
+  }
+  const b = end === 0 ? pick.nodes : reverseNodes(pick.nodes);          // B runs out of the join
+  const tail = a[a.length - 1], head = b[0];
+  let joined;
+  if (Math.hypot(tail.p[0] - head.p[0], tail.p[1] - head.p[1]) < snap) { // one anchor halfway between the two ends
+    const m = [(tail.p[0] + head.p[0]) / 2, (tail.p[1] + head.p[1]) / 2], n = { p: m, i: [tail.i[0] + m[0] - tail.p[0], tail.i[1] + m[1] - tail.p[1]], o: [head.o[0] + m[0] - head.p[0], head.o[1] + m[1] - head.p[1]] };
+    n.c = bentHandles(n);
+    joined = [...a.slice(0, -1), n, ...b.slice(1)];
+  } else { bridge(tail, head); joined = [...a, ...b]; }   // too far apart: a straight piece between them
+  putLine(A.pick, joined, false);
+  dropLine(pick);
+  curvesChanged('Lines joined');
+}
+function bridge(from, to) { // a straight segment from one end anchor to another
+  const dx = (to.p[0] - from.p[0]) / 3, dy = (to.p[1] - from.p[1]) / 3;
+  from.o = [from.p[0] + dx, from.p[1] + dy]; to.i = [to.p[0] - dx, to.p[1] - dy];
+  from.c = bentHandles(from); to.c = bentHandles(to);
+}
+function joinMarkup() { // the end picked by the first Join click
+  if (!joinFrom || curveTool !== 'join' || !W.lines.includes(joinFrom.pick.line)) return '';
+  const k = pxToWork(), f = (v) => v.toFixed(1), nodes = joinFrom.pick.nodes, p = nodes[joinFrom.end ? nodes.length - 1 : 0].p;
+  return `<path d="${curvePath(nodes, false)}" fill="none" stroke="#e8742c" stroke-width="${f(W.fig.width)}" stroke-linecap="round" opacity=".6"/><circle cx="${f(p[0])}" cy="${f(p[1])}" r="${f(7 * k)}" fill="none" stroke="#e8742c" stroke-width="${f(2.5 * k)}"/>`;
+}
+// ---- pen: click to place anchors, drag while placing one to pull out its handles. Click the first anchor to
+// close the line, double-click or press Enter to finish, Esc to cancel. A solid shape always closes.
+function penDown(x, y, ev) {
+  if (sel) { sel = null; renderParams(); }
+  if (pen && ev.detail >= 2) { finishPen(false); return; }   // the first click of the double-click placed the last anchor
+  if (pen && pen.nodes.length >= 2) {
+    const f = pen.nodes[0].p;
+    if (Math.hypot(f[0] - x, f[1] - y) < 8 * pxToWork()) { finishPen(true); return; }
+  }
+  if (!pen) pen = { nodes: [], solid: curveTool === 'solid' };
+  pen.nodes.push({ p: [x, y], i: [x, y], o: [x, y], auto: true });
+  drag = { kind: 'pen' }; draw();
+}
+function penMove(x, y) {
+  const n = pen.nodes[pen.nodes.length - 1];
+  if (Math.hypot(x - n.p[0], y - n.p[1]) < 2 * pxToWork() && n.auto) return;   // a click, not a drag
+  n.auto = false; n.o = [x, y]; n.i = [2 * n.p[0] - x, 2 * n.p[1] - y]; draw();
+}
+// Smooth handles for anchors placed with a plain click: along the line from the anchor before to the one after.
+function penNodes(nodes, closed) {
+  const m = nodes.length;
+  return nodes.map((n, k) => {
+    if (!n.auto) return { p: n.p, i: n.i, o: n.o };
+    const prev = nodes[closed ? (k + m - 1) % m : Math.max(0, k - 1)].p, next = nodes[closed ? (k + 1) % m : Math.min(m - 1, k + 1)].p;
+    const tx = (next[0] - prev[0]) / 6, ty = (next[1] - prev[1]) / 6;
+    return { p: n.p, i: [n.p[0] - tx, n.p[1] - ty], o: [n.p[0] + tx, n.p[1] + ty] };
+  });
+}
+function finishPen(close) {
+  const p = pen; pen = null; drag = null;
+  const closed = p.solid || close, need = closed ? 3 : 2;
+  if (p.nodes.length < need) { status(`Needs at least ${need} anchors`); draw(); return; }
+  pushCurveUndo();
+  S.curves.push({ from: [], nodes: storeNodes(penNodes(p.nodes, closed)), closed, ...(p.solid ? { solid: true } : {}) });
+  curvesChanged(p.solid ? 'Solid shape added' : 'Line added');
+}
+function penMarkup() {
+  if (!pen) return '';
+  const k = pxToWork(), f = (v) => v.toFixed(1), col = '#e8742c', nodes = penNodes(pen.nodes, pen.solid);
+  let h = nodes.length > 1 ? `<path d="${curvePath(nodes, pen.solid && nodes.length > 2)}" fill="${pen.solid ? col : 'none'}" fill-opacity=".5" stroke="${col}" stroke-width="${f(pen.solid ? 1.5 * k : W.fig.width)}" stroke-linecap="round"/>` : '';
+  nodes.forEach((n, i) => { h += `<rect x="${f(n.p[0] - 4 * k)}" y="${f(n.p[1] - 4 * k)}" width="${f(8 * k)}" height="${f(8 * k)}" fill="${i ? col : '#fff'}" stroke="${col}" stroke-width="${f(1.2 * k)}"/>`; });
+  return h;
+}
+let curveFrame = 0;
+function curveMove(x, y, ev) {
+  const { k, part, nodes, base } = drag, n = nodes[k], b = base[k];
+  if (drag.before) { curveUndo.push(drag.before); curveRedo.length = 0; drag.before = null; }
+  let dx = x - drag.x0, dy = y - drag.y0;
+  if (part === 'p' && !selClosed() && (k === 0 || k === nodes.length - 1) && !ev.shiftKey) {
+    // an end anchor snaps onto a nearby line, so closing a gap needs no precise aim (hold Shift to place it freely)
+    const p = [b.p[0] + dx, b.p[1] + dy], own = sel.ci >= 0 ? sel.ci : null;
+    let best = null, bd = 10 * pxToWork();
+    for (const l of W.lines) {
+      if ((own != null && l.curve === own) || l === sel.line) continue;   // not onto the line being edited
+      for (let i = 1; i < l.pts.length; i++) {
+        const [ax, ay] = l.pts[i - 1], [bx, by] = l.pts[i], sx = bx - ax, sy = by - ay, L = sx * sx + sy * sy;
+        const t = L ? clamp(((p[0] - ax) * sx + (p[1] - ay) * sy) / L, 0, 1) : 0, q = [ax + t * sx, ay + t * sy], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+        if (d < bd && d > 0.01) { bd = d; best = q; }
+      }
+    }
+    if (best) { dx = best[0] - b.p[0]; dy = best[1] - b.p[1]; }
+  }
+  if (part === 'p') { for (const q of ['p', 'i', 'o']) n[q] = [b[q][0] + dx, b[q][1] + dy]; }
+  else {
+    n[part] = [b[part][0] + dx, b[part][1] + dy];
+    const other = part === 'i' ? 'o' : 'i';
+    if (!ev.altKey && !b.c) { // a smooth anchor stays smooth: the other handle points the opposite way
+      const vx = n[part][0] - n.p[0], vy = n[part][1] - n.p[1], L = Math.hypot(vx, vy) || 1, M = Math.hypot(b[other][0] - b.p[0], b[other][1] - b.p[1]);
+      n[other] = [n.p[0] - (vx / L) * M, n.p[1] - (vy / L) * M];
+    } else { n[other] = b[other].slice(); n.c = true; }   // a corner, or Alt-drag to make one
+  }
+  setSelNodes(nodes);
+  if (!curveFrame) curveFrame = requestAnimationFrame(() => { curveFrame = 0; curvesChanged(); });
+}
+cv.addEventListener('dblclick', (ev) => { // double-click an anchor to switch corner/smooth, the line to add one
+  if (STEPS[step].id !== 'strokes' || !sel || curveTool !== 'edit') return;
+  const [x, y] = canvasXY(ev), R = 8 * pxToWork(), k = selNodes().findIndex((n) => Math.hypot(n.p[0] - x, n.p[1] - y) < R);
+  if (k >= 0) toggleCorner(k); else addAnchorAt(x, y);
+});
+function toggleCorner(k) {
+  const nodes = selNodes(), n = nodes[k];
+  if (!selClosed() && (k === 0 || k === nodes.length - 1)) { status('An end anchor has one handle, so it is neither'); return; }
+  pushCurveUndo();
+  if (n.c) { // straighten the handles through the anchor, along the middle of their two directions, keeping their lengths
+    const Li = Math.hypot(n.p[0] - n.i[0], n.p[1] - n.i[1]), Lo = Math.hypot(n.o[0] - n.p[0], n.o[1] - n.p[1]);
+    const ui = Li ? [(n.p[0] - n.i[0]) / Li, (n.p[1] - n.i[1]) / Li] : [0, 0], uo = Lo ? [(n.o[0] - n.p[0]) / Lo, (n.o[1] - n.p[1]) / Lo] : [0, 0];
+    let tx = ui[0] + uo[0], ty = ui[1] + uo[1], T = Math.hypot(tx, ty);
+    if (T < 1e-6) { tx = -ui[1] || 1; ty = ui[0]; T = Math.hypot(tx, ty); }   // handles pointing the same way: turn them square to it
+    tx /= T; ty /= T;
+    n.i = [n.p[0] - tx * Li, n.p[1] - ty * Li]; n.o = [n.p[0] + tx * Lo, n.p[1] + ty * Lo]; n.c = false;
+  } else n.c = true;
+  setSelNodes(nodes); sel.anchor = k; curvesChanged(n.c ? 'Corner anchor: its handles move on their own' : 'Smooth anchor');
+}
+// The ink view on the strokes step shows the pencil ink under the strokes; editing keeps working meanwhile.
+// Tap Tab (or tick "Show ink") to switch it on or off; hold Tab to look only while it is held.
+let peekDown = 0;   // when Tab went down, while it is held
+function setPeek(on) { if (peek === on) return; peek = on; if (img) { renderParams(); draw(); } }
+window.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Tab' || !img || ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev.target)) return;
+  ev.preventDefault();
+  if (ev.repeat || peekDown) return;
+  peekDown = performance.now();
+  if (peek) { setPeek(false); peekDown = -1; } else setPeek(true);   // -1: this press turned it off
+});
+window.addEventListener('keyup', (ev) => {
+  if (ev.key !== 'Tab' || !peekDown) return;
+  const held = peekDown > 0 && performance.now() - peekDown > 350;
+  peekDown = 0;
+  if (held) setPeek(false);   // held to look: back to the strokes on release; a tap leaves it on
+});
+window.addEventListener('blur', () => { if (peekDown > 0 && peek) setPeek(false); peekDown = 0; });
+window.addEventListener('keydown', (ev) => { // Esc drops a half-done join
+  if (ev.key === 'Escape' && joinFrom && STEPS[step].id === 'strokes') { joinFrom = null; draw(); status('Join cancelled'); }
+});
+window.addEventListener('keydown', (ev) => { // Enter finishes the line being drawn, Esc drops it
+  if (STEPS[step].id !== 'strokes' || !pen) return;
+  if (ev.key === 'Enter') { ev.preventDefault(); finishPen(false); }
+  else if (ev.key === 'Escape') { pen = null; drag = null; draw(); status('Line cancelled'); }
+});
+window.addEventListener('keydown', (ev) => {
+  if (STEPS[step].id !== 'strokes' || !sel || ev.metaKey || ev.ctrlKey) return;
+  if (typing(ev.target)) return;
+  if (ev.key === 'Delete' || ev.key === 'Backspace') { // the selected anchor, else the whole line
+    ev.preventDefault();
+    if (selAnchor() != null) removeAnchor(selNodes(), selAnchor()); else deleteSelected();
+  } else if (ev.key === 'Escape') { // first the anchor, then the line
+    if (selAnchor() != null) sel.anchor = null; else sel = null;
+    renderParams(); draw();
+  }
+});
+function editorMarkup(thin) { // thin: just the outline, so the ink under it shows (the Tab ink preview)
+  if (!sel) return '';
+  const nodes = selNodes(), closed = selClosed(), k = pxToWork(), f = (v) => v.toFixed(1), col = '#e8742c';
+  let h = thin
+    ? `<path d="${curvePath(nodes, closed)}" fill="none" stroke="${col}" stroke-width="${f(1.5 * k)}"/>`
+    : selSolid()
+    ? `<path d="${curvePath(nodes, true)}" fill="${col}" fill-opacity=".55" stroke="${col}" stroke-width="${f(1.5 * k)}"/>`
+    : `<path d="${curvePath(nodes, closed)}" fill="none" stroke="${col}" stroke-width="${f(W.fig.width)}" stroke-linecap="round" opacity=".85"/>`;
+  // Every handle first, then every anchor on top: a handle swung over a neighbouring anchor must not hide it
+  // (a click there grabs the anchor anyway).
+  nodes.forEach((n, i) => {
+    for (const part of ['i', 'o']) {
+      if (!closed && ((part === 'i' && i === 0) || (part === 'o' && i === nodes.length - 1))) continue;
+      h += `<path d="M${f(n.p[0])} ${f(n.p[1])}L${f(n[part][0])} ${f(n[part][1])}" stroke="#fff" stroke-width="${f(1.2 * k)}"/><circle cx="${f(n[part][0])}" cy="${f(n[part][1])}" r="${f(3.5 * k)}" fill="#fff" stroke="${col}" stroke-width="${f(1.2 * k)}"/>`;
+    }
+  });
+  nodes.forEach((n, i) => { // a smooth anchor is a square, a corner a diamond; the selected one larger and white
+    const on = i === selAnchor(), r = (on ? 5.5 : 4) * k * (n.c ? 1.3 : 1);
+    const paint = on ? `fill="#fff" stroke="${col}" stroke-width="${f(2.5 * k)}"` : `fill="${col}" stroke="#fff" stroke-width="${f(1.2 * k)}"`;
+    h += n.c
+      ? `<path class="anchor" d="M${f(n.p[0])} ${f(n.p[1] - r)}L${f(n.p[0] + r)} ${f(n.p[1])}L${f(n.p[0])} ${f(n.p[1] + r)}L${f(n.p[0] - r)} ${f(n.p[1])}Z" ${paint}/>`
+      : `<rect class="anchor" x="${f(n.p[0] - r)}" y="${f(n.p[1] - r)}" width="${f(2 * r)}" height="${f(2 * r)}" ${paint}/>`;
+  });
+  return h;
+}
+const CURVE_TOOLS = [['edit', 'Edit'], ['line', 'Draw line'], ['solid', 'Draw solid'], ['add', 'Add anchor'], ['remove', 'Remove anchor'], ['split', 'Split'], ['join', 'Join']];
+function curvePanel() {
+  const n = S.curves.length, edits = n ? ` · ${n} line edit(s) kept through re-tracing` : '';
+  const what = sel ? (selSolid() ? 'shape' : 'line') : 'line';
+  const help = {
+    edit: sel
+      ? `Drag an anchor to move it${selClosed() ? '' : ' (an end snaps onto a nearby line; hold Shift to place it freely)'}, a circle to bend the ${what}. A square is a smooth anchor, whose handles stay in line; a diamond is a corner, whose handles move on their own (Alt-dragging a circle also makes one). Double-click an anchor to switch it, or the ${what} to add an anchor. Click an anchor to select it: Delete removes it, or the whole ${what} when no anchor is selected. Esc deselects.`
+      : 'Click a line or a solid ink shape to edit its curve.',
+    line: 'Click to place anchors; drag while placing one to bend the line through it. Click the first anchor to close the line, double-click or press Enter to finish, Esc to cancel.',
+    solid: 'Click to place the outline of a filled shape; drag while placing an anchor to bend it. Click the first anchor, double-click or press Enter to finish, Esc to cancel.',
+    add: 'Click a line or solid shape where the new anchor should go.',
+    remove: 'Click a line or solid shape to show its anchors, then click an anchor to remove it.',
+    split: 'Click anywhere on a line to cut it into two there. Clicking a closed line opens it at that point.',
+    join: 'Click near the end of a line, then near the end of another line to join them into one; ends that nearly meet become one anchor, others get a straight piece between them. Click both ends of one line to close it. Esc cancels.',
+  }[curveTool];
+  const tools = CURVE_TOOLS.map(([id, label]) => `<button data-ctool="${id}" class="${curveTool === id ? 'on' : ''}">${label}</button>`).join('');
+  return `<div class="p"><label>Line editor<output>${sel ? (sel.ci >= 0 ? `edited ${what}` : `traced ${what}`) : ''}</output></label><div class="row">${tools}</div><span class="hint">${help}${edits}</span>
+    <div class="row"><button id="cReset" ${sel && sel.ci >= 0 ? '' : 'disabled'}>Reset ${what}</button><button id="cDelAnchor" ${sel && selAnchor() != null ? '' : 'disabled'}>Delete anchor</button><button id="cCorner" ${sel && selAnchor() != null ? '' : 'disabled'}>${sel && selAnchor() != null && selNodes()[selAnchor()].c ? 'Make smooth' : 'Make corner'}</button><button id="cDelete" ${sel ? '' : 'disabled'}>Delete ${what}</button><button id="cUndo" title="Undo (⌘Z / Ctrl+Z)">Undo</button><button id="cRedo" title="Redo (⌘⇧Z / Ctrl+Shift+Z)">Redo</button><button id="cClear" ${n ? '' : 'disabled'}>Reset all lines</button></div></div>`;
+}
+
+// ---- loading
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => {
+    img = im; $('empty').hidden = true; $('view').hidden = false; $('zoombar').hidden = false; sel = null; resetZoom();
+    if (!$('presetName').value) $('presetName').value = f.name.replace(/\.[^.]+$/, '');
+    valid = -1;
+    if (!S.crop && S.lo === DEFAULTS.lo && S.hi === DEFAULTS.hi) { ensure(1); autoLevels(); }
+    invalidate(0); renderParams(); draw();
+  };
+  im.src = url;
+}
+$('file').onchange = () => loadFile($('file').files[0]);
+$('main').addEventListener('dragover', (e) => e.preventDefault());
+$('main').addEventListener('drop', (e) => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+window.addEventListener('paste', (e) => { const it = [...e.clipboardData.items].find((i) => i.type.startsWith('image/')); if (it) loadFile(it.getAsFile()); });
+
+// ---- characters: parts, saved in this browser, and preset files
+// Preset file: { name, settings, parts: [{ id, z, pivot, marks }] }. pivot and marks are in rotated-photo pixels.
+const PKEY = 'lightbox.characters';
+const readSaved = () => { try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch { return {}; } };
+function refreshPresetList() {
+  $('presetList').innerHTML = '<option value="">Load saved…</option>' + Object.keys(readSaved()).sort().map((n) => `<option>${esc(n)}</option>`).join('');
+}
+const presetOf = () => ({ name: $('presetName').value.trim(), settings: S, parts: CH.parts.map((p) => ({ id: p.id, z: p.z, pivot: p.pivot, marks: p.marks })) });
+// Returns a note when the file is in an older format.
+function applyPreset(j) {
+  let settings = j.settings, parts = j.parts, note = '';
+  if (parts && !settings) {   // older presets: every part had its own crop and settings
+    settings = parts[0] && parts[0].settings;
+    note = ' (older preset: kept the first part\'s settings; draw the part lassos again)';
+  } else if (!parts && !settings) settings = j;   // oldest: a bare settings object
+  S = Object.assign(structuredClone(DEFAULTS), settings);
+  CH = { parts: (parts && parts.length ? parts : [{ id: 'body' }]).map((p, i) => ({ id: p.id || `part${i + 1}`, z: p.z ?? i, pivot: p.pivot || null, marks: p.marks || [] })) };
+  if (j.name) $('presetName').value = j.name;
+  redo.ink = []; redo.fill = []; redo.solid = []; sel = null; pen = null; curveUndo.length = curveRedo.length = 0;
+  cur = 0;   // before rendering: the old part index may be past the new character's parts
+  invalidate(0); selectPart(0);
+  return note;
+}
+$('savePreset').onclick = () => {
+  const n = $('presetName').value.trim(); if (!n) { status('Type a character name first'); return; }
+  const all = readSaved(); all[n] = presetOf();
+  try { localStorage.setItem(PKEY, JSON.stringify(all)); status(`Saved "${n}" in this browser`); } catch { status('This browser blocked saving; use Download preset'); }
+  refreshPresetList();
+};
+$('presetList').onchange = () => { const n = $('presetList').value; if (!n) return; const note = applyPreset(readSaved()[n]); $('presetName').value = n; status(`Loaded "${n}"${note}`); };
+$('exportPreset').onclick = () => download(fileBase() + '.preset.json', JSON.stringify(presetOf(), null, 1), 'application/json');
+$('importPresetBtn').onclick = () => $('importPreset').click();
+$('importPreset').onchange = async () => {
+  const f = $('importPreset').files[0]; if (!f) return;
+  try { const note = applyPreset(JSON.parse(await f.text())); status(`Opened ${f.name}${note}${img ? '' : '. Now open the photo it was traced from.'}`); } catch { status('That file is not a Lightbox preset'); }
+  $('importPreset').value = '';
+};
+
+function renderParts() {
+  const p = PART();
+  $('parts').innerHTML = `<div class="row" style="justify-content:space-between"><b>Parts</b><span class="hint">${CH.parts.length} in this character</span></div>
+    <div class="tabs">${CH.parts.map((q, i) => `<button data-part="${i}" class="${i === cur ? 'cur' : ''}"><span class="sw" style="background:${partColor(i)}"></span>${esc(q.id)}</button>`).join('')}<button id="addPart" title="New part; draw its lasso on the parts step">+ Part</button></div>
+    <div class="fields"><label for="partId">Id</label><input type="text" id="partId" value="${esc(p.id)}"><label for="partZ">Order</label><input type="number" id="partZ" value="${p.z}" step="1" title="Draw order; higher is drawn on top"></div>
+    ${CH.parts.length > 1 ? '<div class="row"><button id="delPart">Remove this part</button></div>' : ''}`;
+  $('parts').querySelectorAll('[data-part]').forEach((b) => b.onclick = () => selectPart(+b.dataset.part));
+  $('addPart').onclick = () => {
+    let n = CH.parts.length + 1; while (CH.parts.some((q) => q.id === `part${n}`)) n++;
+    CH.parts.push(newPart(`part${n}`, Math.max(...CH.parts.map((q) => q.z)) + 1));
+    invalidate(6); selectPart(CH.parts.length - 1);
+  };
+  $('partId').onchange = () => {
+    const v = $('partId').value.trim().replace(/[^\w-]+/g, '_');
+    if (!v || CH.parts.some((q, i) => i !== cur && q.id === v)) { status('Part ids must be unique and not empty'); $('partId').value = p.id; return; }
+    p.id = v; renderParts(); renderParams(); draw();
+  };
+  $('partZ').onchange = () => { p.z = Math.round(+$('partZ').value) || 0; changed(6); };
+  const del = $('delPart'); if (del) del.onclick = () => { CH.parts.splice(cur, 1); invalidate(6); selectPart(Math.max(0, cur - 1)); };
+}
+function selectPart(i) {
+  cur = i; partRedo.length = 0; pivotMode = false;
+  renderParts(); renderParams(); draw();
+}
+
+// Every part in one coordinate space: photo pixels, with the crop's top-left corner at 0,0.
+function buildCharacter() {
+  if (!img) throw new Error('Open the photo first');
+  ensure(6);
+  const { scale: sc, cx, cy, cw, ch } = W, r = (v) => Math.round(v * 10) / 10, m = ([x, y]) => [r(x / sc), r(y / sc)];
+  const empty = CH.parts.find((p, i) => !W.parts[i].paper.length && !W.parts[i].strokes.length);
+  if (empty) throw new Error(`Part "${empty.id}" is empty: draw its lasso on the parts step, or remove it`);
+  return {
+    name: $('presetName').value.trim() || 'character', size: [cw, ch],
+    parts: byZ().map((i) => {
+      const p = CH.parts[i], f = W.parts[i], [px, py] = partPivot(i);
+      return { id: p.id, pivot: [r(px - cx), r(py - cy)], z: p.z, paper: f.paper.map((l) => l.map(m)), solid: f.solid.map((l) => l.map(m)), strokes: f.strokes.map((st) => ({ pts: st.pts.map(m), closed: st.closed })), width: r(f.width / sc) };
+    }),
+  };
+}
+
+// ====================================================================
+// Debug log for the line editor. Records pointer events on the strokes step, every editor action with the
+// selected line's anchors before and after, and checks after each change that no anchor went missing, moved
+// on its own or is hidden. "Save debug log" downloads it all, with the settings and undo history needed to
+// replay the edit. Nothing here changes what the editor does.
+// ====================================================================
+const LIGHTBOX_BUILD = 'anchor-debug-1';
+const DBG = { events: [], anomalies: [], max: 6000, lastRender: '' };
+const r2 = (v) => Math.round(v * 100) / 100;
+const pt = (p) => (p ? [r2(p[0]), r2(p[1])] : p);
+const nodeDump = (nodes) => nodes.map((n) => ({ p: pt(n.p), i: pt(n.i), o: pt(n.o), ...(n.c ? { c: 1 } : {}) }));
+function selInfo(full) {
+  if (!sel) return null;
+  let nodes = null; try { nodes = selNodes(); } catch (e) { return { ci: sel.ci, error: String(e) }; }
+  return { ci: sel.ci, traced: sel.ci < 0, solid: selSolid(), closed: selClosed(), n: nodes.length, anchor: sel.anchor ?? null, ...(full ? { nodes: nodeDump(nodes) } : {}) };
+}
+function dbg(ev, data) {
+  DBG.events.push({ t: Math.round(performance.now()), ev, ...data });
+  if (DBG.events.length > DBG.max) DBG.events.splice(0, DBG.events.length - DBG.max);
+}
+function anomaly(kind, data) {
+  const a = { t: Math.round(performance.now()), kind, ...data };
+  DBG.anomalies.push(a); if (DBG.anomalies.length > 200) DBG.anomalies.shift();
+  dbg('ANOMALY', { kind, ...data });
+  console.warn('[lightbox debug]', kind, data);
+  status(`⚠ Editor check failed: ${kind}. Click "Save debug log" and send the file.`);
+}
+// After a change: nodes must be finite, the selected curve must be drawn, and on the strokes step every anchor
+// must be in the view (and not sitting on top of another one).
+function checkAnchors(where) {
+  if (!sel || STEPS[step].id !== 'strokes') return;
+  let nodes; try { nodes = selNodes(); } catch (e) { anomaly('selection unreadable', { where, error: String(e) }); return; }
+  nodes.forEach((n, k) => { for (const q of ['p', 'i', 'o']) if (!n[q] || !Number.isFinite(n[q][0]) || !Number.isFinite(n[q][1])) anomaly('anchor has no position', { where, k, part: q, node: n }); });
+  if (sel.ci >= 0 && S.curves[sel.ci] && !S.curves[sel.ci].del && valid >= 5 && ![...W.lines, ...W.solids].some((l) => l.curve === sel.ci)) anomaly('selected curve not drawn', { where, sel: selInfo(true) });
+  const R = 8 * pxToWork(), close = [];
+  for (let a = 0; a < nodes.length; a++) for (let b = a + 1; b < nodes.length; b++) if (Math.hypot(nodes[a].p[0] - nodes[b].p[0], nodes[a].p[1] - nodes[b].p[1]) < R) close.push([a, b]);
+  const shown = svgEl ? svgEl.querySelectorAll('.anchor').length : 0;
+  const sig = `${sel.ci}|${nodes.length}|${shown}|${JSON.stringify(close)}|${peek}`;
+  if (sig !== DBG.lastRender) {
+    DBG.lastRender = sig;
+    dbg('render', { where, sel: selInfo(), anchorsDrawn: shown, overlapping: close });
+    if (!peek && shown !== nodes.length) anomaly('anchors drawn != anchors', { where, drawn: shown, anchors: nodes.length, sel: selInfo(true) });
+    if (close.length) anomaly('anchors on top of each other', { where, pairs: close, sel: selInfo(true) });
+  }
+}
+// Wrap the editor's functions to log them. Reassigning a function declaration rebinds it for every caller.
+const wrapFn = (get, set, name, before, after) => {
+  const f = get();
+  set(function (...args) {
+    const pre = before ? before(...args) : {};
+    let out, err;
+    try { out = f.apply(this, args); } catch (e) { err = e; }
+    dbg(name, { args: args.filter((a) => typeof a === 'number' || typeof a === 'boolean').map((a) => (typeof a === 'number' ? r2(a) : a)), ...pre, ...(after ? after(out, pre, ...args) : {}), ...(err ? { error: String(err) } : {}) });
+    if (err) { anomaly('error in ' + name, { error: String(err), stack: err.stack }); throw err; }
+    return out;
+  });
+};
+const selBefore = () => ({ before: selInfo(true) });
+const selAfter = () => ({ after: selInfo(true) });
+wrapFn(() => curveDown, (f) => { curveDown = f; }, 'curveDown', () => ({ tool: curveTool, before: selInfo(true) }),
+  () => ({ after: selInfo(), drag: drag ? { kind: drag.kind, k: drag.k, part: drag.part } : null }));
+wrapFn(() => selectAt, (f) => { selectAt = f; }, 'selectAt', null, selAfter);
+wrapFn(() => removeAnchor, (f) => { removeAnchor = f; }, 'removeAnchor', selBefore, selAfter);
+wrapFn(() => addAnchorAt, (f) => { addAnchorAt = f; }, 'addAnchorAt', selBefore, (out) => ({ added: out, ...selAfter() }));
+wrapFn(() => toggleCorner, (f) => { toggleCorner = f; }, 'toggleCorner', selBefore, selAfter);
+wrapFn(() => splitAt, (f) => { splitAt = f; }, 'splitAt', () => ({ curves: S.curves.length }), () => ({ curvesAfter: S.curves.length, last: S.curves.slice(-2) }));
+wrapFn(() => joinClick, (f) => { joinClick = f; }, 'joinClick', () => ({ pending: joinFrom ? { ci: joinFrom.pick.ci, end: joinFrom.end } : null, curves: S.curves.length }), () => ({ pendingAfter: joinFrom ? { ci: joinFrom.pick.ci, end: joinFrom.end } : null, curvesAfter: S.curves.length }));
+wrapFn(() => deleteSelected, (f) => { deleteSelected = f; }, 'deleteSelected', selBefore, selAfter);
+wrapFn(() => finishPen, (f) => { finishPen = f; }, 'finishPen', () => ({ pen: pen ? { n: pen.nodes.length, solid: pen.solid } : null }), selAfter);
+wrapFn(() => curveHistory, (f) => { curveHistory = f; }, 'curveHistory', selBefore, selAfter);
+wrapFn(() => setSelNodes, (f) => { setSelNodes = f; }, 'setSelNodes', (nodes) => ({ ciBefore: sel && sel.ci, n: nodes.length }), () => ({ ciAfter: sel && sel.ci }));
+// Moves log only what moved, but check that no other anchor moved and none was added or lost.
+{
+  const f = curveMove;
+  curveMove = function (x, y, ev) {
+    const d = drag, k = d && d.k;
+    f.call(this, x, y, ev);
+    if (!d || !sel) return;
+    let nodes; try { nodes = selNodes(); } catch { return; }
+    const n = nodes[k];
+    dbg('move', { x: r2(x), y: r2(y), k, part: d.part, alt: ev.altKey, shift: ev.shiftKey, node: n ? { p: pt(n.p), i: pt(n.i), o: pt(n.o), c: !!n.c } : null });
+    if (nodes.length !== d.base.length) anomaly('anchor count changed while dragging', { k, part: d.part, before: d.base.length, after: nodes.length, base: nodeDump(d.base), now: nodeDump(nodes) });
+    else {
+      const tol = 0.25;
+      nodes.forEach((m, j) => {
+        if (j === k) return;
+        const b = d.base[j];
+        for (const q of ['p', 'i', 'o']) if (Math.hypot(m[q][0] - b[q][0], m[q][1] - b[q][1]) > tol) { anomaly('another anchor moved while dragging', { dragged: k, part: d.part, moved: j, field: q, from: pt(b[q]), to: pt(m[q]) }); return; }
+      });
+    }
+  };
+}
+{
+  const f = curvesChanged;
+  curvesChanged = function (msg) { f.call(this, msg); dbg('curvesChanged', { msg: msg || null, lines: W.lines && W.lines.length, solids: W.solids && W.solids.length, curves: S.curves.length }); checkAnchors('curvesChanged'); };
+}
+{
+  const f = STAGES[5];
+  STAGES[5] = function () { const pre = selInfo(); f(); dbg('retrace', { before: pre, after: selInfo(), lines: W.lines.length, solids: W.solids.length, dragging: !!drag }); if (pre && !sel && drag) anomaly('selection dropped by a re-trace while dragging', { before: pre }); };
+}
+{
+  const f = draw;
+  draw = function () { f(); checkAnchors('draw'); };
+}
+// Pointer events on the strokes step, captured before the editor sees them.
+const ptrLog = (type) => (ev) => {
+  if (!img || STEPS[step].id !== 'strokes' || (type === 'move' && !drag)) return;
+  if (type === 'move') return;   // moves are logged by curveMove with what they did
+  const [x, y] = canvasXY(ev);
+  dbg('ptr-' + type, { x: r2(x), y: r2(y), alt: ev.altKey, shift: ev.shiftKey, detail: ev.detail, button: ev.button, tool: curveTool, drag: drag ? { kind: drag.kind, k: drag.k, part: drag.part } : null, sel: selInfo(type === 'up') });
+};
+cv.addEventListener('pointerdown', ptrLog('down'), true);
+cv.addEventListener('pointerup', ptrLog('up'), true);
+cv.addEventListener('dblclick', (ev) => { if (img && STEPS[step].id === 'strokes') { const [x, y] = canvasXY(ev); dbg('dblclick', { x: r2(x), y: r2(y), sel: selInfo() }); } }, true);
+window.addEventListener('keydown', (ev) => { if (img && STEPS[step].id === 'strokes' && !typing(ev.target)) dbg('key', { key: ev.key, alt: ev.altKey, shift: ev.shiftKey, meta: ev.metaKey || ev.ctrlKey, sel: selInfo() }); }, true);
+// A page error is logged too, but it is not an editor check, so the status says what actually failed.
+window.addEventListener('error', (e) => {
+  const a = { t: Math.round(performance.now()), kind: 'page error', message: e.message, at: `${e.lineno}:${e.colno}` };
+  DBG.anomalies.push(a); if (DBG.anomalies.length > 200) DBG.anomalies.shift();
+  dbg('page error', { message: e.message, at: a.at });
+  status(`Error: ${e.message}`);
+});
+function debugReport() {
+  const fileName = $('file').files && $('file').files[0] ? $('file').files[0].name : null;
+  return {
+    build: LIGHTBOX_BUILD, saved: new Date().toISOString(), userAgent: navigator.userAgent,
+    viewport: [innerWidth, innerHeight], devicePixelRatio, image: img ? { name: fileName, size: [img.naturalWidth, img.naturalHeight] } : null,
+    character: $('presetName').value, step: STEPS[step].id, tool: curveTool, zoom, pan: [panX, panY], screenPxPerWorkPx: r2(1 / pxToWork()),
+    working: W.w ? { w: W.w, h: W.h, crop: [W.cx, W.cy, W.cw, W.ch], scale: W.scale, lineWidth: W.fig && W.fig.width } : null,
+    selection: selInfo(true), drawnAnchors: svgEl ? svgEl.querySelectorAll('.anchor').length : 0,
+    lines: (W.lines || []).map((l) => ({ curve: l.curve ?? null, closed: l.closed, n: l.nodes ? l.nodes.length : null, from: pt(l.pts[0]), to: pt(l.pts[l.pts.length - 1]) })),
+    solids: (W.solids || []).map((l) => ({ curve: l.curve ?? null, n: l.nodes ? l.nodes.length : null, at: pt(l.pts[0]) })),
+    settings: S, parts: CH, curveUndo: curveUndo.map((j) => JSON.parse(j)), curveRedo: curveRedo.map((j) => JSON.parse(j)),
+    anomalies: DBG.anomalies, events: DBG.events,
+  };
+}
+$('debugLog').onclick = () => {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
+  download(`lightbox-debug-${stamp}.json`, JSON.stringify(debugReport(), null, 1), 'application/json');
+  status(`Saved lightbox-debug-${stamp}.json (${DBG.events.length} events, ${DBG.anomalies.length} failed checks)`);
+};
+refreshPresetList(); renderParts(); renderSteps(); renderParams();
+window.__lightbox = { get S() { return S; }, get CH() { return CH; }, W, ensure, loadFile, buildCharacter, selectPart, setStep: (i) => { step = i; renderSteps(); renderParams(); draw(); }, debugReport };
+</script>
+</body>
+</html>
