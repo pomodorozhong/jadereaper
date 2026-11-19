@@ -1,20 +1,21 @@
 // WebGPU renderer: one background pass and one instanced draw of paper parts.
 import { t } from './i18n.js';
 import { PART_IDS } from './data.js';
-import { BAKE, BOIL_FPS, bakeCharacters } from './characters.js';
+import { BAKE, bakeCharacters } from './characters.js';
 
 const INSTANCE_BYTES = 48;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 640; // world units across the shorter screen side
 
 /** Look settings sent to the shader each frame. The ?debug panel changes them at run time. */
+// Tuned by the maintainer in the ?debug panel: both boils are off (fps 0), so the lines hold still.
 export const LOOK = {
-  stopMotionFps: 8,   // how often the outline wobble steps
-  boilFps: BOIL_FPS,  // how often the traced characters change pose
-  margin: 3.5,        // white cutout margin, world units
-  shadowX: 4, shadowY: 6,
-  shadowAlpha: 0.3,
-  wobble: 2,          // the shader's outline wobble on cutout parts, world units
+  stopMotionFps: 0,   // how often the outline wobble steps
+  boilFps: 0,         // how often the traced characters change pose
+  margin: 2.1,        // white cutout margin, world units
+  shadowX: 3.5, shadowY: 6,
+  shadowAlpha: 0.5,
+  wobble: 0,          // the shader's outline wobble on cutout parts, world units
 };
 
 /**

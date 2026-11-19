@@ -10,12 +10,12 @@
 
 /** Bake settings. The ?debug panel changes them at run time and re-bakes. */
 export const BAKE = {
-  lineWidth: 1.5,   // every traced stroke, in world units, whatever the drawing's own scale
-  boilAmp: 0.35,    // per-stroke wobble in world units: the Lightbox's 0.9 px on its 4 px line, at 1.5
-  poses: 6,         // boil poses per part
-  texels: 4,        // atlas pixels per world unit, so every character is equally sharp
+  // Tuned by the maintainer in the ?debug panel.
+  lineWidth: 0.8,   // every traced stroke, in world units, whatever the drawing's own scale
+  boilAmp: 0.25,    // per-stroke wobble between poses, in world units
+  poses: 8,         // boil poses per part
+  texels: 6,        // atlas pixels per world unit, so every character is equally sharp
 };
-export const BOIL_FPS = 4;
 const INK = '#2b2622';
 const PAPER = '#fffdf6';
 
