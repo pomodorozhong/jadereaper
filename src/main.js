@@ -114,7 +114,7 @@ async function boot() {
   let settingsFrom = 'title';
 
   const ui = createUI({ onAction });
-  const input = createInput({ onKey });
+  const input = createInput({ onKey, canvas });
 
   let renderer, core;
   try {
@@ -242,6 +242,16 @@ async function boot() {
   ui.settings(save);
   toTitle();
 
+  /** The aim as an offset from the player in world units: the mouse's ground point, or the stick's direction. */
+  function aimOffset(aim, s, view) {
+    if (!aim) return [0, 0];
+    if (aim.kind === 'stick') return [aim.x * 200, aim.y * 200];
+    const r = canvas.getBoundingClientRect();
+    const wx = s[STATE.CAM_X] + ((aim.x - r.left) / r.width - 0.5) * view.w;
+    const wy = s[STATE.CAM_Y] + ((aim.y - r.top) / r.height - 0.5) * view.h;
+    return [wx - s[STATE.PLAYER_X], wy - s[STATE.PLAYER_Y]];
+  }
+
   let last = performance.now();
   let clock = 0;
 
@@ -263,7 +273,12 @@ async function boot() {
     // Paused freezes everything. Other menus keep the paper puppets moving.
     const step = mode === 'paused' ? 0 : dt;
     clock += step;
-    core.jr_input(mode === 'playing' ? pad.mx : 0, mode === 'playing' ? pad.my : 0);
+    if (mode === 'playing') {
+      const [ax, ay] = aimOffset(pad.aim, readState(), view);
+      core.jr_input(pad.mx, pad.my, ax, ay, pad.buttons);
+    } else {
+      core.jr_input(0, 0, 0, 0, 0);
+    }
     core.jr_update(step);
 
     const s = readState();

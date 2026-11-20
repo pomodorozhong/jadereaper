@@ -43,9 +43,12 @@ export const EVENT = {
   SHOOT: 7, PULSE: 8, DEATH: 9, HEAL: 10, ELITE: 11,
 };
 
+/** Button bits sent to jr_input. Match B_* in core/src/defs.rs. */
+export const BUTTON = { SKILL1: 1, SKILL2: 2, SKILL3: 4, ROLL: 8 };
+
 /** Indices into the state array written by the core. */
 export const STATE = {
   HP: 0, MAX_HP: 1, XP: 2, XP_NEXT: 3, LEVEL: 4, TIME: 5, KILLS: 6,
   CHOOSING: 7, CHOICE0: 8, OVER: 11, CAM_X: 12, CAM_Y: 13, ENEMIES: 14,
-  RUNNING: 15, UPGRADE0: 16,
+  RUNNING: 15, UPGRADE0: 16, PLAYER_X: 26, PLAYER_Y: 27,
 };

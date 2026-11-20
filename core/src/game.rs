@@ -74,6 +74,33 @@ pub struct Fx {
     top: bool,
 }
 
+/// One step's input: movement, aim and buttons.
+#[derive(Clone, Copy, Default)]
+pub struct Input {
+    /// Movement, each axis in -1..1.
+    pub mx: f32,
+    pub my: f32,
+    /// Aim, from the player towards the aim point in world units. Zero keeps the last aim.
+    pub ax: f32,
+    pub ay: f32,
+    /// Held buttons, `B_*` bits.
+    pub buttons: u32,
+}
+
+impl Input {
+    pub fn moving(mx: f32, my: f32) -> Input {
+        Input { mx, my, ..Input::default() }
+    }
+}
+
+/// What the player's body is doing.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Act {
+    Free,
+    /// Rolling in a direction; `t` counts up from 0 through the move and then the recovery.
+    Roll { t: f32, dx: f32, dy: f32 },
+}
+
 pub struct Player {
     pub x: f32,
     pub y: f32,
@@ -88,6 +115,18 @@ pub struct Player {
     pub moving: bool,
     pub iframe: f32,
     pub attack: f32,
+    pub act: Act,
+    /// Time left on each button's buffered press (skill 1, 2, 3, roll).
+    pub buffer: [f32; N_BUTTONS],
+    /// Aim point offset from the player, as last sent.
+    pub aim_at: (f32, f32),
+}
+
+impl Player {
+    /// True while hits do no damage: after being hurt, and early in a roll.
+    pub fn invulnerable(&self) -> bool {
+        self.iframe > 0.0 || matches!(self.act, Act::Roll { t, .. } if t < ROLL_INVULN)
+    }
 }
 
 pub struct Game {
@@ -109,7 +148,8 @@ pub struct Game {
     /// Half extents of the visible area in world units.
     pub view_w: f32,
     pub view_h: f32,
-    pub input: (f32, f32),
+    pub input: Input,
+    prev_buttons: u32,
     pub player: Player,
     pub enemies: Vec<Enemy>,
     pub shots: Vec<Shot>,
@@ -173,7 +213,8 @@ impl Game {
             ],
             view_w: 640.0,
             view_h: 360.0,
-            input: (0.0, 0.0),
+            input: Input::default(),
+            prev_buttons: 0,
             player: Player {
                 x: 0.0,
                 y: 0.0,
@@ -188,6 +229,9 @@ impl Game {
                 moving: false,
                 iframe: 0.0,
                 attack: 0.0,
+                act: Act::Free,
+                buffer: [0.0; N_BUTTONS],
+                aim_at: (100.0, 0.0),
             },
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
@@ -273,35 +317,7 @@ impl Game {
         self.time += dt;
         self.steps += 1;
 
-        // Player movement.
-        let (mut mx, mut my) = self.input;
-        if !mx.is_finite() || !my.is_finite() {
-            mx = 0.0;
-            my = 0.0;
-        }
-        let mut len = (mx * mx + my * my).sqrt();
-        if len > 1.0 {
-            mx /= len;
-            my /= len;
-            len = 1.0;
-        }
-        let speed = 190.0 * (1.0 + 0.08 * self.lvl(U_SWIFT));
-        let regen = 0.4 * self.lvl(U_MENDING);
-        let p = &mut self.player;
-        p.moving = len > 0.15;
-        if p.moving {
-            p.x += mx * speed * dt;
-            p.y += my * speed * dt;
-            p.aim = (mx / len, my / len);
-            p.walk += dt;
-            if mx.abs() > 0.1 {
-                p.face = mx.signum();
-            }
-        }
-        p.iframe = (p.iframe - dt).max(0.0);
-        p.attack = (p.attack - dt).max(0.0);
-        p.hp = (p.hp + regen * dt).min(p.max_hp);
-
+        self.move_player(dt);
         self.weapons(dt);
         self.spawn(dt);
         self.move_enemies(dt);
@@ -321,6 +337,75 @@ impl Game {
         if self.pending > 0 && !self.choosing && !self.over {
             self.offer();
         }
+    }
+
+    /// Read this step's input: buffer new presses, aim, then move or roll.
+    fn move_player(&mut self, dt: f32) {
+        let inp = self.input;
+        let pressed = inp.buttons & !self.prev_buttons;
+        self.prev_buttons = inp.buttons;
+        let p = &mut self.player;
+        for (b, t) in p.buffer.iter_mut().enumerate() {
+            *t = if pressed & (1 << b) != 0 { BUFFER } else { (*t - dt).max(0.0) };
+        }
+        let (ax, ay) = (inp.ax, inp.ay);
+        let al = (ax * ax + ay * ay).sqrt();
+        if al.is_finite() && al > 1.0 {
+            p.aim = (ax / al, ay / al);
+            p.aim_at = (ax, ay);
+        }
+
+        let (mut mx, mut my) = (inp.mx, inp.my);
+        if !mx.is_finite() || !my.is_finite() {
+            mx = 0.0;
+            my = 0.0;
+        }
+        let mut len = (mx * mx + my * my).sqrt();
+        if len > 1.0 {
+            mx /= len;
+            my /= len;
+            len = 1.0;
+        }
+        let speed = 190.0 * (1.0 + 0.08 * self.up[U_SWIFT] as f32);
+        let regen = 0.4 * self.up[U_MENDING] as f32;
+        let p = &mut self.player;
+
+        // Start a buffered roll when the body is free: in the move direction, or the aim when standing still.
+        if p.act == Act::Free && p.buffer[3] > 0.0 {
+            p.buffer[3] = 0.0;
+            let (dx, dy) = if len > 0.15 { (mx / len, my / len) } else { p.aim };
+            p.act = Act::Roll { t: 0.0, dx, dy };
+        }
+
+        match p.act {
+            Act::Free => {
+                p.moving = len > 0.15;
+                if p.moving {
+                    p.x += mx * speed * dt;
+                    p.y += my * speed * dt;
+                    p.walk += dt;
+                }
+            }
+            Act::Roll { t, dx, dy } => {
+                p.moving = false;
+                if t < ROLL_TIME {
+                    // Fast at first, easing out, covering ROLL_DIST in all.
+                    let v = |t: f32| 2.0 * t / ROLL_TIME - (t / ROLL_TIME) * (t / ROLL_TIME);
+                    let d = ROLL_DIST * (v((t + dt).min(ROLL_TIME)) - v(t));
+                    p.x += dx * d;
+                    p.y += dy * d;
+                }
+                let t = t + dt;
+                p.act = if t >= ROLL_TIME + ROLL_RECOVER - 1e-4 { Act::Free } else { Act::Roll { t, dx, dy } };
+            }
+        }
+        let fx = if let Act::Roll { dx, .. } = p.act { dx } else { p.aim.0 };
+        if fx.abs() > 0.1 {
+            p.face = fx.signum();
+        }
+        p.iframe = (p.iframe - dt).max(0.0);
+        p.attack = (p.attack - dt).max(0.0);
+        p.hp = (p.hp + regen * dt).min(p.max_hp);
     }
 
     fn hurt_enemy(&mut self, i: usize, dmg: f32, kx: f32, ky: f32) {
@@ -593,7 +678,7 @@ impl Game {
             }
         }
         if let Some(dmg) = hit {
-            if self.player.iframe <= 0.0 {
+            if !self.player.invulnerable() {
                 self.player.hp -= dmg;
                 self.player.iframe = 0.8;
                 self.shake = 1.0;
@@ -1060,7 +1145,11 @@ impl Game {
     fn draw_player(&mut self) {
         let p = &self.player;
         let (px, py, f) = (p.x, p.y, p.face);
-        let (tilt, bob) = if p.moving {
+        let (tilt, bob) = if let Act::Roll { t, .. } = p.act {
+            // Tucked into a tumble while the roll moves.
+            let k = (t / ROLL_TIME).min(1.0);
+            (k * TAU * f, -6.0 * (k * TAU * 0.5).sin())
+        } else if p.moving {
             if ((p.walk * 9.0).floor() as i32) & 1 == 0 { (0.10, 0.0) } else { (-0.10, -3.0) }
         } else if ((self.anim * 2.0).floor() as i32) & 1 == 0 {
             (0.0, 0.0)
@@ -1126,7 +1215,7 @@ impl Game {
     /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,
     /// 7 choosing, 8..10 offered upgrade ids (-1 for none), 11 game over,
     /// 12 camera x, 13 camera y, 14 enemy count, 15 running,
-    /// 16..25 upgrade levels.
+    /// 16..25 upgrade levels, 26 player x, 27 player y.
     fn write_state(&mut self) {
         let p = &self.player;
         let s = &mut self.state;
@@ -1149,5 +1238,7 @@ impl Game {
         for id in 0..N_UPGRADES {
             s[16 + id] = self.up[id] as f32;
         }
+        s[26] = self.player.x;
+        s[27] = self.player.y;
     }
 }

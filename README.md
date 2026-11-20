@@ -31,6 +31,8 @@ npm run smoke
 | Action | Keyboard | Gamepad |
 | --- | --- | --- |
 | Move | WASD or arrow keys | Left stick or d-pad |
+| Aim | Mouse | Right stick |
+| Roll | Space | A or B |
 | Pause | Esc or P | Start |
 | Menu move | Arrow keys or WASD | Stick or d-pad |
 | Menu confirm | Enter or Space | A |
@@ -38,7 +40,7 @@ npm run smoke
 | Pick upgrade | 1, 2, 3 | Stick, then A |
 | Mute | M | |
 
-Attacks are automatic. The game pauses itself when the window loses focus.
+The roll is a short dodge with a moment of invulnerability. The game pauses itself when the window loses focus.
 
 ## How the paper style works
 

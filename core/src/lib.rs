@@ -65,10 +65,11 @@ pub extern "C" fn jr_set_waddle(kind: u32, tilt: f32, rate: f32) {
     g().set_waddle(kind as usize, tilt, rate);
 }
 
-/// Movement input, each axis in -1..1.
+/// Input for the next steps: movement (each axis in -1..1), the aim point as an offset from the player in world
+/// units (zero keeps the last aim), and the held buttons (`B_*` bits: skill 1, 2, 3, roll).
 #[no_mangle]
-pub extern "C" fn jr_input(mx: f32, my: f32) {
-    g().input = (mx, my);
+pub extern "C" fn jr_input(mx: f32, my: f32, aim_x: f32, aim_y: f32, buttons: u32) {
+    g().input = game::Input { mx, my, ax: aim_x, ay: aim_y, buttons };
 }
 
 /// Advance by a frame's time in seconds. The simulation runs in fixed 60 Hz steps (`game::STEP`) and carries
@@ -129,7 +130,7 @@ mod tests {
         let mut picks = 0;
         for frame in 0..(60 * 600) {
             if frame % 30 == 0 {
-                game.input = (rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+                game.input = game::Input::moving(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
             }
             game.update(1.0 / 60.0);
             assert!(game.inst.len() <= MAX_INST);
@@ -201,7 +202,7 @@ mod tests {
             // Inputs change on step boundaries, so different frame splits see the same input in every step.
             let k = (t * 2.0) as u32;
             let mut r = Rng(k * 2654435761 | 1);
-            game.input = (r.range(-1.0, 1.0), r.range(-1.0, 1.0));
+            game.input = game::Input { buttons: if k % 3 == 0 { B_ROLL } else { 0 }, ..game::Input::moving(r.range(-1.0, 1.0), r.range(-1.0, 1.0)) };
             game.update(dt);
             if game.choosing {
                 game.choose(0);
@@ -225,8 +226,8 @@ mod tests {
         game.running = true;
         let mut other = Game::new(4);
         other.running = true;
-        game.input = (0.7, -0.2);
-        other.input = (0.7, -0.2);
+        game.input = game::Input::moving(0.7, -0.2);
+        other.input = game::Input::moving(0.7, -0.2);
         for _ in 0..600 {
             game.update(1.0 / 30.0);
             other.update(1.0 / 60.0);

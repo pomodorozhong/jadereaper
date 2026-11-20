@@ -83,6 +83,26 @@ pub const EV_ELITE: f32 = 11.0;
 
 pub const STATE_FLOATS: usize = 32;
 
+// Button bits in `jr_input`.
+pub const B_SKILL1: u32 = 1;
+pub const B_SKILL2: u32 = 2;
+pub const B_SKILL3: u32 = 4;
+pub const B_ROLL: u32 = 8;
+pub const N_BUTTONS: usize = 4;
+
+/// How long a press is remembered, so one made just before an action can start still counts.
+pub const BUFFER: f32 = 0.12;
+
+// The roll: every character's one fixed move.
+/// How long the roll moves.
+pub const ROLL_TIME: f32 = 0.30;
+/// Invulnerable from the start of the roll for this long.
+pub const ROLL_INVULN: f32 = 0.25;
+/// After the roll moves, the player recovers this long before acting or rolling again.
+pub const ROLL_RECOVER: f32 = 0.14;
+/// Distance covered by one roll.
+pub const ROLL_DIST: f32 = 130.0;
+
 pub const INK: [f32; 3] = [0.17, 0.15, 0.13];
 
 /// Enemy archetype.
