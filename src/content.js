@@ -44,22 +44,287 @@ export const EVENT = {
   "WIN": 14
 };
 
+/** rigs, indexed by id. */
+export const RIGS = [
+  {
+    "id": 0,
+    "name": "player",
+    "parts": [
+      {
+        "part": "scythe",
+        "x": -15,
+        "y": -46,
+        "hw": 20,
+        "hh": 34,
+        "rot": -0.45,
+        "color": [
+          0.36,
+          0.66,
+          0.52
+        ],
+        "held": true
+      },
+      {
+        "part": "player_body",
+        "x": 0,
+        "y": -40,
+        "hw": 40,
+        "hh": 40,
+        "rot": 0,
+        "color": [
+          0.2,
+          0.42,
+          0.36
+        ],
+        "held": false
+      },
+      {
+        "part": "player_head",
+        "x": 2,
+        "y": -60,
+        "hw": 15,
+        "hh": 15,
+        "rot": 0,
+        "color": [
+          0.15,
+          0.33,
+          0.29
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -4,
+      "dy": 0,
+      "tilt": -0.12,
+      "sx": 1.05,
+      "sy": 0.95
+    },
+    "attack": {
+      "dx": 6,
+      "dy": 0,
+      "tilt": 0.15,
+      "sx": 0.95,
+      "sy": 1.05
+    },
+    "hurt": {
+      "dx": -6,
+      "dy": -2,
+      "tilt": -0.3,
+      "sx": 1.1,
+      "sy": 0.9
+    },
+    "roll": {
+      "dx": 0,
+      "dy": -6,
+      "tilt": 0,
+      "sx": 0.75,
+      "sy": 0.75
+    }
+  },
+  {
+    "id": 1,
+    "name": "blot",
+    "parts": [
+      {
+        "part": "blot",
+        "x": 0,
+        "y": -24,
+        "hw": 24,
+        "hh": 24,
+        "rot": 0,
+        "color": [
+          0.33,
+          0.31,
+          0.3
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -3,
+      "dy": -4,
+      "tilt": -0.25,
+      "sx": 1.12,
+      "sy": 0.88
+    },
+    "attack": {
+      "dx": 4,
+      "dy": 0,
+      "tilt": 0.3,
+      "sx": 0.9,
+      "sy": 1.1
+    },
+    "hurt": {
+      "dx": -4,
+      "dy": 0,
+      "tilt": -0.35,
+      "sx": 1.15,
+      "sy": 0.85
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
+  },
+  {
+    "id": 2,
+    "name": "wisp",
+    "parts": [
+      {
+        "part": "wisp",
+        "x": 0,
+        "y": -26,
+        "hw": 25,
+        "hh": 21,
+        "rot": 0,
+        "color": [
+          0.36,
+          0.4,
+          0.56
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -3,
+      "dy": -8,
+      "tilt": -0.2,
+      "sx": 0.85,
+      "sy": 1.15
+    },
+    "attack": {
+      "dx": 4,
+      "dy": 4,
+      "tilt": 0.25,
+      "sx": 1.2,
+      "sy": 0.85
+    },
+    "hurt": {
+      "dx": -2,
+      "dy": 0,
+      "tilt": -0.4,
+      "sx": 0.8,
+      "sy": 1.1
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
+  },
+  {
+    "id": 3,
+    "name": "brute",
+    "parts": [
+      {
+        "part": "brute",
+        "x": 0,
+        "y": -30,
+        "hw": 30,
+        "hh": 30,
+        "rot": 0,
+        "color": [
+          0.58,
+          0.31,
+          0.24
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -4,
+      "dy": -6,
+      "tilt": -0.25,
+      "sx": 1.1,
+      "sy": 0.9
+    },
+    "attack": {
+      "dx": 4,
+      "dy": 2,
+      "tilt": 0.3,
+      "sx": 1.15,
+      "sy": 0.85
+    },
+    "hurt": {
+      "dx": -4,
+      "dy": 0,
+      "tilt": -0.3,
+      "sx": 1.1,
+      "sy": 0.9
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
+  },
+  {
+    "id": 4,
+    "name": "elite",
+    "parts": [
+      {
+        "part": "elite",
+        "x": 0,
+        "y": -52,
+        "hw": 52,
+        "hh": 52,
+        "rot": 0,
+        "color": [
+          0.74,
+          0.25,
+          0.18
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -6,
+      "dy": -8,
+      "tilt": -0.22,
+      "sx": 1.08,
+      "sy": 0.92
+    },
+    "attack": {
+      "dx": 8,
+      "dy": 2,
+      "tilt": 0.28,
+      "sx": 1.12,
+      "sy": 0.9
+    },
+    "hurt": {
+      "dx": -6,
+      "dy": 0,
+      "tilt": -0.28,
+      "sx": 1.1,
+      "sy": 0.9
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
+  }
+];
+
 /** kinds, indexed by id. */
 export const KINDS = [
   {
     "id": 0,
     "name": "blot",
-    "part": "blot",
+    "rig": "blot",
     "hp": 30,
     "speed": 70,
     "r": 16,
-    "color": [
-      0.33,
-      0.31,
-      0.3
-    ],
-    "hw": 24,
-    "hh": 24,
     "rate": 2,
     "tilt": 2.25,
     "poise": 8,
@@ -71,17 +336,10 @@ export const KINDS = [
   {
     "id": 1,
     "name": "wisp",
-    "part": "wisp",
+    "rig": "wisp",
     "hp": 18,
     "speed": 110,
     "r": 12,
-    "color": [
-      0.36,
-      0.4,
-      0.56
-    ],
-    "hw": 25,
-    "hh": 21,
     "rate": 9,
     "tilt": 3.75,
     "poise": 5,
@@ -93,17 +351,10 @@ export const KINDS = [
   {
     "id": 2,
     "name": "brute",
-    "part": "brute",
+    "rig": "brute",
     "hp": 110,
     "speed": 48,
     "r": 26,
-    "color": [
-      0.58,
-      0.31,
-      0.24
-    ],
-    "hw": 30,
-    "hh": 30,
     "rate": 3,
     "tilt": 7.5,
     "poise": 40,
@@ -115,17 +366,10 @@ export const KINDS = [
   {
     "id": 3,
     "name": "elite",
-    "part": "elite",
+    "rig": "elite",
     "hp": 700,
     "speed": 60,
     "r": 44,
-    "color": [
-      0.74,
-      0.25,
-      0.18
-    ],
-    "hw": 52,
-    "hh": 52,
     "rate": 2.5,
     "tilt": 7.5,
     "poise": 120,

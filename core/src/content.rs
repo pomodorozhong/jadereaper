@@ -7,6 +7,7 @@ use crate::moves::{After, Move};
 use crate::skills::{AreaKind, SkillDef, SkillKind};
 use crate::cards::{Card, Effect, Element, Target};
 use crate::rooms::Room;
+use crate::rigs::{Pose, Rig, RigPart};
 
 // Part ids.
 pub const P_ELLIPSE: f32 = 0.0;
@@ -51,6 +52,26 @@ pub const EV_STRIKE: f32 = 12.0;
 pub const EV_CLEAR: f32 = 13.0;
 pub const EV_WIN: f32 = 14.0;
 
+// rigs
+pub const RG_PLAYER: usize = 0;
+pub const RG_BLOT: usize = 1;
+pub const RG_WISP: usize = 2;
+pub const RG_BRUTE: usize = 3;
+pub const RG_ELITE: usize = 4;
+pub const N_RIGS: usize = 5;
+pub const RIGS: [Rig; 5] = [
+    // player
+    Rig { parts: &[RigPart { part: P_SCYTHE, x: -15.0, y: -46.0, hw: 20.0, hh: 34.0, rot: -0.45, color: [0.36, 0.66, 0.52], held: true }, RigPart { part: P_PLAYER_BODY, x: 0.0, y: -40.0, hw: 40.0, hh: 40.0, rot: 0.0, color: [0.2, 0.42, 0.36], held: false }, RigPart { part: P_PLAYER_HEAD, x: 2.0, y: -60.0, hw: 15.0, hh: 15.0, rot: 0.0, color: [0.15, 0.33, 0.29], held: false }], windup: Pose { dx: -4.0, dy: 0.0, tilt: -0.12, sx: 1.05, sy: 0.95 }, attack: Pose { dx: 6.0, dy: 0.0, tilt: 0.15, sx: 0.95, sy: 1.05 }, hurt: Pose { dx: -6.0, dy: -2.0, tilt: -0.3, sx: 1.1, sy: 0.9 }, roll: Pose { dx: 0.0, dy: -6.0, tilt: 0.0, sx: 0.75, sy: 0.75 } },
+    // blot
+    Rig { parts: &[RigPart { part: P_BLOT, x: 0.0, y: -24.0, hw: 24.0, hh: 24.0, rot: 0.0, color: [0.33, 0.31, 0.3], held: false }], windup: Pose { dx: -3.0, dy: -4.0, tilt: -0.25, sx: 1.12, sy: 0.88 }, attack: Pose { dx: 4.0, dy: 0.0, tilt: 0.3, sx: 0.9, sy: 1.1 }, hurt: Pose { dx: -4.0, dy: 0.0, tilt: -0.35, sx: 1.15, sy: 0.85 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
+    // wisp
+    Rig { parts: &[RigPart { part: P_WISP, x: 0.0, y: -26.0, hw: 25.0, hh: 21.0, rot: 0.0, color: [0.36, 0.4, 0.56], held: false }], windup: Pose { dx: -3.0, dy: -8.0, tilt: -0.2, sx: 0.85, sy: 1.15 }, attack: Pose { dx: 4.0, dy: 4.0, tilt: 0.25, sx: 1.2, sy: 0.85 }, hurt: Pose { dx: -2.0, dy: 0.0, tilt: -0.4, sx: 0.8, sy: 1.1 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
+    // brute
+    Rig { parts: &[RigPart { part: P_BRUTE, x: 0.0, y: -30.0, hw: 30.0, hh: 30.0, rot: 0.0, color: [0.58, 0.31, 0.24], held: false }], windup: Pose { dx: -4.0, dy: -6.0, tilt: -0.25, sx: 1.1, sy: 0.9 }, attack: Pose { dx: 4.0, dy: 2.0, tilt: 0.3, sx: 1.15, sy: 0.85 }, hurt: Pose { dx: -4.0, dy: 0.0, tilt: -0.3, sx: 1.1, sy: 0.9 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
+    // elite
+    Rig { parts: &[RigPart { part: P_ELITE, x: 0.0, y: -52.0, hw: 52.0, hh: 52.0, rot: 0.0, color: [0.74, 0.25, 0.18], held: false }], windup: Pose { dx: -6.0, dy: -8.0, tilt: -0.22, sx: 1.08, sy: 0.92 }, attack: Pose { dx: 8.0, dy: 2.0, tilt: 0.28, sx: 1.12, sy: 0.9 }, hurt: Pose { dx: -6.0, dy: 0.0, tilt: -0.28, sx: 1.1, sy: 0.9 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
+];
+
 // kinds
 pub const K_BLOT: u8 = 0;
 pub const K_WISP: u8 = 1;
@@ -59,13 +80,13 @@ pub const K_ELITE: u8 = 3;
 pub const N_KINDS: usize = 4;
 pub const KINDS: [Kind; 4] = [
     // blot
-    Kind { part: P_BLOT, hp: 30.0, speed: 70.0, r: 16.0, color: [0.33, 0.31, 0.3], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
+    Kind { rig: RG_BLOT, hp: 30.0, speed: 70.0, r: 16.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
     // wisp
-    Kind { part: P_WISP, hp: 18.0, speed: 110.0, r: 12.0, color: [0.36, 0.4, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0, boss: false, moves: &[M_WISP_SHOT] },
+    Kind { rig: RG_WISP, hp: 18.0, speed: 110.0, r: 12.0, rate: 9.0, tilt: 3.75, poise: 5.0, boss: false, moves: &[M_WISP_SHOT] },
     // brute
-    Kind { part: P_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0, boss: false, moves: &[M_BRUTE_SLAM] },
+    Kind { rig: RG_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, rate: 3.0, tilt: 7.5, poise: 40.0, boss: false, moves: &[M_BRUTE_SLAM] },
     // elite
-    Kind { part: P_ELITE, hp: 700.0, speed: 60.0, r: 44.0, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
+    Kind { rig: RG_ELITE, hp: 700.0, speed: 60.0, r: 44.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
 ];
 
 // skills

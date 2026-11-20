@@ -63,10 +63,8 @@ pub struct Kind {
     pub speed: f32,
     /// Collision radius.
     pub r: f32,
-    pub part: f32,
-    pub color: [f32; 3],
-    pub hw: f32,
-    pub hh: f32,
+    /// Its puppet (an id into `RIGS`).
+    pub rig: usize,
     /// Puppet pose changes per second.
     pub rate: f32,
     /// How far the puppet tilts each way as it waddles, in degrees.

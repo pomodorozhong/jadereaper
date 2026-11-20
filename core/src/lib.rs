@@ -19,6 +19,7 @@ pub mod game;
 pub mod geom;
 pub mod moves;
 pub mod player;
+pub mod rigs;
 pub mod rooms;
 pub mod skills;
 

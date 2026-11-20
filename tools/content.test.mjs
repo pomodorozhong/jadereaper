@@ -45,10 +45,14 @@ test('rejects a duplicate event', () => {
 test('rejects references to undefined names', () => {
   const c = copy();
   c.kinds[0].moves = ['no_such_move'];
-  c.kinds[1].part = 'no_such_part';
+  c.kinds[1].rig = 'no_such_rig';
+  c.rigs[0].parts[0].part = 'no_such_part';
+  c.cards[0].target = 'no_such_skill';
   const problems = validate(c);
   assert.ok(problems.some((p) => p.includes('moves "no_such_move", which is not defined')));
-  assert.ok(problems.some((p) => p.includes('part "no_such_part", which is not defined')));
+  assert.ok(problems.some((p) => p.includes('rigs "no_such_rig", which is not defined')));
+  assert.ok(problems.some((p) => p.includes('with a defined part name')));
+  assert.ok(problems.some((p) => p.includes('"target" should be any, character, roll or a skill name')));
 });
 
 test('rejects unknown and missing fields, and bad values', () => {

@@ -35,13 +35,17 @@ const TARGETS = { any: 'Target::AnySkill', character: 'Target::Character', roll:
  * The tables in game.json besides parts and events. `fields` maps each field to its type:
  * f32, u8, bool, str (JavaScript only), f32x2, f32x3, part (a part name), ref:<table> or refs:<table> (names in
  * another table), waves:<table> (a list of lists of names), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
- * card's target), after (a move's after-effect).
+ * card's target), after (a move's after-effect), pose (a rig pose) and rigparts (a rig's parts).
  */
 const TABLES = {
+  rigs: {
+    rust: 'Rig', prefix: 'RG_', id: 'usize',
+    fields: { parts: 'rigparts', windup: 'pose', attack: 'pose', hurt: 'pose', roll: 'pose' },
+  },
   kinds: {
     rust: 'Kind', prefix: 'K_', id: 'u8',
     fields: {
-      part: 'part', hp: 'f32', speed: 'f32', r: 'f32', color: 'f32x3', hw: 'f32', hh: 'f32', rate: 'f32',
+      rig: 'ref:rigs', hp: 'f32', speed: 'f32', r: 'f32', rate: 'f32',
       tilt: 'f32', poise: 'f32', boss: 'bool', moves: 'refs:moves',
     },
   },
@@ -145,6 +149,18 @@ export function validate(content) {
           const target = type.slice(6);
           if (!Array.isArray(v) || !v.length || !v.every((w) => Array.isArray(w) && w.length)) bad(`a list of waves, each a list of ${target} names`);
           else for (const w of v) for (const r of w) if (!names[target].has(r)) problems.push(`${where}: "${field}" names ${target} "${r}", which is not defined`);
+        } else if (type === 'pose') {
+          const keys = ['dx', 'dy', 'tilt', 'sx', 'sy'];
+          if (!v || typeof v !== 'object' || Object.keys(v).length !== keys.length || !keys.every((k) => isNum(v[k]))) bad(`{ ${keys.join(', ')} } numbers`);
+        } else if (type === 'rigparts') {
+          const keys = { part: 'part', x: 'num', y: 'num', hw: 'num', hh: 'num', rot: 'num', color: 'rgb', held: 'bool' };
+          if (!Array.isArray(v) || !v.length) bad('a list of parts');
+          else for (const [i, rp] of v.entries()) {
+            const ok = rp && typeof rp === 'object' && Object.keys(rp).length === Object.keys(keys).length
+              && Object.entries(keys).every(([k, t]) => (t === 'num' ? isNum(rp[k]) : t === 'bool' ? typeof rp[k] === 'boolean'
+                : t === 'rgb' ? Array.isArray(rp[k]) && rp[k].length === 3 && rp[k].every(isNum) : names.parts.has(rp[k])));
+            if (!ok) problems.push(`${where}: part ${i} needs ${Object.keys(keys).join(', ')}, with a defined part name`);
+          }
         } else if (type === 'target') {
           if (!(v in TARGETS) && !names.skills.has(v)) problems.push(`${where}: "${field}" should be any, character, roll or a skill name, got ${JSON.stringify(v)}`);
         } else if (type.startsWith('opt:')) {
@@ -177,6 +193,10 @@ function rustValue(type, v) {
     const prefix = TABLES[type.slice(6)].prefix;
     return `&[${v.map((w) => `&[${w.map((r) => `${prefix}${upper(r)}`).join(', ')}]`).join(', ')}]`;
   }
+  if (type === 'pose') return `Pose { dx: ${f32(v.dx)}, dy: ${f32(v.dy)}, tilt: ${f32(v.tilt)}, sx: ${f32(v.sx)}, sy: ${f32(v.sy)} }`;
+  if (type === 'rigparts') {
+    return `&[${v.map((p) => `RigPart { part: P_${upper(p.part)}, x: ${f32(p.x)}, y: ${f32(p.y)}, hw: ${f32(p.hw)}, hh: ${f32(p.hh)}, rot: ${f32(p.rot)}, color: [${p.color.map(f32).join(', ')}], held: ${p.held} }`).join(', ')}]`;
+  }
   if (type === 'target') return TARGETS[v] ?? `Target::Skill(SK_${upper(v)})`;
   if (type.startsWith('opt:')) return v === 'none' ? '0' : `${TABLES[type.slice(4)].prefix}${upper(v)} + 1`;
   if (type === 'after') {
@@ -195,7 +215,7 @@ export function generate(content) {
   if (problems.length) throw new Error(`${SOURCE} has problems:\n  ${problems.join('\n  ')}`);
 
   // Rust.
-  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', 'use crate::rooms::Room;', ''];
+  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', 'use crate::rooms::Room;', 'use crate::rigs::{Pose, Rig, RigPart};', ''];
   rs.push('// Part ids.');
   for (const p of content.parts) rs.push(`pub const P_${upper(p.name)}: f32 = ${f32(p.id)};`);
   rs.push(`/// Every defined part id.`, `pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(', ')}];`);
