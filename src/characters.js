@@ -16,6 +16,8 @@ export const BAKE = {
   poses: 8,         // boil poses per part
   texels: 6,        // atlas pixels per world unit, so every character is equally sharp
 };
+import { boilSeed, curveThrough, jitter } from './boil.js';
+
 const INK = '#2b2622';
 const PAPER = '#fffdf6';
 
@@ -24,42 +26,12 @@ const BOX = {
   player_body: [80, 80], scythe: [40, 68], blot: [48, 48], wisp: [50, 42], brute: [60, 60], elite: [104, 104],
 };
 
-// Same jitter as tools/lightbox.html, so the game boils like the Lightbox preview.
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function jitter(pts, closed, seed, amp) {
-  if (!amp) return pts;
-  const r = rng(seed), len = [0];
-  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  const T = len[len.length - 1] || 1, ox = (r() - 0.5) * amp, oy = (r() - 0.5) * amp, waves = [];
-  for (let k = 0; k < 2; k++) {
-    const lam = 20 + r() * 50;
-    waves.push({ fr: closed ? (2 * Math.PI * Math.max(1, Math.round(T / lam))) / T : (2 * Math.PI) / lam, px: r() * 6.283, py: r() * 6.283, w: k ? 0.35 : 0.65 });
-  }
-  return pts.map(([x, y], i) => {
-    let dx = 0, dy = 0;
-    for (const v of waves) { dx += v.w * Math.sin(len[i] * v.fr + v.px); dy += v.w * Math.sin(len[i] * v.fr + v.py); }
-    return [x + ox + dx * amp * 0.8, y + oy + dy * amp * 0.8];
-  });
-}
-/** Trace a smooth curve through the points (uniform Catmull-Rom as cubic beziers), like the Lightbox's bez(). */
+/** Trace a smooth curve through the points onto the canvas path, as the Lightbox draws it. */
 function curve(ctx, p, closed) {
-  if (p.length === 2) { ctx.moveTo(...p[0]); ctx.lineTo(...p[1]); return; }
-  let e;
-  if (closed) { p = p.slice(0, -1); e = [p[p.length - 1], ...p, p[0], p[1]]; } else e = [p[0], ...p, p[p.length - 1]];
-  ctx.moveTo(...e[1]);
-  for (let i = 1; i < e.length - 2; i++) {
-    const [a, b, c, q] = [e[i - 1], e[i], e[i + 1], e[i + 2]];
-    ctx.bezierCurveTo(b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6, c[0] - (q[0] - b[0]) / 6, c[1] - (q[1] - b[1]) / 6, c[0], c[1]);
-  }
+  const { start, line, segs } = curveThrough(p, closed);
+  ctx.moveTo(...start);
+  if (line) { ctx.lineTo(...line); return; }
+  for (const sg of segs) ctx.bezierCurveTo(...sg);
   if (closed) ctx.closePath();
 }
 
@@ -91,7 +63,7 @@ function bakePose(part, pi, pose, [boxW, boxH], bake) {
   canvas.height = Math.round(boxH * bake.texels);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(s, 0, 0, s, ((box.bw - box.w) / 2 - box.x0) * s, (box.bh - box.h - box.y0) * s);
-  const seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
+  const seed = (kind, i) => boilSeed(kind, i, pose, pi);
 
   ctx.beginPath();
   part.paper.forEach((l, i) => curve(ctx, jitter(l, true, seed(1, i), amp * 0.6), true));
