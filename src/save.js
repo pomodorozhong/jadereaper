@@ -11,6 +11,7 @@ const DEFAULTS = {
   totalKills: 0,
   volume: 0.6,
   muted: false,
+  reduceMotion: false, // no camera shake or hit-stop
   lang: null, // null: use DEFAULT_LANG from i18n.js
 };
 

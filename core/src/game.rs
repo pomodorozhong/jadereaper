@@ -17,6 +17,10 @@ pub(crate) const CELL: f32 = 96.0;
 pub(crate) const BUCKETS: usize = 4096;
 /// The simulation always advances in steps of this length, so a seed and its inputs replay the same run.
 pub const STEP: f32 = 1.0 / 60.0;
+/// How far the camera leads towards the aim, as a share of the view's short side.
+const CAM_LEAD: f32 = 0.15;
+/// The widest the camera goes to keep a boss in view.
+const CAM_MAX_ZOOM: f32 = 1.45;
 /// Most steps run in one update. A longer stall (a background tab, a debugger) is dropped, not caught up.
 const MAX_STEPS: u32 = 8;
 
@@ -127,6 +131,14 @@ pub struct Game {
     /// Turns off camera shake and hit-stop.
     pub reduce_motion: bool,
     pub cam: (f32, f32),
+    /// The camera's resting point before shake.
+    cam_at: (f32, f32),
+    /// How much wider than normal the view is drawn (1 or more); the host scales its view by it.
+    pub zoom: f32,
+    /// A point the camera keeps in view along with the player, such as a boss.
+    pub focus: Option<(f32, f32)>,
+    /// The arena's edges (x0, y0, x1, y1), when the fight is in one; the camera stays inside.
+    pub arena: Option<[f32; 4]>,
     /// Time not yet simulated, below one `STEP`.
     acc: f32,
     /// Fixed steps run since the start.
@@ -188,6 +200,10 @@ impl Game {
             hitstop: 0.0,
             reduce_motion: false,
             cam: (0.0, -30.0),
+            cam_at: (0.0, 0.0),
+            zoom: 1.0,
+            focus: None,
+            arena: None,
             acc: 0.0,
             steps: 0,
             auto_spawn: true,
@@ -232,16 +248,48 @@ impl Game {
         } else {
             self.acc = 0.0;
         }
-        // Camera follows the player, with a decaying shake.
+        self.move_camera(dt);
+        self.build();
+        self.write_state();
+    }
+
+    /// The camera leads towards the aim, keeps a focus point (a boss) in view by widening, stays inside the
+    /// arena, and shakes after big hits unless motion is reduced.
+    fn move_camera(&mut self, dt: f32) {
+        let p = &self.player;
+        let short = 2.0 * self.view_w.min(self.view_h);
+        let lead = CAM_LEAD * short;
+        let (mut tx, mut ty) = (p.x + p.aim.0 * lead, p.y - 30.0 + p.aim.1 * lead);
+        let mut zoom = 1.0;
+        if let Some((fx, fy)) = self.focus {
+            // Centre between the player and the focus, and widen until both fit with a margin.
+            tx = (p.x + fx) * 0.5;
+            ty = (p.y + fy) * 0.5 - 30.0;
+            let (hw, hh) = (self.view_w / self.zoom, self.view_h / self.zoom);
+            let need = ((p.x - fx).abs() * 0.5 + 120.0) / hw;
+            let need = need.max(((p.y - fy).abs() * 0.5 + 140.0) / hh);
+            zoom = need.clamp(1.0, CAM_MAX_ZOOM);
+        }
+        let k = 1.0 - (-dt * 8.0).exp();
+        self.zoom += (zoom - self.zoom) * (1.0 - (-dt * 2.0).exp());
+        if self.steps == 0 {
+            self.cam_at = (tx, ty);
+        } else {
+            self.cam_at.0 += (tx - self.cam_at.0) * k;
+            self.cam_at.1 += (ty - self.cam_at.1) * k;
+        }
+        if let Some([x0, y0, x1, y1]) = self.arena {
+            // Keep the view inside the arena, or centred on it when the arena is smaller than the view.
+            let (hw, hh) = (self.view_w, self.view_h);
+            let m = 60.0;
+            let clamp = |v: f32, lo: f32, hi: f32| if lo > hi { (lo + hi) * 0.5 } else { v.clamp(lo, hi) };
+            self.cam_at.0 = clamp(self.cam_at.0, x0 - m + hw, x1 + m - hw);
+            self.cam_at.1 = clamp(self.cam_at.1, y0 - m - 40.0 + hh, y1 + m - hh);
+        }
         self.shake = (self.shake - dt * 3.0).max(0.0);
         let s = if self.reduce_motion { 0.0 } else { self.shake * self.shake * 9.0 };
         let q = (self.anim * 30.0).floor();
-        self.cam = (
-            self.player.x + s * (q * 12.9898).sin(),
-            self.player.y - 30.0 + s * (q * 78.233).cos(),
-        );
-        self.build();
-        self.write_state();
+        self.cam = (self.cam_at.0 + s * (q * 12.9898).sin(), self.cam_at.1 + s * (q * 78.233).cos());
     }
 
     pub(crate) fn event(&mut self, kind: f32, x: f32, y: f32, v: f32) {
@@ -443,7 +491,7 @@ impl Game {
     /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,
     /// 7 choosing, 8..10 offered upgrade ids (-1 for none), 11 game over,
     /// 12 camera x, 13 camera y, 14 enemy count, 15 running,
-    /// 16..20 upgrade levels, 26 player x, 27 player y, 28..30 loadout skill ids.
+    /// 16..20 upgrade levels, 26 player x, 27 player y, 28..30 loadout skill ids, 31 camera zoom.
     fn write_state(&mut self) {
         let p = &self.player;
         let s = &mut self.state;
@@ -471,5 +519,6 @@ impl Game {
         for c in 0..3 {
             s[28 + c] = self.loadout[c] as f32;
         }
+        s[31] = self.zoom;
     }
 }

@@ -29,12 +29,13 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle) = (g().boil_fps, g().boil_poses, g().draw_scale, g().waddle);
+    let (fps, poses, scale, waddle, calm) = (g().boil_fps, g().boil_poses, g().draw_scale, g().waddle, g().reduce_motion);
     *g() = Game::new(seed);
     g().set_view(w, h);
     g().set_boil(fps, poses);
     g().draw_scale = scale;
     g().waddle = waddle;
+    g().reduce_motion = calm;
 }
 
 /// Start a new run.
@@ -48,6 +49,12 @@ pub extern "C" fn jr_start(seed: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_view(w: f32, h: f32) {
     g().set_view(w * 0.5, h * 0.5);
+}
+
+/// Reduce motion: turns off camera shake and hit-stop.
+#[no_mangle]
+pub extern "C" fn jr_set_reduce_motion(on: u32) {
+    g().reduce_motion = on != 0;
 }
 
 /// Line boil of the traced characters: poses per second, and poses per part (1 to 8).

@@ -129,6 +129,7 @@ async function boot() {
 
   // The core picks each traced part's line boil pose, so it needs the rate and the number of baked poses.
   core.jr_set_boil(LOOK.boilFps, BAKE.poses);
+  core.jr_set_reduce_motion(save.reduceMotion ? 1 : 0);
   SIZE_ORDER.forEach((who, i) => core.jr_set_draw_scale(i, SIZE[who]));
   if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer, core);
 
@@ -186,6 +187,11 @@ async function boot() {
         ui.records(save);
         break;
       case 'mute': audio.setMuted(!audio.muted); saveSettings(); break;
+      case 'motion':
+        save.reduceMotion = !save.reduceMotion;
+        core.jr_set_reduce_motion(save.reduceMotion ? 1 : 0);
+        saveSettings();
+        break;
       case 'vol-up': audio.setVolume(audio.volume + 0.1); saveSettings(); audio.play('confirm'); break;
       case 'vol-down': audio.setVolume(audio.volume - 0.1); saveSettings(); audio.play('confirm'); break;
       case 'clear-save':
@@ -259,7 +265,7 @@ async function boot() {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
 
-    const view = renderer.resize();
+    const view = renderer.resize(readState()[STATE.ZOOM]);
     core.jr_set_view(view.w, view.h);
 
     const pad = input.poll(dt);

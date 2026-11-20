@@ -174,7 +174,8 @@ export function createUI({ onAction }) {
       : '';
   }
 
-  function settings({ volume, muted }) {
+  function settings({ volume, muted, reduceMotion }) {
+    setText($('motionBtn'), t(reduceMotion ? 'settings.motionOff' : 'settings.motionOn'));
     const on = Math.round(volume * 10);
     $('volPips').replaceChildren(...Array.from({ length: 10 }, (_, i) => {
       const pip = document.createElement('i');
