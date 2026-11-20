@@ -44,7 +44,7 @@ Attacks are automatic. The game pauses itself when the window loses focus.
 
 Characters are puppets made of rigid paper parts, not sprite sheets. The reaper is a robe, a hood and a scythe. A walk cycle is two poses: tilt one way, then tilt the other with a small hop. Enemies do the same, each on its own offset. This needs one still image per part and no animation frames.
 
-The renderer adds the rest to every part: an ink outline, a white cutout margin, a drop shadow, paper grain, and an outline that "boils" at 8 frames per second like stop-motion. Parts are drawn in code as signed distance shapes, and any part can be swapped for your own PNG. See [assets/parts/README.md](assets/parts/README.md).
+The renderer adds the rest to every part: an ink outline, a white cutout margin, a drop shadow and paper grain. Hand-traced characters get a per-stroke line boil like stop-motion, 4 poses a second; see [docs/character-art-pipeline.md](docs/character-art-pipeline.md). Parts are drawn in code as signed distance shapes, and any part can be swapped for your own PNG. See [assets/parts/README.md](assets/parts/README.md).
 
 The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, a hand-written font and a vermilion seal, using two SVG filters defined in `index.html`.
 
@@ -59,6 +59,8 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 | `wasm/` | Built core |
 | `src/main.js` | Loads the core, frame loop, game modes |
 | `src/renderer.js` | WebGPU setup, part image atlas, drawing |
+| `src/characters.js` | Bakes the hand-traced characters into part images |
+| `src/boil.js` | The line boil shared with the Lightbox |
 | `src/shader.wgsl` | Paper shapes, cutout shading, paper background |
 | `src/input.js` | Keyboard and gamepad |
 | `src/audio.js` | Synthesized sound effects (no audio files) |

@@ -14,16 +14,23 @@ pub struct Inst {
     pub hw: f32,
     pub hh: f32,
     pub rot: f32,
+    /// Part id plus `PART_SLOTS` times the line boil pose (see `Game::put`).
     pub part: f32,
     /// 0..1, flashes the part white when hit.
     pub flash: f32,
-    /// Per-instance random value, used for outline wobble and shape variety.
+    /// Per-instance random value, used for shape variety and the line boil pose.
     pub seed: f32,
     pub color: [f32; 4],
 }
 
 pub const INST_FLOATS: usize = 12;
 pub const MAX_INST: usize = 4096;
+
+/// Part ids run below this. The instance's part is `id + PART_SLOTS * pose`, so the renderer can pick each
+/// pose's image of a traced part while the shader still finds the shape from `part % PART_SLOTS`.
+pub const PART_SLOTS: f32 = 32.0;
+/// Most line boil poses a part can have; the rect table holds `PART_SLOTS * MAX_POSES` entries.
+pub const MAX_POSES: u32 = 8;
 
 // Part ids.
 pub const P_ELLIPSE: f32 = 0.0;
@@ -44,6 +51,8 @@ pub const P_HEART: f32 = 14.0;
 pub const P_RING: f32 = 15.0;
 pub const P_SCRAP: f32 = 16.0;
 pub const P_SHADOW: f32 = 18.0;
+/// The elite is a big brute, with its own part so a traced drawing keeps its line width at that size.
+pub const P_ELITE: f32 = 19.0;
 
 // Upgrade ids.
 pub const U_SCYTHE: usize = 0;
@@ -90,6 +99,8 @@ pub struct Kind {
     pub hh: f32,
     /// Puppet pose changes per second.
     pub rate: f32,
+    /// How far the puppet tilts each way as it waddles, in degrees.
+    pub tilt: f32,
 }
 
 pub const K_BLOT: u8 = 0;
@@ -98,10 +109,10 @@ pub const K_BRUTE: u8 = 2;
 pub const K_ELITE: u8 = 3;
 
 pub const KINDS: [Kind; 4] = [
-    Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 18.0, hh: 18.0, rate: 5.0 },
-    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 22.0, hh: 13.0, rate: 9.0 },
-    Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0 },
-    Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_BRUTE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5 },
+    Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25 },
+    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75 },
+    Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5 },
+    Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_ELITE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5 },
 ];
 
 pub struct Rng(pub u32);

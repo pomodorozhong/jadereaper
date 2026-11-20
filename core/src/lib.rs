@@ -24,8 +24,12 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
+    let (fps, poses, scale, waddle) = (g().boil_fps, g().boil_poses, g().draw_scale, g().waddle);
     *g() = Game::new(seed);
     g().set_view(w, h);
+    g().set_boil(fps, poses);
+    g().draw_scale = scale;
+    g().waddle = waddle;
 }
 
 /// Start a new run.
@@ -39,6 +43,26 @@ pub extern "C" fn jr_start(seed: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_view(w: f32, h: f32) {
     g().set_view(w * 0.5, h * 0.5);
+}
+
+/// Line boil of the traced characters: poses per second, and poses per part (1 to 8).
+#[no_mangle]
+pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
+    g().set_boil(fps, poses);
+}
+
+/// How big a character is drawn: 0 is the player, 1 + kind an enemy kind (blot, wisp, brute, elite).
+/// Only the drawing changes, not the hit area.
+#[no_mangle]
+pub extern "C" fn jr_set_draw_scale(who: u32, scale: f32) {
+    g().set_draw_scale(who as usize, scale);
+}
+
+/// An enemy kind's waddle (blot, wisp, brute, elite): how far it tilts each way in radians, and how often it
+/// changes pose per second.
+#[no_mangle]
+pub extern "C" fn jr_set_waddle(kind: u32, tilt: f32, rate: f32) {
+    g().set_waddle(kind as usize, tilt, rate);
 }
 
 /// Movement input, each axis in -1..1.
@@ -116,6 +140,46 @@ mod tests {
         }
         assert!(picks > 5, "expected level ups, got {picks}");
         assert!(game.kills > 50, "expected kills, got {}", game.kills);
+    }
+
+    #[test]
+    fn boil_poses_differ_between_instances_and_stay_in_range() {
+        let mut game = Game::new(5);
+        game.set_view(640.0, 360.0);
+        game.running = true;
+        for _ in 0..(60 * 30) {
+            game.update(1.0 / 60.0);
+            if game.choosing {
+                game.choose(0);
+            }
+        }
+        let poses = |g: &Game| g.inst.iter().map(|i| (i.part / PART_SLOTS).floor() as u32).collect::<Vec<_>>();
+        let now = poses(&game);
+        assert!(now.iter().all(|&p| p < MAX_POSES));
+        let first = now[0];
+        assert!(now.iter().any(|&p| p != first), "every instance shows the same pose");
+        for i in &game.inst {
+            assert!(i.part % PART_SLOTS < 20.0, "part id {} lost its base id", i.part);
+        }
+
+        game.set_boil(4.0, 1);
+        game.update(1.0 / 60.0);
+        assert!(poses(&game).iter().all(|&p| p == 0));
+    }
+
+    #[test]
+    fn draw_scale_changes_only_the_drawing() {
+        let robe = |g: &Game| *g.inst.iter().find(|i| i.part % PART_SLOTS == P_ROBE).unwrap();
+        let mut game = Game::new(9);
+        game.set_view(640.0, 360.0);
+        game.update(1.0 / 60.0);
+        let before = robe(&game);
+        game.set_draw_scale(0, 2.0);
+        game.update(0.0);
+        let after = robe(&game);
+        assert_eq!(after.hw.abs(), before.hw.abs() * 2.0);
+        assert_eq!(after.hh, before.hh * 2.0);
+        game.set_draw_scale(9, 2.0); // out of range is ignored
     }
 
     #[test]

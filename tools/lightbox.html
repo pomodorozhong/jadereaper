@@ -95,8 +95,9 @@ main.panning,main.panning #view canvas{cursor:grab}
     <div id="zoombar" hidden><button id="zOut" title="Zoom out (-)">−</button><button id="zFit" title="Fit to the view (0)">100%</button><button id="zIn" title="Zoom in (=)">+</button></div>
   </main>
 </div>
-<script>
-'use strict';
+<script type="module">
+// The line boil is shared with the game (decision 0004).
+import { boilSeed, curveThrough, jitter } from '../src/boil.js';
 // ====================================================================
 // Settings. Each parameter knows which pipeline stage it invalidates.
 // Stages: 0 source, 1 paper, 2 ink, 3 fill, 4 solid, 5 strokes, 6 parts (7 = view only)
@@ -1120,31 +1121,18 @@ function invalidate(stage) { valid = Math.min(valid, stage - 1); }
 // SVG output and boil
 // ====================================================================
 function bez(p, closed) {
-  if (p.length === 2) return `M${p[0][0]} ${p[0][1]}L${p[1][0]} ${p[1][1]}`;
-  let e;
-  if (closed) { p = p.slice(0, -1); e = [p[p.length - 1], ...p, p[0], p[1]]; } else e = [p[0], ...p, p[p.length - 1]];
   const f = (v) => +v.toFixed(1);
-  let d = `M${f(e[1][0])} ${f(e[1][1])}`;
-  for (let i = 1; i < e.length - 2; i++) {
-    const [a, b, c, q] = [e[i - 1], e[i], e[i + 1], e[i + 2]];
-    d += `C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (q[0] - b[0]) / 6)} ${f(c[1] - (q[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`;
-  }
+  const { start, line, segs } = curveThrough(p, closed);
+  if (line) return `M${start[0]} ${start[1]}L${line[0]} ${line[1]}`;
+  let d = `M${f(start[0])} ${f(start[1])}`;
+  for (const sg of segs) d += `C${sg.map(f).join(' ')}`;
   return closed ? d + 'Z' : d;
-}
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function jitter(pts, closed, seed, amp) {
-  if (!amp) return pts;
-  const r = rng(seed), len = [0];
-  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  const T = len[len.length - 1] || 1, ox = (r() - 0.5) * amp, oy = (r() - 0.5) * amp, waves = [];
-  for (let k = 0; k < 2; k++) { const lam = 20 + r() * 50; waves.push({ fr: closed ? (2 * Math.PI * Math.max(1, Math.round(T / lam))) / T : (2 * Math.PI) / lam, px: r() * 6.283, py: r() * 6.283, w: k ? 0.35 : 0.65 }); }
-  return pts.map(([x, y], i) => { let dx = 0, dy = 0; for (const v of waves) { dx += v.w * Math.sin(len[i] * v.fr + v.px); dy += v.w * Math.sin(len[i] * v.fr + v.py); } return [x + ox + dx * amp * 0.8, y + oy + dy * amp * 0.8]; });
 }
 const INK = '#2b2622', PAPER = '#fffdf6';
 // opts: pi (part index, so parts boil apart), tint and tintOpacity (a coloured wash over the paper),
 // paperOpacity, strokeColor. The defaults give the plain drawing.
 function svgMarkup(fig, pose, amp, standalone, opts = {}) {
-  const pi = opts.pi || 0, seed = (kind, i) => (kind * 104729 + i * 31 + pose * 15485863 + pi * 7919) | 0;
+  const pi = opts.pi || 0, seed = (kind, i) => boilSeed(kind, i, pose, pi);
   const paper = fig.paper.map((l, i) => bez(jitter(l, true, seed(1, i), amp * 0.6), true)).join('');
   const solid = fig.solid.map((l, i) => bez(jitter(l, true, seed(2, i), amp * 0.6), true)).join('');
   const strokes = fig.strokes.map((s, i) => {

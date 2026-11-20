@@ -13,11 +13,20 @@ struct Globals {
   time: f32,
   qtime: f32,    // time stepped to the stop-motion frame rate
   px: f32,       // world units per device pixel
-  pad: f32,
+  margin: f32,   // white cutout margin, world units
+  pad: vec2f,
+  shadow: vec2f, // drop shadow offset, world units
+  shadow_a: f32, // drop shadow darkness
+  wobble: f32,   // outline wobble on cutout parts, world units
 };
 
+// The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
+// line boil pose. Parts without poses have the same rect in every pose slot.
+const PART_SLOTS = 32;
+const RECTS = 256;      // PART_SLOTS * MAX_POSES
+
 struct PartRects {
-  uv: array<vec4f, 32>,   // atlas rect per part id (x, y, w, h); w = 0 means no image
+  uv: array<vec4f, RECTS>,   // atlas rect per part id and pose (x, y, w, h); w = 0 means no image
 };
 
 @group(0) @binding(0) var<uniform> G: Globals;
@@ -28,8 +37,7 @@ struct PartRects {
 const INK = vec3f(0.17, 0.15, 0.13);
 const PAPER = vec3f(0.965, 0.94, 0.875);
 const PAD = 10.0;        // extra quad size for margin and shadow, world units
-const MARGIN = 3.5;      // white cutout margin
-const SHADOW_OFF = vec2f(4.0, 6.0);
+// The cutout margin, shadow offset and darkness, and wobble come from G, so the ?debug panel can tune them.
 
 fn hash21(p: vec2f) -> f32 {
   var q = fract(p * vec2f(123.34, 456.21));
@@ -128,7 +136,7 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
       s.d = min(body, wing) * m;
       s.light = dab(min(length(q - vec2f(-0.14, -0.15)), length(q - vec2f(0.18, -0.15))) - 0.1);
     }
-    case 6 { // brute: horned block
+    case 6, 19 { // brute (19: elite, the same shape drawn bigger): horned block
       let body = sdBox(q - vec2f(0.0, 0.15), vec2f(0.5, 0.45)) - 0.3;
       let a = vec2f(abs(q.x), q.y);
       let horn = sdSeg(a, vec2f(0.4, -0.5), vec2f(0.72, -0.93)) - 0.1;
@@ -224,7 +232,7 @@ fn vs(@builtin(vertex_index) vi: u32,
   o.half = half;
   o.misc = b;
   o.color = c;
-  let so = vec2f(SHADOW_OFF.x * cs + SHADOW_OFF.y * sn, -SHADOW_OFF.x * sn + SHADOW_OFF.y * cs);
+  let so = vec2f(G.shadow.x * cs + G.shadow.y * sn, -G.shadow.x * sn + G.shadow.y * cs);
   o.soff = vec2f(so.x * flip, so.y);
   return o;
 }
@@ -237,7 +245,8 @@ fn img(rect: vec4f, q: vec2f) -> vec4f {
 
 @fragment
 fn fs(i: VOut) -> @location(0) vec4f {
-  let part = i32(i.misc.y + 0.5);
+  let slot = i32(i.misc.y + 0.5);
+  let part = slot % PART_SLOTS;
   let seed = i.misc.w;
   let flash = i.misc.z;
   let h = i.half;
@@ -247,7 +256,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
   // Line boil: nudge the shape a little, changing only on stepped frames.
   let bo = vec2f(seed * 17.0 + G.qtime * 3.1, seed * 5.0 - G.qtime * 1.7);
   let boil = vec2f(vnoise(i.p * 0.09 + bo), vnoise(i.p * 0.09 + bo + 31.7)) - 0.5;
-  let amp = select(2.0, 1.0, flat_part);
+  let amp = select(G.wobble, 1.0, flat_part);
   let p = i.p + boil * amp;
   let grain = vnoise(i.p * 1.3 + seed * 9.0) * 0.6 + vnoise(i.p * 0.35 + seed * 3.0) * 0.4;
 
@@ -256,7 +265,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
   var shadow = 0.0;
   var col = i.color.rgb;
 
-  let rect = P.uv[clamp(part, 0, 31)];
+  let rect = P.uv[clamp(slot, 0, RECTS - 1)];
   if (rect.z > 0.0) {
     // Image override from the atlas.
     let q = p / h * 0.5 + 0.5;
@@ -264,14 +273,14 @@ fn fs(i: VOut) -> @location(0) vec4f {
     fill = t.a;
     col = t.rgb;
     if (!flat_part) {
-      let r = MARGIN / (2.0 * h);
+      let r = G.margin / (2.0 * h);
       var mx = t.a;
       for (var k = 0; k < 8; k++) {
         let ang = f32(k) * 0.7853982;
         mx = max(mx, img(rect, q + vec2f(cos(ang), sin(ang)) * r).a);
       }
       margin = mx;
-      shadow = img(rect, q - i.soff / (2.0 * h)).a * 0.3;
+      shadow = img(rect, q - i.soff / (2.0 * h)).a * G.shadow_a;
     }
   } else {
     let s = shape(part, p, h, seed);
@@ -281,9 +290,9 @@ fn fs(i: VOut) -> @location(0) vec4f {
       fill = smoothstep(aa, -aa, s.d);
     }
     if (!flat_part) {
-      margin = smoothstep(aa, -aa, s.d - MARGIN);
+      margin = smoothstep(aa, -aa, s.d - G.margin);
       let sd = shape(part, p - i.soff, h, seed).d;
-      shadow = smoothstep(3.0, -3.0, sd - MARGIN) * 0.3;
+      shadow = smoothstep(3.0, -3.0, sd - G.margin) * G.shadow_a;
       col = col * (0.9 + 0.2 * grain);
       col = mix(col, INK, smoothstep(-3.2, -1.2, s.d) * 0.7);   // ink outline
       col = mix(col, PAPER, s.light);
