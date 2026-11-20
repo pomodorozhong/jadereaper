@@ -30,7 +30,8 @@ const BOX = {
  * How big each character is drawn. The ?debug panel changes them; the core scales its boxes by the same amount
  * (jr_set_draw_scale, in SIZE_ORDER), and the bake follows, so the line stays the same width on screen.
  */
-export const SIZE = { player: 1, blot: 1, wisp: 1, brute: 1, elite: 1 };
+// Tuned by the maintainer in the ?debug panel.
+export const SIZE = { player: 1.35, blot: 1.85, wisp: 1, brute: 1, elite: 1 };
 /** The core's order for jr_set_draw_scale: the player, then the enemy kinds. */
 export const SIZE_ORDER = ['player', 'blot', 'wisp', 'brute', 'elite'];
 /** Which character a part belongs to, for its size. */

@@ -12,9 +12,10 @@ import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 const STATE_FLOATS = 32;
 
 /** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
- * Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends changes (jr_set_waddle). */
+ * Tuned by the maintainer. Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends
+ * changes (jr_set_waddle). */
 const WADDLE = {
-  blotTilt: 7.5, blotRate: 5, wispTilt: 3.75, wispRate: 9, bruteTilt: 7.5, bruteRate: 3, eliteTilt: 7.5, eliteRate: 2.5,
+  blotTilt: 2.25, blotRate: 2, wispTilt: 3.75, wispRate: 9, bruteTilt: 7.5, bruteRate: 3, eliteTilt: 7.5, eliteRate: 2.5,
 };
 const WADDLE_KINDS = ['blot', 'wisp', 'brute', 'elite'];
 
