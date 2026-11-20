@@ -90,7 +90,7 @@ export function createUI({ onAction }) {
     return chip;
   }
 
-  function hud({ hp, maxHp, xp, xpNext, level, time, kills, loadout, elements, owned }) {
+  function hud({ hp, maxHp, room, rooms, wave, waves, boss, time, kills, loadout, elements, owned }) {
     const skillSig = getLang() + loadout.join(',') + elements.join(',');
     if (cache.skills !== skillSig) {
       cache.skills = skillSig;
@@ -98,8 +98,9 @@ export function createUI({ onAction }) {
     }
     set('hpFill', 'width', `${Math.max(0, Math.min(100, (hp / maxHp) * 100)).toFixed(1)}%`);
     set('hpText', 'text', String(Math.ceil(hp)));
-    set('xpFill', 'width', `${Math.max(0, Math.min(100, (xp / xpNext) * 100)).toFixed(1)}%`);
-    set('levelText', 'text', t('hud.level', { n: level }));
+    set('roomFill', 'width', `${Math.max(0, Math.min(100, ((room + Math.min(wave, waves) / waves) / rooms) * 100)).toFixed(1)}%`);
+    const at = { room: room + 1, rooms, wave: Math.min(wave + 1, waves), waves };
+    set('roomText', 'text', t(boss ? 'hud.boss' : 'hud.room', at));
     set('timeText', 'text', formatTime(time));
     set('killsText', 'text', String(kills));
     // Character and roll cards held, with how many of each.
@@ -213,13 +214,14 @@ export function createUI({ onAction }) {
     else if (focused) $('skillCards').querySelector(`[data-value="${focused}"]`)?.focus({ preventScroll: true });
   }
 
-  function gameOver({ time, kills, level }, save, beaten) {
+  function gameOver({ rooms, kills, time, won }, save, beaten) {
+    setText($('overTitle'), t(won ? 'over.won' : 'over.title'));
     const rows = [
-      [t('over.survived'), formatTime(time), beaten.time],
-      [t('over.kills'), String(kills), beaten.kills],
-      [t('over.level'), String(level), beaten.level],
-      [t('over.bestTime'), formatTime(save.bestTime), false],
+      [t('over.rooms'), String(rooms), beaten.rooms],
+      [t('over.kills'), String(kills), false],
+      [t('over.time'), formatTime(time), beaten.win],
     ];
+    if (save.fastestWin) rows.push([t('over.fastest'), formatTime(save.fastestWin), false]);
     $('stats').replaceChildren(...rows.flatMap(([label, value, best]) => {
       const dt = document.createElement('dt');
       dt.textContent = label;
@@ -228,15 +230,13 @@ export function createUI({ onAction }) {
       if (best) dd.className = 'best';
       return [dt, dd];
     }));
-    $('recordStamp').hidden = !(beaten.time || beaten.kills || beaten.level);
+    $('recordStamp').hidden = !(beaten.rooms || beaten.win);
     show('over');
   }
 
   function records(save) {
     $('records').textContent = save.runs
-      ? t(save.runs === 1 ? 'records.one' : 'records.other', {
-        time: formatTime(save.bestTime), kills: save.bestKills, level: save.bestLevel, runs: save.runs,
-      })
+      ? t(save.runs === 1 ? 'records.one' : 'records.other', { rooms: save.bestRoom, wins: save.wins, runs: save.runs })
       : '';
   }
 

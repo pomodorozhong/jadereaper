@@ -63,6 +63,7 @@ impl Game {
     pub(crate) fn build(&mut self) {
         self.inst.clear();
         self.draw_ground();
+        self.draw_walls();
 
         // Ground-level effects and pickups.
         for i in 0..self.fx.len() {
@@ -70,22 +71,6 @@ impl Game {
                 self.draw_fx(i);
             }
         }
-        for i in 0..self.gems.len() {
-            let g = &self.gems[i];
-            let (x, y, seed, heart) = (g.x, g.y, g.seed, g.heart);
-            // Two-pose rock, like a paper tag on a string.
-            let pose = (((self.anim * 4.0 + seed * 9.0).floor() as i32) & 1) as f32;
-            let rot = pose * 0.3 - 0.15;
-            if heart {
-                self.put(x, y - 12.0, 11.0, 11.0, rot, P_HEART, 0.0, seed, [0.78, 0.27, 0.18, 1.0]);
-            } else {
-                let big = self.gems[i].value >= 5.0;
-                let s = if big { 10.0 } else { 7.0 };
-                let c = if big { [0.85, 0.72, 0.30, 1.0] } else { [0.36, 0.72, 0.56, 1.0] };
-                self.put(x, y - 8.0, s * 0.8, s, rot, P_GEM, 0.0, seed, c);
-            }
-        }
-
         // Warnings for attacks that are winding up.
         for i in 0..self.enemies.len() {
             let e = self.enemies[i];
@@ -94,7 +79,7 @@ impl Game {
             }
             let m = MOVES[e.mv as usize];
             let prog = (e.pt / m.windup).clamp(0.0, 1.0);
-            let color = if e.kind == K_ELITE { WARN_BOSS } else { WARN };
+            let color = if e.kind == K_ELITE || KINDS[e.kind as usize].boss { WARN_BOSS } else { WARN };
             let area = self.move_area(&e);
             self.draw_warning(area, prog, color);
             if let After::Wave { to, .. } = m.after {
@@ -213,6 +198,32 @@ impl Game {
                     let flip = if h & 1 == 0 { 1.0 } else { -1.0 };
                     self.put(x, y, (10.0 + seed * 6.0) * flip, 10.0 + seed * 8.0, 0.0, P_GRASS, 0.0, seed, [0.22, 0.36, 0.30, 0.45]);
                 }
+            }
+        }
+    }
+
+    /// The arena's edge: an ink band with stones along it.
+    fn draw_walls(&mut self) {
+        let Some([x0, y0, x1, y1]) = self.arena else { return };
+        let ink = [INK[0], INK[1], INK[2], 0.55];
+        let (cx, cy, hw, hh) = ((x0 + x1) * 0.5, (y0 + y1) * 0.5, (x1 - x0) * 0.5, (y1 - y0) * 0.5);
+        for (x, y, w, h) in [(cx, y0, hw, 5.0), (cx, y1, hw, 5.0), (x0, cy, 5.0, hh), (x1, cy, 5.0, hh)] {
+            self.put(x, y, w + 5.0, h, 0.0, P_WARN_LINE, 1.0, 0.0, ink);
+        }
+        let step = 46.0;
+        let (nx, ny) = (((x1 - x0) / step) as i32, ((y1 - y0) / step) as i32);
+        for k in 0..=nx {
+            let x = x0 + k as f32 * step;
+            for (y, o) in [(y0 - 14.0, 0), (y1 + 14.0, 1)] {
+                let seed = (hash2(k, o) & 255) as f32 / 255.0;
+                self.put(x, y, 16.0 + seed * 8.0, 9.0 + seed * 4.0, 0.0, P_STONE, 0.0, seed, [INK[0], INK[1], INK[2], 0.3]);
+            }
+        }
+        for k in 0..=ny {
+            let y = y0 + k as f32 * step;
+            for (x, o) in [(x0 - 14.0, 2), (x1 + 14.0, 3)] {
+                let seed = (hash2(k, o) & 255) as f32 / 255.0;
+                self.put(x, y, 12.0 + seed * 6.0, 12.0 + seed * 6.0, 0.0, P_STONE, 0.0, seed, [INK[0], INK[1], INK[2], 0.3]);
             }
         }
     }

@@ -63,7 +63,6 @@ pub struct Kind {
     pub speed: f32,
     /// Collision radius.
     pub r: f32,
-    pub xp: f32,
     pub part: f32,
     pub color: [f32; 3],
     pub hw: f32,

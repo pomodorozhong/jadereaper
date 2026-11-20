@@ -25,13 +25,13 @@
     { "name": "warn_ring", "id": 23, "flat": true }
   ],
 
-  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike"],
+  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win"],
 
   "kinds": [
-    { "name": "blot", "part": "blot", "hp": 30, "speed": 70, "r": 16, "xp": 1, "color": [0.33, 0.31, 0.30], "hw": 24, "hh": 24, "rate": 2, "tilt": 2.25, "poise": 8, "boss": false, "moves": ["blot_lunge"] },
-    { "name": "wisp", "part": "wisp", "hp": 18, "speed": 110, "r": 12, "xp": 1, "color": [0.36, 0.40, 0.56], "hw": 25, "hh": 21, "rate": 9, "tilt": 3.75, "poise": 5, "boss": false, "moves": ["wisp_shot"] },
-    { "name": "brute", "part": "brute", "hp": 110, "speed": 48, "r": 26, "xp": 5, "color": [0.58, 0.31, 0.24], "hw": 30, "hh": 30, "rate": 3, "tilt": 7.5, "poise": 40, "boss": false, "moves": ["brute_slam"] },
-    { "name": "elite", "part": "elite", "hp": 700, "speed": 60, "r": 44, "xp": 40, "color": [0.74, 0.25, 0.18], "hw": 52, "hh": 52, "rate": 2.5, "tilt": 7.5, "poise": 120, "boss": false, "moves": ["elite_bite", "elite_stomp"] }
+    { "name": "blot", "part": "blot", "hp": 30, "speed": 70, "r": 16, "color": [0.33, 0.31, 0.30], "hw": 24, "hh": 24, "rate": 2, "tilt": 2.25, "poise": 8, "boss": false, "moves": ["blot_lunge"] },
+    { "name": "wisp", "part": "wisp", "hp": 18, "speed": 110, "r": 12, "color": [0.36, 0.40, 0.56], "hw": 25, "hh": 21, "rate": 9, "tilt": 3.75, "poise": 5, "boss": false, "moves": ["wisp_shot"] },
+    { "name": "brute", "part": "brute", "hp": 110, "speed": 48, "r": 26, "color": [0.58, 0.31, 0.24], "hw": 30, "hh": 30, "rate": 3, "tilt": 7.5, "poise": 40, "boss": false, "moves": ["brute_slam"] },
+    { "name": "elite", "part": "elite", "hp": 700, "speed": 60, "r": 44, "color": [0.74, 0.25, 0.18], "hw": 52, "hh": 52, "rate": 2.5, "tilt": 7.5, "poise": 120, "boss": false, "moves": ["elite_bite", "elite_stomp"] }
   ],
 
   "skills": [
@@ -76,6 +76,19 @@
     { "name": "thick_paper", "glyph": "紙", "target": "character", "element": "none", "effect": "armor", "amount": 0.15, "passive": true },
     { "name": "long_roll", "glyph": "滾", "target": "roll", "element": "none", "effect": "roll_dist", "amount": 0.25, "passive": true },
     { "name": "fire_trail", "glyph": "焰", "target": "roll", "element": "fire", "effect": "trail", "amount": 0, "passive": false }
+  ],
+
+  "rooms": [
+    { "name": "courtyard", "w": 900, "h": 620, "boss": "none",
+      "waves": [["blot", "blot", "blot"], ["blot", "blot", "wisp", "wisp"]] },
+    { "name": "bamboo_path", "w": 1100, "h": 560, "boss": "none",
+      "waves": [["blot", "wisp", "wisp"], ["blot", "blot", "brute"], ["wisp", "wisp", "blot", "blot", "blot"]] },
+    { "name": "ink_pond", "w": 960, "h": 760, "boss": "none",
+      "waves": [["brute", "blot", "blot"], ["wisp", "wisp", "wisp", "blot"], ["brute", "brute", "wisp"]] },
+    { "name": "shrine_steps", "w": 1000, "h": 700, "boss": "none",
+      "waves": [["blot", "blot", "wisp", "brute"], ["wisp", "wisp", "brute", "blot", "blot"], ["elite", "blot", "blot"]] },
+    { "name": "glutton_hall", "w": 1200, "h": 860, "boss": "elite", "waves": [["elite"]] },
+    { "name": "dragon_peak", "w": 1300, "h": 900, "boss": "elite", "waves": [["elite", "elite"]] }
   ],
 
   "moves": [

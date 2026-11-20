@@ -6,6 +6,7 @@ use crate::defs::Kind;
 use crate::moves::{After, Move};
 use crate::skills::{AreaKind, SkillDef, SkillKind};
 use crate::cards::{Card, Effect, Element, Target};
+use crate::rooms::Room;
 
 // Part ids.
 pub const P_ELLIPSE: f32 = 0.0;
@@ -47,6 +48,8 @@ pub const EV_DEATH: f32 = 9.0;
 pub const EV_HEAL: f32 = 10.0;
 pub const EV_ELITE: f32 = 11.0;
 pub const EV_STRIKE: f32 = 12.0;
+pub const EV_CLEAR: f32 = 13.0;
+pub const EV_WIN: f32 = 14.0;
 
 // kinds
 pub const K_BLOT: u8 = 0;
@@ -56,13 +59,13 @@ pub const K_ELITE: u8 = 3;
 pub const N_KINDS: usize = 4;
 pub const KINDS: [Kind; 4] = [
     // blot
-    Kind { part: P_BLOT, hp: 30.0, speed: 70.0, r: 16.0, xp: 1.0, color: [0.33, 0.31, 0.3], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
+    Kind { part: P_BLOT, hp: 30.0, speed: 70.0, r: 16.0, color: [0.33, 0.31, 0.3], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
     // wisp
-    Kind { part: P_WISP, hp: 18.0, speed: 110.0, r: 12.0, xp: 1.0, color: [0.36, 0.4, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0, boss: false, moves: &[M_WISP_SHOT] },
+    Kind { part: P_WISP, hp: 18.0, speed: 110.0, r: 12.0, color: [0.36, 0.4, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0, boss: false, moves: &[M_WISP_SHOT] },
     // brute
-    Kind { part: P_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, xp: 5.0, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0, boss: false, moves: &[M_BRUTE_SLAM] },
+    Kind { part: P_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0, boss: false, moves: &[M_BRUTE_SLAM] },
     // elite
-    Kind { part: P_ELITE, hp: 700.0, speed: 60.0, r: 44.0, xp: 40.0, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
+    Kind { part: P_ELITE, hp: 700.0, speed: 60.0, r: 44.0, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
 ];
 
 // skills
@@ -159,6 +162,29 @@ pub const CARDS: [Card; 15] = [
     Card { target: Target::Roll, element: 0, effect: Effect::RollDist, amount: 0.25, passive: true },
     // fire_trail
     Card { target: Target::Roll, element: E_FIRE + 1, effect: Effect::Trail, amount: 0.0, passive: false },
+];
+
+// rooms
+pub const R_COURTYARD: usize = 0;
+pub const R_BAMBOO_PATH: usize = 1;
+pub const R_INK_POND: usize = 2;
+pub const R_SHRINE_STEPS: usize = 3;
+pub const R_GLUTTON_HALL: usize = 4;
+pub const R_DRAGON_PEAK: usize = 5;
+pub const N_ROOMS: usize = 6;
+pub const ROOMS: [Room; 6] = [
+    // courtyard
+    Room { w: 900.0, h: 620.0, boss: 0, waves: &[&[K_BLOT, K_BLOT, K_BLOT], &[K_BLOT, K_BLOT, K_WISP, K_WISP]] },
+    // bamboo_path
+    Room { w: 1100.0, h: 560.0, boss: 0, waves: &[&[K_BLOT, K_WISP, K_WISP], &[K_BLOT, K_BLOT, K_BRUTE], &[K_WISP, K_WISP, K_BLOT, K_BLOT, K_BLOT]] },
+    // ink_pond
+    Room { w: 960.0, h: 760.0, boss: 0, waves: &[&[K_BRUTE, K_BLOT, K_BLOT], &[K_WISP, K_WISP, K_WISP, K_BLOT], &[K_BRUTE, K_BRUTE, K_WISP]] },
+    // shrine_steps
+    Room { w: 1000.0, h: 700.0, boss: 0, waves: &[&[K_BLOT, K_BLOT, K_WISP, K_BRUTE], &[K_WISP, K_WISP, K_BRUTE, K_BLOT, K_BLOT], &[K_ELITE, K_BLOT, K_BLOT]] },
+    // glutton_hall
+    Room { w: 1200.0, h: 860.0, boss: K_ELITE + 1, waves: &[&[K_ELITE]] },
+    // dragon_peak
+    Room { w: 1300.0, h: 900.0, boss: K_ELITE + 1, waves: &[&[K_ELITE, K_ELITE]] },
 ];
 
 // moves

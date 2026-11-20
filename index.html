@@ -24,9 +24,9 @@
   <canvas id="game" aria-label="Game view" data-i18n-aria="game.view"></canvas>
 
   <div id="hud" hidden>
-    <div class="xp" title="Experience" data-i18n-title="hud.xp">
-      <div class="xp-fill" id="xpFill"></div>
-      <span class="xp-label" id="levelText">Lv 1</span>
+    <div class="xp" title="Progress through the run" data-i18n-title="hud.progress">
+      <div class="xp-fill" id="roomFill"></div>
+      <span class="xp-label" id="roomText">Room 1</span>
     </div>
     <div class="hud-row">
       <div class="tag hp-tag">
@@ -46,7 +46,7 @@
     <div class="sheet title-sheet">
       <div class="stamp" aria-hidden="true">玉<br>鐮</div>
       <h1 data-i18n="title.name">Jade Reaper</h1>
-      <p class="sub" data-i18n="title.sub">Cut down the ink spirits. Last as long as you can.</p>
+      <p class="sub" data-i18n="title.sub">Cut your way through the ink spirits' halls and bring down what waits at the end.</p>
       <div class="buttons">
         <button data-action="start" data-i18n="title.begin">Begin</button>
         <button data-action="settings" data-i18n="title.settings">Settings</button>
@@ -110,7 +110,7 @@
   <section class="screen" id="over" hidden>
     <div class="sheet">
       <div class="stamp record-stamp" id="recordStamp" data-i18n="over.record" hidden>New<br>record</div>
-      <h2 data-i18n="over.title">The ink closes in</h2>
+      <h2 id="overTitle">The ink closes in</h2>
       <dl class="stats" id="stats"></dl>
       <div class="buttons">
         <button data-action="again" data-i18n="over.again">Try again</button>

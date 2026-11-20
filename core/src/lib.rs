@@ -8,6 +8,7 @@
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
+pub mod bot;
 pub mod cards;
 pub mod content;
 pub mod defs;
@@ -18,6 +19,7 @@ pub mod game;
 pub mod geom;
 pub mod moves;
 pub mod player;
+pub mod rooms;
 pub mod skills;
 
 use game::Game;
@@ -47,6 +49,7 @@ pub extern "C" fn jr_reset(seed: u32) {
 pub extern "C" fn jr_start(seed: u32) {
     jr_reset(seed);
     g().running = true;
+    g().enter_room(0);
 }
 
 /// Visible area in world units (full width and height).
@@ -158,22 +161,23 @@ mod tests {
         let mut game = Game::new(7);
         game.set_view(640.0, 360.0);
         game.running = true;
+        game.enter_room(0);
+        let mut bot = bot::Bot::default();
         let mut rng = Rng(99);
-        let mut picks = 0;
         for frame in 0..(60 * 600) {
-            if frame % 30 == 0 {
-                game.input = game::Input::moving(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+            game.input = bot.input(&game);
+            // Now and then wander off at random, so odd positions are exercised too.
+            if frame % 600 < 60 {
+                game.input.mx = rng.range(-1.0, 1.0);
+                game.input.my = rng.range(-1.0, 1.0);
             }
-            // Mash the skill buttons, so there are kills and level ups.
-            game.input.buttons = if frame % 4 < 2 { 1 << (frame / 4 % 3) } else { 0 };
             game.update(1.0 / 60.0);
             assert!(game.inst.len() <= MAX_INST);
             if game.choosing {
                 game.choose((rng.next() % 3) as usize);
-                picks += 1;
             }
-            // Keep the run going so late-game spawning is exercised too.
-            if game.over {
+            // Keep the run going so later rooms are exercised too.
+            if game.over && !game.won {
                 game.over = false;
                 game.player.hp = game.player.max_hp;
             }
@@ -181,8 +185,8 @@ mod tests {
                 assert!(i.x.is_finite() && i.y.is_finite() && i.hw.is_finite() && i.rot.is_finite());
             }
         }
-        assert!(picks >= 1, "expected level ups, got {picks}");
-        assert!(game.kills > 3, "expected kills, got {}", game.kills);
+        assert!(game.rooms_cleared >= 2, "cleared {} rooms", game.rooms_cleared);
+        assert!(game.kills > 10, "expected kills, got {}", game.kills);
     }
 
     #[test]
@@ -190,6 +194,7 @@ mod tests {
         let mut game = Game::new(5);
         game.set_view(640.0, 360.0);
         game.running = true;
+        game.enter_room(0);
         for _ in 0..(60 * 30) {
             game.update(1.0 / 60.0);
             if game.choosing {
@@ -276,6 +281,7 @@ mod tests {
         let mut game = Game::new(3);
         game.set_view(640.0, 360.0);
         game.running = true;
+        game.enter_room(0);
         for _ in 0..(60 * 900) {
             game.update(1.0 / 60.0);
             if game.choosing {

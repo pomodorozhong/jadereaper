@@ -52,9 +52,6 @@ pub struct Player {
     pub ky: f32,
     pub hp: f32,
     pub max_hp: f32,
-    pub xp: f32,
-    pub xp_next: f32,
-    pub level: u32,
     /// Unit aim direction.
     pub aim: (f32, f32),
     /// Aim point offset from the player, as last sent.
@@ -71,7 +68,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(xp_next: f32) -> Player {
+    pub fn new() -> Player {
         Player {
             x: 0.0,
             y: 0.0,
@@ -79,9 +76,6 @@ impl Player {
             ky: 0.0,
             hp: 100.0,
             max_hp: 100.0,
-            xp: 0.0,
-            xp_next,
-            level: 1,
             aim: (1.0, 0.0),
             aim_at: (100.0, 0.0),
             face: 1.0,

@@ -217,8 +217,9 @@ impl Game {
         self.choices = [-1; 3];
         self.choice_slots = [NO_SLOT; 3];
         self.choosing = false;
+        let pick = self.pick;
         self.pick = Pick::None;
-        self.after_pick();
+        self.after_pick(pick);
     }
 
     /// Attach a card. `slot` is the skill button for skill cards, or `NO_SLOT`.

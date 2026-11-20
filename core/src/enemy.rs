@@ -75,67 +75,6 @@ impl Game {
         Some(self.enemies.len() - 1)
     }
 
-    /// Keep a few enemies coming, up to `MAX_ENEMIES`, with an elite every 90 s.
-    pub(crate) fn spawn(&mut self, dt: f32) {
-        if !self.auto_spawn {
-            return;
-        }
-        let t = self.time;
-        let want = ((2.0 + t / 15.0) as usize).min(MAX_ENEMIES);
-        self.spawn_acc += dt;
-        if self.enemies.len() < want && self.spawn_acc >= 1.2 {
-            self.spawn_acc = 0.0;
-            let roll = self.rng.f();
-            let brute = if t > 40.0 { 0.2 } else { 0.0 };
-            let wisp = if t > 15.0 { 0.3 } else { 0.0 };
-            let kind = if roll < brute {
-                K_BRUTE
-            } else if roll < brute + wisp {
-                K_WISP
-            } else {
-                K_BLOT
-            };
-            self.spawn_near(kind);
-        }
-        if t >= self.next_elite {
-            self.next_elite += 90.0;
-            if self.enemies.len() >= MAX_ENEMIES {
-                // Make room: the elite replaces the farthest small enemy.
-                let (px, py) = (self.player.x, self.player.y);
-                if let Some(i) = (0..self.enemies.len())
-                    .filter(|&i| self.enemies[i].kind < K_ELITE)
-                    .max_by(|&a, &b| {
-                        let da = dist(self.enemies[a].x, self.enemies[a].y, px, py);
-                        let db = dist(self.enemies[b].x, self.enemies[b].y, px, py);
-                        da.partial_cmp(&db).unwrap_or(core::cmp::Ordering::Equal)
-                    })
-                {
-                    self.enemies.swap_remove(i);
-                }
-            }
-            self.spawn_near(K_ELITE);
-            self.event(EV_ELITE, self.player.x, self.player.y, 0.0);
-        }
-    }
-
-    /// Spawn at the edge of the view around the player, inside the arena if there is one.
-    pub(crate) fn spawn_near(&mut self, kind: u8) {
-        let a = self.rng.range(0.0, TAU);
-        let r = self.rng.range(260.0, 340.0);
-        let (mut x, mut y) = (self.player.x + a.cos() * r, self.player.y + a.sin() * r);
-        if let Some([x0, y0, x1, y1]) = self.arena {
-            x = x.clamp(x0 + 40.0, x1 - 40.0);
-            y = y.clamp(y0 + 40.0, y1 - 40.0);
-        }
-        if self.add_enemy(kind, x, y).is_some() {
-            let scale = 1.0 + self.time / 240.0;
-            let e = self.enemies.last_mut().unwrap();
-            e.hp *= scale;
-            let k = &KINDS[kind as usize];
-            self.add_fx(Fx { top: false, grow: 30.0, ..Fx::at(x, y, P_SPLAT, 0.6, k.r * 1.2, k.r * 0.8, [INK[0], INK[1], INK[2], 0.5]) });
-        }
-    }
-
     /// The hit area of an enemy's current move.
     pub fn move_area(&self, e: &Enemy) -> Area {
         let m = &MOVES[e.mv as usize];
@@ -233,7 +172,7 @@ impl Game {
                     if e.pt >= m.windup {
                         e.phase = Phase::Active;
                         e.pt = 0.0;
-                        let (ex, ey, dx, dy, boss) = (e.x, e.y, e.dx, e.dy, e.kind == K_ELITE);
+                        let (ex, ey, dx, dy, boss) = (e.x, e.y, e.dx, e.dy, KINDS[e.kind as usize].boss);
                         let warned = m.windup;
                         match m.after {
                             After::None => {}
@@ -283,7 +222,7 @@ impl Game {
                         let a = self.move_area(&self.enemies[i]);
                         if a.hits(px, py, PLAYER_R) {
                             self.enemies[i].struck = true;
-                            let boss = self.enemies[i].kind == K_ELITE;
+                            let boss = KINDS[self.enemies[i].kind as usize].boss;
                             self.hurt_player(m.damage, boss, (ex, ey), warned);
                         }
                     }
@@ -340,7 +279,8 @@ impl Game {
                 if side > h.r + PLAYER_R || along < -h.r { f32::MAX } else { along - h.r - PLAYER_R }
             };
             let speed = if h.band > 0.0 { h.grow } else { (h.vx * h.vx + h.vy * h.vy).sqrt() };
-            if gap <= speed * within {
+            // A shot or ring takes most of a roll's invulnerability to pass, so only count it as it arrives.
+            if gap <= speed * within.min(0.03) {
                 return true;
             }
         }
@@ -512,11 +452,6 @@ impl Game {
             let k = &KINDS[e.kind as usize];
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
-            let heart = self.rng.f() < if e.kind == K_ELITE { 1.0 } else { 0.012 };
-            self.drop_gem(e.x, e.y, k.xp, false);
-            if heart {
-                self.drop_gem(e.x + 14.0, e.y, 0.0, true);
-            }
             let n = if e.kind >= K_BRUTE { 9 } else { 4 };
             for _ in 0..n {
                 let a = self.rng.range(0.0, TAU);

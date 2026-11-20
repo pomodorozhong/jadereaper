@@ -9,11 +9,11 @@
 use crate::cards::{Pick, SkillMods, Stats, NO_SLOT};
 use crate::defs::*;
 use crate::elements::{Patch, Status, Well};
+use crate::rooms::Stage;
 pub use crate::player::{Act, Input, Player};
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
 pub const MAX_ENEMIES: usize = 10;
-pub(crate) const MAX_GEMS: usize = 700;
 pub(crate) const MAX_FX: usize = 500;
 pub(crate) const MAX_SHOTS: usize = 200;
 pub(crate) const CELL: f32 = 96.0;
@@ -125,14 +125,6 @@ pub struct Shot {
     pub element: u8,
 }
 
-pub struct Gem {
-    pub x: f32,
-    pub y: f32,
-    pub value: f32,
-    pub seed: f32,
-    pub pull: bool,
-    pub heart: bool,
-}
 
 pub struct Fx {
     pub x: f32,
@@ -190,11 +182,18 @@ pub struct Game {
     pub hazards: Vec<Hazard>,
     /// The shortest warning any hit on the player has had, for tests.
     pub min_warned: f32,
-    pub gems: Vec<Gem>,
     pub fx: Vec<Fx>,
     pub choices: [i32; 3],
-    pub pending: u32,
     pub kills: u32,
+    /// The room being fought (an index into `ROOMS`), its current wave, and where it stands.
+    pub room: usize,
+    pub wave: usize,
+    pub stage: Stage,
+    /// Time before the next wave comes in.
+    pub wave_t: f32,
+    pub rooms_cleared: u32,
+    /// The last boss is beaten.
+    pub won: bool,
     pub shake: f32,
     /// Time left frozen after a hit lands.
     pub hitstop: f32,
@@ -217,6 +216,8 @@ pub struct Game {
     pub cam: (f32, f32),
     /// The camera's resting point before shake.
     cam_at: (f32, f32),
+    /// Jump straight to the camera's target on the next frame (entering a room).
+    cam_snap: bool,
     /// How much wider than normal the view is drawn (1 or more); the host scales its view by it.
     pub zoom: f32,
     /// A point the camera keeps in view along with the player, such as a boss.
@@ -227,10 +228,8 @@ pub struct Game {
     acc: f32,
     /// Fixed steps run since the start.
     pub steps: u32,
-    /// Spawn enemies on a timer. Tests turn it off and place enemies themselves.
+    /// Send in the rooms' waves. Tests turn it off and place enemies themselves.
     pub auto_spawn: bool,
-    pub(crate) spawn_acc: f32,
-    pub(crate) next_elite: f32,
     pub(crate) next_id: u32,
     pub inst: Vec<Inst>,
     pub events: Vec<[f32; 4]>,
@@ -243,10 +242,6 @@ pub struct Game {
     pub(crate) order: Vec<(f32, u16)>,
 }
 
-fn xp_for(level: u32) -> f32 {
-    let l = level as f32;
-    4.0 + l * 3.5 + l * l * 0.4
-}
 
 impl Game {
     pub fn new(seed: u32) -> Game {
@@ -270,14 +265,13 @@ impl Game {
             view_h: 360.0,
             input: Input::default(),
             prev_buttons: 0,
-            player: Player::new(xp_for(1)),
+            player: Player::new(),
             loadout: [crate::skills::SK_SCYTHE, crate::skills::SK_TALISMAN, crate::skills::SK_PULSE],
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
             orbit: None,
             hazards: Vec::with_capacity(64),
             min_warned: f32::INFINITY,
-            gems: Vec::with_capacity(MAX_GEMS),
             fx: Vec::with_capacity(MAX_FX),
             mods: [SkillMods::default(); 3],
             stats: Stats::default(),
@@ -288,21 +282,25 @@ impl Game {
             wells: Vec::with_capacity(8),
             patches: Vec::with_capacity(40),
             choices: [-1; 3],
-            pending: 0,
             kills: 0,
+            room: 0,
+            wave: 0,
+            stage: Stage::Waiting,
+            wave_t: crate::rooms::WAVE_DELAY,
+            rooms_cleared: 0,
+            won: false,
             shake: 0.0,
             hitstop: 0.0,
             reduce_motion: false,
             cam: (0.0, -30.0),
             cam_at: (0.0, 0.0),
+            cam_snap: false,
             zoom: 1.0,
             focus: None,
             arena: None,
             acc: 0.0,
             steps: 0,
             auto_spawn: true,
-            spawn_acc: 0.0,
-            next_elite: 90.0,
             next_id: 1,
             inst: Vec::with_capacity(MAX_INST),
             events: Vec::with_capacity(256),
@@ -366,7 +364,8 @@ impl Game {
         }
         let k = 1.0 - (-dt * 8.0).exp();
         self.zoom += (zoom - self.zoom) * (1.0 - (-dt * 2.0).exp());
-        if self.steps == 0 {
+        if self.steps == 0 || self.cam_snap {
+            self.cam_snap = false;
             self.cam_at = (tx, ty);
         } else {
             self.cam_at.0 += (tx - self.cam_at.0) * k;
@@ -384,6 +383,10 @@ impl Game {
         let s = if self.reduce_motion { 0.0 } else { self.shake * self.shake * 9.0 };
         let q = (self.anim * 30.0).floor();
         self.cam = (self.cam_at.0 + s * (q * 12.9898).sin(), self.cam_at.1 + s * (q * 78.233).cos());
+    }
+
+    pub(crate) fn snap_camera(&mut self) {
+        self.cam_snap = true;
     }
 
     pub(crate) fn event(&mut self, kind: f32, x: f32, y: f32, v: f32) {
@@ -410,70 +413,15 @@ impl Game {
         self.time += dt;
         self.move_player(dt);
         self.move_orbit(dt);
-        self.spawn(dt);
+        self.run_room(dt);
         self.move_enemies(dt);
         self.separate();
+        self.keep_inside();
         self.move_hazards(dt);
         self.move_shots(dt);
         self.move_elements(dt);
         self.reap();
-        self.move_gems(dt);
         self.move_fx(dt);
-
-        // Level ups.
-        while self.player.xp >= self.player.xp_next {
-            self.player.xp -= self.player.xp_next;
-            self.player.level += 1;
-            self.player.xp_next = xp_for(self.player.level);
-            self.pending += 1;
-        }
-        if self.pending > 0 && !self.choosing && !self.over {
-            self.offer_reward();
-        }
-    }
-
-    pub(crate) fn drop_gem(&mut self, x: f32, y: f32, value: f32, heart: bool) {
-        if !heart && self.gems.len() >= MAX_GEMS {
-            // Too many on the ground: fold the value into an existing gem.
-            let i = (self.rng.next() as usize) % self.gems.len();
-            self.gems[i].value += value;
-            return;
-        }
-        let seed = self.rng.f();
-        let jx = self.rng.range(-6.0, 6.0);
-        let jy = self.rng.range(-6.0, 6.0);
-        self.gems.push(Gem { x: x + jx, y: y + jy, value, seed, pull: false, heart });
-    }
-
-    fn move_gems(&mut self, dt: f32) {
-        let (px, py) = (self.player.x, self.player.y);
-        let lure = 110.0;
-        let mut i = 0;
-        while i < self.gems.len() {
-            let g = &mut self.gems[i];
-            let (dx, dy) = (px - g.x, py - g.y);
-            let d = (dx * dx + dy * dy).sqrt().max(0.001);
-            if d < lure {
-                g.pull = true;
-            }
-            if g.pull {
-                let v = 460.0 * dt;
-                g.x += dx / d * v;
-                g.y += dy / d * v;
-            }
-            if d < 20.0 {
-                let g = self.gems.swap_remove(i);
-                if g.heart {
-                    self.player.hp = (self.player.hp + 25.0).min(self.player.max_hp);
-                    self.event(EV_HEAL, px, py, 25.0);
-                } else {
-                    self.player.xp += g.value;
-                    self.event(EV_PICKUP, px, py, g.value);
-                }
-            } else {
-                i += 1;
-            }
-        }
     }
 
     pub(crate) fn add_fx(&mut self, f: Fx) {
@@ -503,11 +451,10 @@ impl Game {
         }
     }
 
-    /// After a card is taken: offer the next one if more level ups are waiting.
-    pub(crate) fn after_pick(&mut self) {
-        self.pending = self.pending.saturating_sub(1);
-        if self.pending > 0 {
-            self.offer_reward();
+    /// After a card is taken: a reward leads on to the next room.
+    pub(crate) fn after_pick(&mut self, pick: Pick) {
+        if pick == Pick::Reward {
+            self.next_room();
         }
     }
 
@@ -525,9 +472,11 @@ impl Game {
         mix(self.rng.0);
         mix(self.steps);
         let p = &self.player;
-        for v in [p.x, p.y, p.hp, p.max_hp, p.xp] {
+        for v in [p.x, p.y, p.hp, p.max_hp] {
             mix(v.to_bits());
         }
+        mix(self.room as u32);
+        mix(self.wave as u32);
         mix(self.enemies.len() as u32);
         for e in &self.enemies {
             for v in [e.x, e.y, e.hp] {
@@ -539,20 +488,21 @@ impl Game {
     }
 
     /// HUD state read by the host. Layout:
-    /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,
+    /// 0 hp, 1 max hp, 2 room index, 3 rooms in a run, 4 wave index, 5 time, 6 kills,
     /// 7 choosing, 8..10 offered card ids (-1 for none), 11 game over,
     /// 12 camera x, 13 camera y, 14 enemy count, 15 running,
     /// 16..18 element on each skill button (0 none, or element id + 1), 19 what is being picked (0 nothing,
     /// 1 the starting passive, 2 a reward), 20..22 the button each offered card goes on (-1 none),
-    /// 26 player x, 27 player y, 28..30 loadout skill ids, 31 camera zoom, 32.. how many of each card is held.
+    /// 23 waves in the room, 24 run won, 25 room boss kind + 1 (0 none), 26 player x, 27 player y,
+    /// 28..30 loadout skill ids, 31 camera zoom, 32.. how many of each card is held.
     fn write_state(&mut self) {
         let p = &self.player;
         let s = &mut self.state;
         s[0] = p.hp;
         s[1] = p.max_hp;
-        s[2] = p.xp;
-        s[3] = p.xp_next;
-        s[4] = p.level as f32;
+        s[2] = self.room as f32;
+        s[3] = N_ROOMS as f32;
+        s[4] = self.wave as f32;
         s[5] = self.time;
         s[6] = self.kills as f32;
         s[7] = self.choosing as u8 as f32;
@@ -576,6 +526,9 @@ impl Game {
         for c in 0..N_CARDS.min(STATE_FLOATS - 32) {
             s[32 + c] = self.owned[c] as f32;
         }
+        s[23] = ROOMS[self.room].waves.len() as f32;
+        s[24] = self.won as u8 as f32;
+        s[25] = ROOMS[self.room].boss as f32;
         s[26] = self.player.x;
         s[27] = self.player.y;
         for c in 0..3 {

@@ -39,7 +39,9 @@ export const EVENT = {
   "DEATH": 9,
   "HEAL": 10,
   "ELITE": 11,
-  "STRIKE": 12
+  "STRIKE": 12,
+  "CLEAR": 13,
+  "WIN": 14
 };
 
 /** kinds, indexed by id. */
@@ -51,7 +53,6 @@ export const KINDS = [
     "hp": 30,
     "speed": 70,
     "r": 16,
-    "xp": 1,
     "color": [
       0.33,
       0.31,
@@ -74,7 +75,6 @@ export const KINDS = [
     "hp": 18,
     "speed": 110,
     "r": 12,
-    "xp": 1,
     "color": [
       0.36,
       0.4,
@@ -97,7 +97,6 @@ export const KINDS = [
     "hp": 110,
     "speed": 48,
     "r": 26,
-    "xp": 5,
     "color": [
       0.58,
       0.31,
@@ -120,7 +119,6 @@ export const KINDS = [
     "hp": 700,
     "speed": 60,
     "r": 44,
-    "xp": 40,
     "color": [
       0.74,
       0.25,
@@ -514,6 +512,133 @@ export const CARDS = [
     "effect": "trail",
     "amount": 0,
     "passive": false
+  }
+];
+
+/** rooms, indexed by id. */
+export const ROOMS = [
+  {
+    "id": 0,
+    "name": "courtyard",
+    "w": 900,
+    "h": 620,
+    "boss": "none",
+    "waves": [
+      [
+        "blot",
+        "blot",
+        "blot"
+      ],
+      [
+        "blot",
+        "blot",
+        "wisp",
+        "wisp"
+      ]
+    ]
+  },
+  {
+    "id": 1,
+    "name": "bamboo_path",
+    "w": 1100,
+    "h": 560,
+    "boss": "none",
+    "waves": [
+      [
+        "blot",
+        "wisp",
+        "wisp"
+      ],
+      [
+        "blot",
+        "blot",
+        "brute"
+      ],
+      [
+        "wisp",
+        "wisp",
+        "blot",
+        "blot",
+        "blot"
+      ]
+    ]
+  },
+  {
+    "id": 2,
+    "name": "ink_pond",
+    "w": 960,
+    "h": 760,
+    "boss": "none",
+    "waves": [
+      [
+        "brute",
+        "blot",
+        "blot"
+      ],
+      [
+        "wisp",
+        "wisp",
+        "wisp",
+        "blot"
+      ],
+      [
+        "brute",
+        "brute",
+        "wisp"
+      ]
+    ]
+  },
+  {
+    "id": 3,
+    "name": "shrine_steps",
+    "w": 1000,
+    "h": 700,
+    "boss": "none",
+    "waves": [
+      [
+        "blot",
+        "blot",
+        "wisp",
+        "brute"
+      ],
+      [
+        "wisp",
+        "wisp",
+        "brute",
+        "blot",
+        "blot"
+      ],
+      [
+        "elite",
+        "blot",
+        "blot"
+      ]
+    ]
+  },
+  {
+    "id": 4,
+    "name": "glutton_hall",
+    "w": 1200,
+    "h": 860,
+    "boss": "elite",
+    "waves": [
+      [
+        "elite"
+      ]
+    ]
+  },
+  {
+    "id": 5,
+    "name": "dragon_peak",
+    "w": 1300,
+    "h": 900,
+    "boss": "elite",
+    "waves": [
+      [
+        "elite",
+        "elite"
+      ]
+    ]
   }
 ];
 

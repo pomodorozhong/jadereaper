@@ -235,7 +235,7 @@ async function boot() {
       case 'vol-up': audio.setVolume(audio.volume + 0.1); saveSettings(); audio.play('confirm'); break;
       case 'vol-down': audio.setVolume(audio.volume - 0.1); saveSettings(); audio.play('confirm'); break;
       case 'clear-save':
-        Object.assign(save, { bestTime: 0, bestKills: 0, bestLevel: 0, runs: 0, totalKills: 0 });
+        Object.assign(save, { bestRoom: 0, wins: 0, fastestWin: 0, runs: 0, totalKills: 0, legacy: null });
         writeSave(save);
         ui.records(save);
         break;
@@ -351,14 +351,16 @@ async function boot() {
         }
       }
       ui.hud({
-        hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], xp: s[STATE.XP], xpNext: s[STATE.XP_NEXT],
-        level: s[STATE.LEVEL], time: s[STATE.TIME], kills: s[STATE.KILLS],
+        hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], room: s[STATE.ROOM], rooms: s[STATE.ROOMS], wave: s[STATE.WAVE],
+        waves: s[STATE.WAVES], boss: s[STATE.BOSS], time: s[STATE.TIME], kills: s[STATE.KILLS],
         loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0),
         owned: Array.from(s.subarray(STATE.OWNED0, STATE.OWNED0 + CARDS.length)),
       });
       if (s[STATE.OVER]) {
         mode = 'over';
-        const run = { time: s[STATE.TIME], kills: s[STATE.KILLS], level: s[STATE.LEVEL] };
+        const won = !!s[STATE.WON];
+        // Rooms cleared: the room reached, plus the last one when the run is won.
+        const run = { rooms: s[STATE.ROOM] + (won ? 1 : 0), kills: s[STATE.KILLS], time: s[STATE.TIME], won };
         ui.gameOver(run, save, recordRun(save, run));
       } else if (s[STATE.CHOOSING]) {
         mode = 'levelup';

@@ -34,14 +34,14 @@ const TARGETS = { any: 'Target::AnySkill', character: 'Target::Character', roll:
 /**
  * The tables in game.json besides parts and events. `fields` maps each field to its type:
  * f32, u8, bool, str (JavaScript only), f32x2, f32x3, part (a part name), ref:<table> or refs:<table> (names in
- * another table), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
+ * another table), waves:<table> (a list of lists of names), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
  * card's target), after (a move's after-effect).
  */
 const TABLES = {
   kinds: {
     rust: 'Kind', prefix: 'K_', id: 'u8',
     fields: {
-      part: 'part', hp: 'f32', speed: 'f32', r: 'f32', xp: 'f32', color: 'f32x3', hw: 'f32', hh: 'f32', rate: 'f32',
+      part: 'part', hp: 'f32', speed: 'f32', r: 'f32', color: 'f32x3', hw: 'f32', hh: 'f32', rate: 'f32',
       tilt: 'f32', poise: 'f32', boss: 'bool', moves: 'refs:moves',
     },
   },
@@ -62,6 +62,10 @@ const TABLES = {
     fields: {
       glyph: 'str', target: 'target', element: 'opt:elements', effect: 'enum:Effect', amount: 'f32', passive: 'bool',
     },
+  },
+  rooms: {
+    rust: 'Room', prefix: 'R_', id: 'usize',
+    fields: { w: 'f32', h: 'f32', boss: 'opt:kinds', waves: 'waves:kinds' },
   },
   moves: {
     rust: 'Move', prefix: 'M_', id: 'usize',
@@ -137,6 +141,10 @@ export function validate(content) {
           const values = ENUMS[type.slice(5)];
           const ok = Array.isArray(values) ? values.includes(v) : v in values;
           if (!ok) bad(`one of ${(Array.isArray(values) ? values : Object.keys(values)).join(', ')}`);
+        } else if (type.startsWith('waves:')) {
+          const target = type.slice(6);
+          if (!Array.isArray(v) || !v.length || !v.every((w) => Array.isArray(w) && w.length)) bad(`a list of waves, each a list of ${target} names`);
+          else for (const w of v) for (const r of w) if (!names[target].has(r)) problems.push(`${where}: "${field}" names ${target} "${r}", which is not defined`);
         } else if (type === 'target') {
           if (!(v in TARGETS) && !names.skills.has(v)) problems.push(`${where}: "${field}" should be any, character, roll or a skill name, got ${JSON.stringify(v)}`);
         } else if (type.startsWith('opt:')) {
@@ -165,6 +173,10 @@ function rustValue(type, v) {
   if (type.startsWith('refs:')) return `&[${v.map((r) => `${TABLES[type.slice(5)].prefix}${upper(r)}`).join(', ')}]`;
   if (type === 'enum:weight') return String(ENUMS.weight[v]);
   if (type.startsWith('enum:')) return `${type.slice(5)}::${pascal(v)}`;
+  if (type.startsWith('waves:')) {
+    const prefix = TABLES[type.slice(6)].prefix;
+    return `&[${v.map((w) => `&[${w.map((r) => `${prefix}${upper(r)}`).join(', ')}]`).join(', ')}]`;
+  }
   if (type === 'target') return TARGETS[v] ?? `Target::Skill(SK_${upper(v)})`;
   if (type.startsWith('opt:')) return v === 'none' ? '0' : `${TABLES[type.slice(4)].prefix}${upper(v)} + 1`;
   if (type === 'after') {
@@ -183,7 +195,7 @@ export function generate(content) {
   if (problems.length) throw new Error(`${SOURCE} has problems:\n  ${problems.join('\n  ')}`);
 
   // Rust.
-  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', ''];
+  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', 'use crate::rooms::Room;', ''];
   rs.push('// Part ids.');
   for (const p of content.parts) rs.push(`pub const P_${upper(p.name)}: f32 = ${f32(p.id)};`);
   rs.push(`/// Every defined part id.`, `pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(', ')}];`);
