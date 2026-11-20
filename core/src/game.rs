@@ -98,6 +98,8 @@ pub struct Game {
     /// Line boil of the traced characters: poses per second, and how many poses each part has.
     pub boil_fps: f32,
     pub boil_poses: u32,
+    /// How big each character is drawn: the player, then each enemy kind. Hit areas do not change.
+    pub draw_scale: [f32; 5],
     /// Half extents of the visible area in world units.
     pub view_w: f32,
     pub view_h: f32,
@@ -152,6 +154,7 @@ impl Game {
             anim: 0.0,
             boil_fps: 4.0,
             boil_poses: MAX_POSES,
+            draw_scale: [1.0; 5],
             view_w: 640.0,
             view_h: 360.0,
             input: (0.0, 0.0),
@@ -876,6 +879,13 @@ impl Game {
         self.boil_poses = poses.clamp(1, MAX_POSES);
     }
 
+    /// Set how big a character is drawn: 0 is the player, 1 + kind an enemy kind. Hit areas do not change.
+    pub fn set_draw_scale(&mut self, who: usize, scale: f32) {
+        if let Some(s) = self.draw_scale.get_mut(who) {
+            *s = scale.clamp(0.1, 4.0);
+        }
+    }
+
     /// The line boil pose of one instance. Each instance starts at its own pose and steps at its own moment,
     /// both taken from its seed, so a crowd does not boil in lockstep.
     fn boil_pose(&self, seed: f32) -> u32 {
@@ -993,14 +1003,15 @@ impl Game {
         let (tilt, hop) = if pose == 0 { (0.13, 0.0) } else { (-0.13, -3.0) };
         let c = [k.color[0], k.color[1], k.color[2], 1.0];
         let shadow = [INK[0], INK[1], INK[2], 0.2];
-        self.put(e.x, e.y, k.r * 0.95, k.r * 0.36, 0.0, P_SHADOW, 0.0, 0.0, shadow);
+        let s = self.draw_scale[1 + e.kind as usize];
+        self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
         if e.kind == K_WISP {
             // Wisps hover and flap by squeezing their width.
             let hw = if pose == 0 { k.hw } else { k.hw * 0.7 };
             let bob = (self.anim * 5.0 + e.seed * 20.0).sin() * 3.0;
-            self.put(e.x, e.y - 26.0 + bob, hw * e.face, k.hh, tilt * 0.5, k.part, e.flash, e.seed, c);
+            self.put(e.x, e.y - 26.0 * s + bob, hw * s * e.face, k.hh * s, tilt * 0.5, k.part, e.flash, e.seed, c);
         } else {
-            self.put(e.x, e.y - k.hh + hop, k.hw * e.face, k.hh, tilt, k.part, e.flash, e.seed, c);
+            self.put(e.x, e.y - k.hh * s + hop, k.hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
         }
     }
 
@@ -1018,25 +1029,27 @@ impl Game {
         let a = if p.iframe > 0.0 && ((p.iframe * 20.0) as i32) & 1 == 1 { 0.4 } else { 1.0 };
         let flash = if p.iframe > 0.65 { 1.0 } else { 0.0 };
         let attack = p.attack;
+        // Drawn size; the hit area stays the same.
+        let s = self.draw_scale[0];
 
         let shadow = [INK[0], INK[1], INK[2], 0.22];
-        self.put(px, py, 20.0, 7.0, 0.0, P_SHADOW, 0.0, 0.0, shadow);
+        self.put(px, py, 20.0 * s, 7.0 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
 
         let scythe = [0.36, 0.66, 0.52, a];
         let swinging = attack > 0.0;
         if !swinging {
             // Resting over the shoulder, behind the body.
-            self.put(px - f * 15.0, py - 46.0 + bob, 20.0 * f, 34.0, -f * 0.45 + tilt, P_SCYTHE, flash, 0.21, scythe);
+            self.put(px - f * 15.0 * s, py - 46.0 * s + bob, 20.0 * s * f, 34.0 * s, -f * 0.45 + tilt, P_SCYTHE, flash, 0.21, scythe);
         }
-        let top_x = px + 26.0 * tilt.sin();
+        let top_x = px + 26.0 * s * tilt.sin();
         // The traced player is one square drawing, so the robe's box is square and stands on the shadow.
-        self.put(px, py - 40.0 + bob, 40.0 * f, 40.0, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
-        self.put(top_x + f * 2.0, py - 60.0 + bob * 1.5, 15.0 * f, 15.0, -tilt * 0.6, P_HOOD, flash, 0.53, [0.15, 0.33, 0.29, a]);
+        self.put(px, py - 40.0 * s + bob, 40.0 * s * f, 40.0 * s, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
+        self.put(top_x + f * 2.0 * s, py - 60.0 * s + bob * 1.5, 15.0 * s * f, 15.0 * s, -tilt * 0.6, P_HOOD, flash, 0.53, [0.15, 0.33, 0.29, a]);
         if swinging {
             let t = 1.0 - attack / 0.25;
             let ease = t * t * (3.0 - 2.0 * t);
             let ang = (-1.3 + 2.8 * ease) * f;
-            self.put(px + f * 12.0, py - 42.0 + bob, 20.0 * f, 34.0, ang, P_SCYTHE, flash, 0.21, scythe);
+            self.put(px + f * 12.0 * s, py - 42.0 * s + bob, 20.0 * s * f, 34.0 * s, ang, P_SCYTHE, flash, 0.21, scythe);
         }
     }
 

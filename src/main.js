@@ -7,7 +7,7 @@ import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
 import { EVENT, STATE, UPGRADES } from './data.js';
 import { pickLang, setLang, getLang, nextLang } from './i18n.js';
-import { BAKE } from './characters.js';
+import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
 const STATE_FLOATS = 32;
 
@@ -24,15 +24,21 @@ const DEBUG_SLIDERS = [
   ['look', 'shadowX', 'Shadow x', -8, 8, 0.5],
   ['look', 'shadowY', 'Shadow y', -8, 8, 0.5],
   ['look', 'shadowAlpha', 'Shadow darkness', 0, 1, 0.05],
+  ['Size (drawn only; re-draws the characters)'],
+  ['size', 'player', 'Player', 0.5, 2, 0.05],
+  ['size', 'blot', 'Blot', 0.5, 2, 0.05],
+  ['size', 'wisp', 'Wisp', 0.5, 2, 0.05],
+  ['size', 'brute', 'Brute', 0.5, 2, 0.05],
+  ['size', 'elite', 'Elite', 0.5, 2, 0.05],
 ];
 function addDebugPanel(renderer, core) {
-  const sets = { bake: BAKE, look: LOOK };
-  const defaults = { bake: { ...BAKE }, look: { ...LOOK } };
+  const sets = { bake: BAKE, look: LOOK, size: SIZE };
+  const defaults = { bake: { ...BAKE }, look: { ...LOOK }, size: { ...SIZE } };
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:50;background:#fffdf6ee;border:1px solid #b9ae95;border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif;color:#2b2622;max-height:calc(100vh - 24px);overflow:auto';
   const btn = 'all:unset;cursor:pointer;padding:0 6px;border:1px solid #b9ae95;border-radius:4px';
   const row = (set, key, label, min, max, step) => `<div style="display:grid;grid-template-columns:9.5em 8em 2.6em auto;gap:6px;align-items:center">
-    <label for="dbg_${key}">${label}</label><input id="dbg_${key}" data-set="${set}" data-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${sets[set][key]}">
+    <label for="dbg_${set}_${key}">${label}</label><input id="dbg_${set}_${key}" data-set="${set}" data-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${sets[set][key]}">
     <output style="font-variant-numeric:tabular-nums">${sets[set][key]}</output><button type="button" data-reset="${key}" title="Reset to ${defaults[set][key]}" style="${btn}">↺</button></div>`;
   panel.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><b>Debug</b><span>
     <button type="button" id="dbgCopy" title="Copy the current values as JSON" style="${btn}">Copy values</button>
@@ -55,7 +61,8 @@ function addDebugPanel(renderer, core) {
     const { set: which, key } = el.dataset;
     sets[which][key] = v; el.value = v; el.nextElementSibling.textContent = v;
     if (key === 'boilFps' || key === 'poses') core.jr_set_boil(LOOK.boilFps, BAKE.poses);
-    if (which === 'bake') rebake();
+    if (which === 'size') core.jr_set_draw_scale(SIZE_ORDER.indexOf(key), v);
+    if (which === 'bake' || which === 'size') rebake();
   };
   const sliders = [...panel.querySelectorAll('input[type=range]')];
   for (const el of sliders) {
@@ -65,7 +72,7 @@ function addDebugPanel(renderer, core) {
   panel.querySelector('#dbgResetAll').onclick = () => {
     for (const el of sliders) set(el, defaults[el.dataset.set][el.dataset.key]);
   };
-  panel.querySelector('#dbgCopy').onclick = () => navigator.clipboard?.writeText(JSON.stringify({ bake: BAKE, look: LOOK }, null, 1));
+  panel.querySelector('#dbgCopy').onclick = () => navigator.clipboard?.writeText(JSON.stringify({ bake: BAKE, look: LOOK, size: SIZE }, null, 1));
   panel.querySelector('#dbgFold').onclick = (e) => {
     const body = panel.querySelector('#dbgBody');
     body.hidden = !body.hidden; e.target.textContent = body.hidden ? 'Show' : 'Hide';
@@ -100,6 +107,7 @@ async function boot() {
 
   // The core picks each traced part's line boil pose, so it needs the rate and the number of baked poses.
   core.jr_set_boil(LOOK.boilFps, BAKE.poses);
+  SIZE_ORDER.forEach((who, i) => core.jr_set_draw_scale(i, SIZE[who]));
   if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer, core);
 
   const seed = () => (Math.random() * 0xffffffff) >>> 0;

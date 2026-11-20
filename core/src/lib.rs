@@ -24,10 +24,11 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses) = (g().boil_fps, g().boil_poses);
+    let (fps, poses, scale) = (g().boil_fps, g().boil_poses, g().draw_scale);
     *g() = Game::new(seed);
     g().set_view(w, h);
     g().set_boil(fps, poses);
+    g().draw_scale = scale;
 }
 
 /// Start a new run.
@@ -47,6 +48,13 @@ pub extern "C" fn jr_set_view(w: f32, h: f32) {
 #[no_mangle]
 pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
     g().set_boil(fps, poses);
+}
+
+/// How big a character is drawn: 0 is the player, 1 + kind an enemy kind (blot, wisp, brute, elite).
+/// Only the drawing changes, not the hit area.
+#[no_mangle]
+pub extern "C" fn jr_set_draw_scale(who: u32, scale: f32) {
+    g().set_draw_scale(who as usize, scale);
 }
 
 /// Movement input, each axis in -1..1.
@@ -149,6 +157,21 @@ mod tests {
         game.set_boil(4.0, 1);
         game.update(1.0 / 60.0);
         assert!(poses(&game).iter().all(|&p| p == 0));
+    }
+
+    #[test]
+    fn draw_scale_changes_only_the_drawing() {
+        let robe = |g: &Game| *g.inst.iter().find(|i| i.part % PART_SLOTS == P_ROBE).unwrap();
+        let mut game = Game::new(9);
+        game.set_view(640.0, 360.0);
+        game.update(1.0 / 60.0);
+        let before = robe(&game);
+        game.set_draw_scale(0, 2.0);
+        game.update(0.0);
+        let after = robe(&game);
+        assert_eq!(after.hw.abs(), before.hw.abs() * 2.0);
+        assert_eq!(after.hh, before.hh * 2.0);
+        game.set_draw_scale(9, 2.0); // out of range is ignored
     }
 
     #[test]

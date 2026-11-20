@@ -21,10 +21,27 @@ import { boilSeed, curveThrough, jitter } from './boil.js';
 const INK = '#2b2622';
 const PAPER = '#fffdf6';
 
-/** Width and height, in world units, of the box the core draws each part in (core/src/game.rs and defs.rs). */
+/** Width and height, in world units, of the box the core draws each part in at size 1 (core/src/game.rs and defs.rs). */
 const BOX = {
   player_body: [80, 80], scythe: [40, 68], blot: [48, 48], wisp: [50, 42], brute: [60, 60], elite: [104, 104],
 };
+
+/**
+ * How big each character is drawn. The ?debug panel changes them; the core scales its boxes by the same amount
+ * (jr_set_draw_scale, in SIZE_ORDER), and the bake follows, so the line stays the same width on screen.
+ */
+export const SIZE = { player: 1, blot: 1, wisp: 1, brute: 1, elite: 1 };
+/** The core's order for jr_set_draw_scale: the player, then the enemy kinds. */
+export const SIZE_ORDER = ['player', 'blot', 'wisp', 'brute', 'elite'];
+/** Which character a part belongs to, for its size. */
+const OWNER = { player_body: 'player', player_head: 'player', scythe: 'player' };
+
+/** The box a part is baked for, at its character's size. */
+function boxOf(name) {
+  const [w, h] = BOX[name] ?? [64, 64];
+  const s = SIZE[OWNER[name] ?? name] ?? 1;
+  return [w * s, h * s];
+}
 
 /** Trace a smooth curve through the points onto the canvas path, as the Lightbox draws it. */
 function curve(ctx, p, closed) {
@@ -109,7 +126,7 @@ export async function bakeCharacters(partIds, bake = BAKE) {
       const pi = ch.parts.findIndex((p) => p.id === ref.part);
       if (pi < 0) throw new Error(`no part "${ref.part}"`);
       const poses = [];
-      for (let k = 0; k < bake.poses; k++) poses.push(bakePose(ch.parts[pi], pi, k, BOX[name] ?? [64, 64], bake));
+      for (let k = 0; k < bake.poses; k++) poses.push(bakePose(ch.parts[pi], pi, k, boxOf(name), bake));
       out.push({ id: partIds[name], poses });
     } catch (err) {
       console.warn(`Could not bake "${name}" from character "${ref.character}"`, err);

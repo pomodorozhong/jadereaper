@@ -55,15 +55,17 @@ async function loadPartImages(bake) {
   let area = 0;
   for (const { poses } of baked) for (const c of poses || []) area += (c.width + 4) * (c.height + 4);
   const SIZE = area > 2048 * 2048 * 0.7 ? 4096 : 2048;
+  // When even 4096 is too small (big sizes from the debug panel), draw every baked image smaller so all fit.
+  const fit = Math.min(1, Math.sqrt((SIZE * SIZE * 0.7) / (area || 1)));
   const GAP = 4;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d');
   let x = GAP, y = GAP, rowH = 0;
   /** Place one image; returns its rect, or null when the atlas is full. */
-  const place = (bmp) => {
-    // Shrink anything larger than a quarter of the atlas.
-    const scale = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+  const place = (bmp, shrink = 1) => {
+    // Shrink anything larger than a quarter of the atlas's side.
+    const scale = Math.min(shrink, SIZE / 4 / Math.max(bmp.width, bmp.height));
     const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
     if (x + w + GAP > SIZE) { x = GAP; y += rowH + GAP; rowH = 0; }
     if (y + h + GAP > SIZE) { console.warn('Part atlas is full, skipping an image'); return null; }
@@ -80,7 +82,7 @@ async function loadPartImages(bake) {
   // A hidden part points at the atlas's last pixel, which nothing draws on, so it samples as clear.
   const clear = [(SIZE - 1) / SIZE, (SIZE - 1) / SIZE, 0.5 / SIZE, 0.5 / SIZE];
   for (const { id, poses } of baked) {
-    const placed = poses ? poses.map(place) : [clear];
+    const placed = poses ? poses.map((c) => place(c, fit)) : [clear];
     // Fill every pose row, so a core that has not caught up with a new pose count still finds an image.
     for (let k = 0; k < MAX_POSES; k++) {
       const rect = placed[k % placed.length];
