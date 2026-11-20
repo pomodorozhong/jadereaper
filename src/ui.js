@@ -4,7 +4,7 @@ import { formatTime } from './save.js';
 import { t, getLang, setText } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['title', 'settings', 'levelup', 'pause', 'over', 'error'];
+const SCREENS = ['title', 'settings', 'skillpick', 'levelup', 'pause', 'over', 'error'];
 const INPUT_LOCK_MS = 300;
 
 export function createUI({ onAction }) {
@@ -147,6 +147,37 @@ export function createUI({ onAction }) {
     show('levelup');
   }
 
+  /** The skill pick: every skill as a card; the picked ones show which button they go on, in pick order. */
+  function skillPick(picked) {
+    const focused = document.activeElement?.dataset?.value;
+    $('skillCards').replaceChildren(...SKILLS.map((sk) => {
+      const card = document.createElement('button');
+      card.className = 'card';
+      card.dataset.action = 'pick-skill';
+      card.dataset.value = String(sk.id);
+      const slot = picked.indexOf(sk.id);
+      if (slot >= 0) card.classList.add('picked');
+      const parts = [
+        ['key', slot >= 0 ? SLOT_KEYS[slot] : ''],
+        ['glyph', sk.glyph],
+        ['name', t(`skill.${sk.id}.name`)],
+        ['weight', t(`weight.${sk.weight}`)],
+        ['desc', t(`skill.${sk.id}.desc`)],
+      ];
+      for (const [cls, text] of parts) {
+        const span = document.createElement('span');
+        span.className = cls;
+        span.textContent = text;
+        card.append(span);
+      }
+      return card;
+    }));
+    $('pickBegin').disabled = picked.length !== 3;
+    setText($('pickBegin'), t('pick.begin', { n: picked.length }));
+    if (current !== 'skillpick') show('skillpick');
+    else if (focused) $('skillCards').querySelector(`[data-value="${focused}"]`)?.focus({ preventScroll: true });
+  }
+
   function gameOver({ time, kills, level }, save, beaten) {
     const rows = [
       [t('over.survived'), formatTime(time), beaten.time],
@@ -194,7 +225,7 @@ export function createUI({ onAction }) {
   }
 
   return {
-    show, navigate, confirm, hud, showHud, damage, levelUp, gameOver, records, settings, error,
+    show, navigate, confirm, hud, showHud, damage, skillPick, levelUp, gameOver, records, settings, error,
     get screen() { return current; },
     get locked() { return performance.now() < lockedUntil; },
   };

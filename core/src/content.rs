@@ -67,15 +67,30 @@ pub const KINDS: [Kind; 4] = [
 // skills
 pub const SK_SCYTHE: usize = 0;
 pub const SK_TALISMAN: usize = 1;
-pub const SK_PULSE: usize = 2;
-pub const N_SKILLS: usize = 3;
-pub const SKILLS: [SkillDef; 3] = [
+pub const SK_LUNGE: usize = 2;
+pub const SK_PULSE: usize = 3;
+pub const SK_BEADS: usize = 4;
+pub const SK_CHARGE: usize = 5;
+pub const SK_CLEAVE: usize = 6;
+pub const SK_LEAP: usize = 7;
+pub const N_SKILLS: usize = 8;
+pub const SKILLS: [SkillDef; 8] = [
     // scythe
-    SkillDef { weight: 0, kind: SkillKind::Melee, startup: 0.07, active: 0.08, recovery: 0.22, cancel: 0.06, damage: 10.0, stagger: 10.0, knockback: 160.0, area: AreaKind::Arc, reach: 95.0, width: 1.1, hyper: false, dash: 12.0, combo: 3, walk: 0.4 },
+    SkillDef { weight: 0, kind: SkillKind::Melee, startup: 0.07, active: 0.08, recovery: 0.22, cancel: 0.06, damage: 10.0, stagger: 10.0, knockback: 160.0, area: AreaKind::Arc, reach: 95.0, width: 1.1, hyper: false, dash: 12.0, combo: 3, walk: 0.4, lasts: 0.0 },
     // talisman
-    SkillDef { weight: 0, kind: SkillKind::Shot, startup: 0.1, active: 0.05, recovery: 0.2, cancel: 0.05, damage: 9.0, stagger: 6.0, knockback: 80.0, area: AreaKind::Circle, reach: 520.0, width: 10.0, hyper: false, dash: 0.0, combo: 1, walk: 0.7 },
+    SkillDef { weight: 0, kind: SkillKind::Shot, startup: 0.1, active: 0.05, recovery: 0.2, cancel: 0.05, damage: 9.0, stagger: 6.0, knockback: 80.0, area: AreaKind::Circle, reach: 520.0, width: 10.0, hyper: false, dash: 0.0, combo: 1, walk: 0.7, lasts: 0.0 },
+    // lunge
+    SkillDef { weight: 1, kind: SkillKind::Melee, startup: 0.14, active: 0.16, recovery: 0.3, cancel: 0.15, damage: 18.0, stagger: 20.0, knockback: 200.0, area: AreaKind::Line, reach: 60.0, width: 26.0, hyper: false, dash: 140.0, combo: 1, walk: 0.0, lasts: 0.0 },
     // pulse
-    SkillDef { weight: 1, kind: SkillKind::Nova, startup: 0.25, active: 0.1, recovery: 0.35, cancel: 0.2, damage: 16.0, stagger: 25.0, knockback: 420.0, area: AreaKind::Circle, reach: 140.0, width: 0.0, hyper: false, dash: 0.0, combo: 1, walk: 0.0 },
+    SkillDef { weight: 1, kind: SkillKind::Nova, startup: 0.25, active: 0.1, recovery: 0.35, cancel: 0.2, damage: 16.0, stagger: 25.0, knockback: 420.0, area: AreaKind::Circle, reach: 140.0, width: 0.0, hyper: false, dash: 0.0, combo: 1, walk: 0.0, lasts: 0.0 },
+    // beads
+    SkillDef { weight: 1, kind: SkillKind::Orbit, startup: 0.15, active: 0.05, recovery: 0.25, cancel: 0.1, damage: 7.0, stagger: 6.0, knockback: 140.0, area: AreaKind::Circle, reach: 78.0, width: 12.0, hyper: false, dash: 0.0, combo: 1, walk: 0.6, lasts: 2.0 },
+    // charge
+    SkillDef { weight: 2, kind: SkillKind::Melee, startup: 0.6, active: 0.35, recovery: 0.55, cancel: 0.4, damage: 34.0, stagger: 70.0, knockback: 380.0, area: AreaKind::Circle, reach: 44.0, width: 0.0, hyper: true, dash: 320.0, combo: 1, walk: 0.0, lasts: 0.0 },
+    // cleave
+    SkillDef { weight: 2, kind: SkillKind::Melee, startup: 0.5, active: 0.12, recovery: 0.6, cancel: 0.4, damage: 42.0, stagger: 80.0, knockback: 300.0, area: AreaKind::Arc, reach: 150.0, width: 1.4, hyper: true, dash: 0.0, combo: 1, walk: 0.0, lasts: 0.0 },
+    // leap
+    SkillDef { weight: 2, kind: SkillKind::Leap, startup: 0.45, active: 0.1, recovery: 0.55, cancel: 0.35, damage: 36.0, stagger: 70.0, knockback: 360.0, area: AreaKind::Circle, reach: 110.0, width: 0.0, hyper: true, dash: 260.0, combo: 1, walk: 0.0, lasts: 0.0 },
 ];
 
 // moves

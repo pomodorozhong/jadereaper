@@ -31,7 +31,7 @@ pub enum Act {
     /// Rolling in a direction; `t` counts up from 0 through the move and then the recovery.
     Roll { t: f32, dx: f32, dy: f32 },
     /// Using the skill on a button. `t` counts up from the start of the startup; `step` is the combo step.
-    Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool },
+    Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool, dist: f32 },
     /// Knocked off balance by a hit.
     Hurt { t: f32 },
 }
@@ -225,7 +225,15 @@ impl Game {
         let p = &mut self.player;
         p.buffer[slot] = 0.0;
         p.hits.clear();
-        p.act = Act::Skill { slot, skill, t: 0.0, dx: p.aim.0, dy: p.aim.1, step, fired: false };
+        let d = &SKILLS[skill];
+        // A leap goes to the aim point, as far as its reach; other moving skills always go their full distance.
+        let dist = if d.kind == SkillKind::Leap {
+            let (ax, ay) = p.aim_at;
+            (ax * ax + ay * ay).sqrt().clamp(40.0, d.dash)
+        } else {
+            d.dash
+        };
+        p.act = Act::Skill { slot, skill, t: 0.0, dx: p.aim.0, dy: p.aim.1, step, fired: false, dist };
     }
 
     /// The hit area of a skill use from where the player stands.
@@ -250,20 +258,26 @@ impl Game {
 
     /// One step of a skill. Returns how fast the player may walk meanwhile, as a share of walking speed.
     fn run_skill(&mut self, dt: f32) -> f32 {
-        let Act::Skill { slot, skill, t, dx, dy, step, mut fired } = self.player.act else { return 1.0 };
+        let Act::Skill { slot, skill, t, dx, dy, step, mut fired, dist } = self.player.act else { return 1.0 };
         let d = SKILLS[skill];
         let (a0, a1) = (d.startup, d.startup + d.active);
+        if d.kind == SkillKind::Leap && t < a0 {
+            // In the air through the startup.
+            let share = ((t + dt).min(a0) - t) / a0.max(1e-4);
+            self.player.x += dx * dist * share;
+            self.player.y += dy * dist * share;
+        }
         if t + dt > a0 && t < a1 {
-            if d.dash > 0.0 {
+            if dist > 0.0 && d.kind != SkillKind::Leap {
                 let share = ((t + dt).min(a1) - t.max(a0)) / d.active.max(1e-4);
-                self.player.x += dx * d.dash * share;
-                self.player.y += dy * d.dash * share;
+                self.player.x += dx * dist * share;
+                self.player.y += dy * dist * share;
             }
             if !fired {
                 fired = true;
-                self.skill_fires(skill, step, (dx, dy));
+                self.skill_fires(skill, step, (dx, dy), dist);
             }
-            if matches!(d.kind, SkillKind::Melee | SkillKind::Nova) {
+            if matches!(d.kind, SkillKind::Melee | SkillKind::Nova | SkillKind::Leap) {
                 let area = self.skill_area(skill, step, (dx, dy));
                 let dmg = self.skill_damage(skill, step);
                 self.hit_area(area, dmg, d.stagger, d.knockback);
@@ -273,7 +287,7 @@ impl Game {
         self.player.act = if t >= d.total() - 1e-4 {
             Act::Free
         } else {
-            Act::Skill { slot, skill, t, dx, dy, step, fired }
+            Act::Skill { slot, skill, t, dx, dy, step, fired, dist }
         };
         if t < a1 {
             d.walk
@@ -283,12 +297,19 @@ impl Game {
     }
 
     /// The moment a skill comes out: its sound, its effect, and any projectile.
-    fn skill_fires(&mut self, skill: usize, step: u8, dir: (f32, f32)) {
+    fn skill_fires(&mut self, skill: usize, step: u8, dir: (f32, f32), dist: f32) {
         let d = SKILLS[skill];
         let (px, py) = (self.player.x, self.player.y);
         let area = self.skill_area(skill, step, dir);
         let jade = [0.25, 0.62, 0.48, 0.9];
         match d.kind {
+            SkillKind::Melee if d.area != AreaKind::Arc => {
+                // Lunges and charges leave a streak of ink along their path.
+                let len = dist + area.reach();
+                let rot = dir.1.atan2(dir.0);
+                self.add_fx(Fx { rot, seed: 0.2, top: false, ..Fx::at(px + dir.0 * len * 0.5, py + dir.1 * len * 0.5, P_SLASH, 0.3, len * 0.5, 14.0, jade) });
+                self.event(EV_SLASH, px, py, 0.0);
+            }
             SkillKind::Melee => {
                 self.add_fx(Fx {
                     rot: dir.1.atan2(dir.0),
@@ -298,6 +319,15 @@ impl Game {
                     ..Fx::at(px, py - 24.0, P_SLASH, 0.22, area.reach(), area.reach(), jade)
                 });
                 self.event(EV_SLASH, px, py, 0.0);
+            }
+            SkillKind::Leap => {
+                self.add_fx(Fx { grow: (area.reach() - 30.0) / 0.25, seed: 0.4, top: false, ..Fx::at(px, py, P_RING, 0.25, 30.0, 30.0, [INK[0], INK[1], INK[2], 0.6]) });
+                self.shake = self.shake.max(0.6);
+                self.event(EV_PULSE, px, py, 0.0);
+            }
+            SkillKind::Orbit => {
+                self.orbit = Some(crate::game::Orbit { skill, t: d.lasts, spin: 0.0, hits: Vec::with_capacity(16) });
+                self.event(EV_SHOOT, px, py, 0.0);
             }
             SkillKind::Nova => {
                 let life = 0.3;
@@ -339,6 +369,48 @@ impl Game {
                 let (kx, ky) = dir_to(area.x, area.y, e.x, e.y);
                 self.player.hits.push(id);
                 self.hurt_enemy(i, dmg, stagger, kx * knockback, ky * knockback);
+            }
+        }
+    }
+
+    /// Where each orbiting bead is.
+    pub fn bead_pos(&self, k: usize) -> Option<(f32, f32)> {
+        let o = self.orbit.as_ref()?;
+        let d = &SKILLS[o.skill];
+        let a = o.spin + k as f32 * core::f32::consts::TAU / ORBIT_BEADS as f32;
+        Some((self.player.x + a.cos() * d.reach, self.player.y + a.sin() * d.reach * 0.8))
+    }
+
+    /// Spin the orbiting beads and hit what they touch, each target again only after `ORBIT_REHIT`.
+    pub(crate) fn move_orbit(&mut self, dt: f32) {
+        let Some(o) = self.orbit.as_mut() else { return };
+        o.t -= dt;
+        o.spin += dt * 7.0;
+        for h in o.hits.iter_mut() {
+            h.1 -= dt;
+        }
+        o.hits.retain(|h| h.1 > 0.0);
+        if o.t <= 0.0 {
+            self.orbit = None;
+            return;
+        }
+        let skill = o.skill;
+        let d = SKILLS[skill];
+        let dmg = self.skill_damage(skill, 0);
+        for k in 0..ORBIT_BEADS {
+            let (bx, by) = self.bead_pos(k).unwrap();
+            for i in 0..self.enemies.len() {
+                let e = &self.enemies[i];
+                let id = e.id;
+                if e.hp <= 0.0 || self.orbit.as_ref().unwrap().hits.iter().any(|h| h.0 == id) {
+                    continue;
+                }
+                let r = KINDS[e.kind as usize].r + d.width;
+                if (e.x - bx).powi(2) + (e.y - by).powi(2) < r * r {
+                    let (kx, ky) = dir_to(self.player.x, self.player.y, e.x, e.y);
+                    self.orbit.as_mut().unwrap().hits.push((id, ORBIT_REHIT));
+                    self.hurt_enemy(i, dmg, d.stagger, kx * d.knockback, ky * d.knockback);
+                }
             }
         }
     }

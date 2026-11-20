@@ -12,6 +12,7 @@ const DEFAULTS = {
   volume: 0.6,
   muted: false,
   reduceMotion: false, // no camera shake or hit-stop
+  loadout: [], // the skill ids picked last time, in button order
   lang: null, // null: use DEFAULT_LANG from i18n.js
 };
 

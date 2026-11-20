@@ -140,6 +140,11 @@ impl Game {
             let (x, y, rot) = (s.x, s.y, s.vy.atan2(s.vx) + TAU * 0.25);
             self.put(x, y - 24.0, 6.0, 11.0, rot, P_TALISMAN, 0.0, 0.5, [0.89, 0.77, 0.38, 1.0]);
         }
+        for k in 0..crate::skills::ORBIT_BEADS {
+            if let Some((x, y)) = self.bead_pos(k) {
+                self.put(x, y - 24.0, 9.0, 9.0, 0.0, P_BEAD, 0.0, k as f32 * 0.13, [0.30, 0.66, 0.50, 1.0]);
+            }
+        }
         for i in 0..self.fx.len() {
             if self.fx[i].top {
                 self.draw_fx(i);

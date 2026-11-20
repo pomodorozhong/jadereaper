@@ -11,6 +11,10 @@ pub enum SkillKind {
     Shot,
     /// A hit area around the player.
     Nova,
+    /// Beads orbit the player for `lasts` seconds at radius `reach`, each `width` across, hitting what they touch.
+    Orbit,
+    /// Leaps towards the aim point through the startup, up to `dash` away, and slams down where it lands.
+    Leap,
 }
 
 /// Shape of a skill's hit area. `reach` and `width` give its size (see `SkillDef`).
@@ -44,12 +48,14 @@ pub struct SkillDef {
     pub width: f32,
     /// Not interrupted by normal enemies during the active window.
     pub hyper: bool,
-    /// Distance moved along the aim through the active window.
+    /// Distance moved along the aim through the active window (a leap: the farthest it goes, through the startup).
     pub dash: f32,
     /// How many presses chain into a combo; 1 for none.
     pub combo: u8,
     /// Movement speed while starting up and active, as a share of walking speed.
     pub walk: f32,
+    /// How long an orbit lasts.
+    pub lasts: f32,
 }
 
 impl SkillDef {
@@ -63,6 +69,11 @@ impl SkillDef {
 }
 
 pub use crate::content::*;
+
+/// An orbit hits the same target again after this long.
+pub const ORBIT_REHIT: f32 = 0.5;
+/// Beads in an orbit.
+pub const ORBIT_BEADS: usize = 4;
 
 /// The third hit of a combo hits harder and reaches further.
 pub const COMBO_FINISH_DAMAGE: f32 = 1.6;

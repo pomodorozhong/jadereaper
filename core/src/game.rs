@@ -93,6 +93,16 @@ pub struct Hazard {
     pub warned: f32,
 }
 
+/// Beads flung into an orbit around the player by an orbit skill.
+pub struct Orbit {
+    pub skill: usize,
+    /// Time left.
+    pub t: f32,
+    pub spin: f32,
+    /// Targets hit recently, with the time before each can be hit again.
+    pub hits: Vec<(u32, f32)>,
+}
+
 /// A projectile thrown by the player.
 pub struct Shot {
     pub x: f32,
@@ -169,6 +179,7 @@ pub struct Game {
     pub loadout: [usize; 3],
     pub enemies: Vec<Enemy>,
     pub shots: Vec<Shot>,
+    pub orbit: Option<Orbit>,
     pub hazards: Vec<Hazard>,
     /// The shortest warning any hit on the player has had, for tests.
     pub min_warned: f32,
@@ -243,6 +254,7 @@ impl Game {
             loadout: [crate::skills::SK_SCYTHE, crate::skills::SK_TALISMAN, crate::skills::SK_PULSE],
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
+            orbit: None,
             hazards: Vec::with_capacity(64),
             min_warned: f32::INFINITY,
             gems: Vec::with_capacity(MAX_GEMS),
@@ -374,6 +386,7 @@ impl Game {
         }
         self.time += dt;
         self.move_player(dt);
+        self.move_orbit(dt);
         self.spawn(dt);
         self.move_enemies(dt);
         self.separate();

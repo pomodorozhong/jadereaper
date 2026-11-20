@@ -84,6 +84,17 @@
     </div>
   </section>
 
+  <section class="screen" id="skillpick" hidden>
+    <div class="pick-wrap">
+      <h2 class="banner" data-i18n="pick.banner">Choose three skills</h2>
+      <div class="skill-cards" id="skillCards"></div>
+      <div class="pick-foot">
+        <button data-action="pick-begin" id="pickBegin" data-i18n="pick.begin">Begin</button>
+        <button data-action="quit" data-i18n="pick.back">Back</button>
+      </div>
+    </div>
+  </section>
+
   <section class="screen" id="pause" hidden>
     <div class="sheet">
       <h2 data-i18n="pause.title">Paused</h2>
@@ -102,7 +113,7 @@
       <h2 data-i18n="over.title">The ink closes in</h2>
       <dl class="stats" id="stats"></dl>
       <div class="buttons">
-        <button data-action="start" data-i18n="over.again">Try again</button>
+        <button data-action="again" data-i18n="over.again">Try again</button>
         <button data-action="quit" data-i18n="over.quit">Title</button>
       </div>
     </div>

@@ -36,11 +36,21 @@
 
   "skills": [
     { "name": "scythe", "glyph": "鐮", "weight": "light", "kind": "melee", "startup": 0.07, "active": 0.08, "recovery": 0.22, "cancel": 0.06,
-      "damage": 10, "stagger": 10, "knockback": 160, "area": "arc", "reach": 95, "width": 1.1, "hyper": false, "dash": 12, "combo": 3, "walk": 0.4 },
+      "damage": 10, "stagger": 10, "knockback": 160, "area": "arc", "reach": 95, "width": 1.1, "hyper": false, "dash": 12, "combo": 3, "walk": 0.4, "lasts": 0 },
     { "name": "talisman", "glyph": "符", "weight": "light", "kind": "shot", "startup": 0.10, "active": 0.05, "recovery": 0.20, "cancel": 0.05,
-      "damage": 9, "stagger": 6, "knockback": 80, "area": "circle", "reach": 520, "width": 10, "hyper": false, "dash": 0, "combo": 1, "walk": 0.7 },
+      "damage": 9, "stagger": 6, "knockback": 80, "area": "circle", "reach": 520, "width": 10, "hyper": false, "dash": 0, "combo": 1, "walk": 0.7, "lasts": 0 },
+    { "name": "lunge", "glyph": "突", "weight": "medium", "kind": "melee", "startup": 0.14, "active": 0.16, "recovery": 0.30, "cancel": 0.15,
+      "damage": 18, "stagger": 20, "knockback": 200, "area": "line", "reach": 60, "width": 26, "hyper": false, "dash": 140, "combo": 1, "walk": 0, "lasts": 0 },
     { "name": "pulse", "glyph": "波", "weight": "medium", "kind": "nova", "startup": 0.25, "active": 0.10, "recovery": 0.35, "cancel": 0.20,
-      "damage": 16, "stagger": 25, "knockback": 420, "area": "circle", "reach": 140, "width": 0, "hyper": false, "dash": 0, "combo": 1, "walk": 0 }
+      "damage": 16, "stagger": 25, "knockback": 420, "area": "circle", "reach": 140, "width": 0, "hyper": false, "dash": 0, "combo": 1, "walk": 0, "lasts": 0 },
+    { "name": "beads", "glyph": "珠", "weight": "medium", "kind": "orbit", "startup": 0.15, "active": 0.05, "recovery": 0.25, "cancel": 0.10,
+      "damage": 7, "stagger": 6, "knockback": 140, "area": "circle", "reach": 78, "width": 12, "hyper": false, "dash": 0, "combo": 1, "walk": 0.6, "lasts": 2.0 },
+    { "name": "charge", "glyph": "衝", "weight": "heavy", "kind": "melee", "startup": 0.60, "active": 0.35, "recovery": 0.55, "cancel": 0.40,
+      "damage": 34, "stagger": 70, "knockback": 380, "area": "circle", "reach": 44, "width": 0, "hyper": true, "dash": 320, "combo": 1, "walk": 0, "lasts": 0 },
+    { "name": "cleave", "glyph": "劈", "weight": "heavy", "kind": "melee", "startup": 0.50, "active": 0.12, "recovery": 0.60, "cancel": 0.40,
+      "damage": 42, "stagger": 80, "knockback": 300, "area": "arc", "reach": 150, "width": 1.4, "hyper": true, "dash": 0, "combo": 1, "walk": 0, "lasts": 0 },
+    { "name": "leap", "glyph": "月", "weight": "heavy", "kind": "leap", "startup": 0.45, "active": 0.10, "recovery": 0.55, "cancel": 0.35,
+      "damage": 36, "stagger": 70, "knockback": 360, "area": "circle", "reach": 110, "width": 0, "hyper": true, "dash": 260, "combo": 1, "walk": 0, "lasts": 0 }
   ],
 
   "moves": [

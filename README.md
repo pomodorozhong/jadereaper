@@ -32,6 +32,7 @@ npm run smoke
 | --- | --- | --- |
 | Move | WASD or arrow keys | Left stick or d-pad |
 | Aim | Mouse | Right stick |
+| Skills | Left button, right button, Q | X, Y, RB |
 | Roll | Space | A or B |
 | Pause | Esc or P | Start |
 | Menu move | Arrow keys or WASD | Stick or d-pad |

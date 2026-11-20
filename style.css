@@ -269,6 +269,18 @@ button.card { font-family: var(--hand); }
   color: var(--ink-soft);
 }
 
+/* ------------------------------------------------------------- skill pick */
+
+.pick-wrap { display: grid; gap: 16px; justify-items: center; width: min(1000px, 100%); max-height: 100%; overflow: auto; padding: 8px; }
+.skill-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; width: 100%; }
+.skill-cards .card { max-width: none; padding: 14px 12px 12px; gap: 4px; font-size: 14px; }
+.skill-cards .card .glyph { font-size: 40px; }
+.skill-cards .card .name { font-size: 18px; }
+.skill-cards .card .weight { font-size: 13px; color: var(--ink-soft); }
+.skill-cards .card.picked { outline: 3px solid var(--vermilion); outline-offset: -6px; }
+.skill-cards .card.picked .key { color: var(--vermilion); font-weight: 700; }
+.pick-foot { display: flex; gap: 14px; align-items: center; }
+
 /* -------------------------------------------------------------- game over */
 
 .stats {

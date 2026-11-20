@@ -5,7 +5,7 @@ import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
-import { EVENT, STATE, UPGRADES } from './data.js';
+import { EVENT, STATE, UPGRADES, SKILLS } from './data.js';
 import { pickLang, setLang, getLang, nextLang } from './i18n.js';
 import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
@@ -109,8 +109,10 @@ async function boot() {
   audio.setVolume(save.volume);
   audio.setMuted(save.muted);
 
-  // 'title' | 'playing' | 'levelup' | 'paused' | 'over'
+  // 'title' | 'pick' | 'playing' | 'levelup' | 'paused' | 'over'
   let mode = 'title';
+  // Skills picked for the run, in button order (left, right, Q).
+  let picked = Array.isArray(save.loadout) ? save.loadout.filter((id) => SKILLS[id]).slice(0, 3) : [];
   let settingsFrom = 'title';
 
   const ui = createUI({ onAction });
@@ -146,8 +148,16 @@ async function boot() {
     ui.show('title');
   }
 
+  function pickSkills() {
+    mode = 'pick';
+    ui.showHud(false);
+    ui.skillPick(picked);
+  }
+
   function startRun() {
+    if (picked.length !== 3) { pickSkills(); return; }
     core.jr_start(seed());
+    core.jr_set_loadout(...picked);
     mode = 'playing';
     ui.showHud(true);
     ui.show(null);
@@ -174,7 +184,21 @@ async function boot() {
     audio.unlock();
     audio.play(action === 'choose' || action === 'start' ? 'confirm' : 'ui');
     switch (action) {
-      case 'start': startRun(); break;
+      case 'start': pickSkills(); break;
+      case 'pick-skill': {
+        const id = Number(value);
+        const at = picked.indexOf(id);
+        if (at >= 0) picked.splice(at, 1);
+        else if (picked.length < 3) picked.push(id);
+        ui.skillPick(picked);
+        break;
+      }
+      case 'pick-begin':
+        save.loadout = [...picked];
+        writeSave(save);
+        startRun();
+        break;
+      case 'again': startRun(); break;
       case 'resume': setPaused(false); break;
       case 'restart': startRun(); break;
       case 'quit': toTitle(); break;

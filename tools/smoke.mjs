@@ -3,7 +3,7 @@
 //
 //     npm run smoke
 //
-// With WebGPU, it starts a run and plays a few seconds. This includes the CI
+// With WebGPU, it picks three skills, starts a run and plays a few seconds. This includes the CI
 // runner, which has no GPU but gets a software adapter from Chromium. Without
 // WebGPU, it checks that the "Cannot start" screen shows the WebGPU reason.
 // Then it opens the Lightbox and checks that it loads cleanly.
@@ -55,6 +55,11 @@ try {
     outcome = noWebgpu ? `no WebGPU here; the "Cannot start" screen shows: ${shown}` : 'the game could not start';
   } else {
     await page.locator('#title [data-action="start"]').click();
+    // Pick the first three skills on the skill pick screen, then begin.
+    await page.locator('#skillpick').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
+    await page.waitForTimeout(400);
+    for (let i = 0; i < 3; i++) await page.locator('#skillCards .card').nth(i).click();
+    await page.locator('#pickBegin').click();
     await page.locator('#hud').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
     await page.waitForTimeout(PLAY_MS);
     if (await page.locator('#error').isVisible()) problems.push('the "Cannot start" screen appeared during the run');

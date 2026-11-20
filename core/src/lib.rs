@@ -93,6 +93,16 @@ pub extern "C" fn jr_update(dt: f32) {
     g().update(dt);
 }
 
+/// Put a skill on each of the three skill buttons (ids from `SKILLS`). Unknown ids are ignored.
+#[no_mangle]
+pub extern "C" fn jr_set_loadout(a: u32, b: u32, c: u32) {
+    for (slot, id) in [a, b, c].into_iter().enumerate() {
+        if (id as usize) < skills::N_SKILLS {
+            g().loadout[slot] = id as usize;
+        }
+    }
+}
+
 /// Pick one of the offered upgrades (0..2).
 #[no_mangle]
 pub extern "C" fn jr_choose(i: u32) {
