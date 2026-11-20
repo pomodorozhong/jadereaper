@@ -24,11 +24,12 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale) = (g().boil_fps, g().boil_poses, g().draw_scale);
+    let (fps, poses, scale, waddle) = (g().boil_fps, g().boil_poses, g().draw_scale, g().waddle);
     *g() = Game::new(seed);
     g().set_view(w, h);
     g().set_boil(fps, poses);
     g().draw_scale = scale;
+    g().waddle = waddle;
 }
 
 /// Start a new run.
@@ -55,6 +56,13 @@ pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_draw_scale(who: u32, scale: f32) {
     g().set_draw_scale(who as usize, scale);
+}
+
+/// An enemy kind's waddle (blot, wisp, brute, elite): how far it tilts each way in radians, and how often it
+/// changes pose per second.
+#[no_mangle]
+pub extern "C" fn jr_set_waddle(kind: u32, tilt: f32, rate: f32) {
+    g().set_waddle(kind as usize, tilt, rate);
 }
 
 /// Movement input, each axis in -1..1.

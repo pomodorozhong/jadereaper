@@ -50,7 +50,7 @@ Anything hidden behind a moving part must still be drawn, or patched with the fi
 
 At start-up, `src/characters.js` draws each part mapped in `assets/characters.json` in its boil poses (8 by default, tuned in the game; decision 0003 first planned 3) with Canvas2D, fitted to the box the core draws the part in, and `src/renderer.js` packs them into the existing part atlas. Strokes are drawn the same width on screen for every character. The jitter lives in `src/boil.js`, which the Lightbox imports too, so its boil preview matches the game: each stroke gets its own seeded wobble per pose, so neighbouring lines never move together. This takes a few milliseconds per character, once, and needs no build step or generated PNGs.
 
-Open the game with `?debug` for a panel of sliders that tune the bake (line width, line boil, poses, sharpness), the look (boil rate, paper margin, shadow) and each character's drawn size, while the game runs. "Copy values" copies them as JSON, to make tuned values the defaults in `src/characters.js` and `src/renderer.js`.
+Open the game with `?debug` for a panel of sliders that tune the bake (line width, line boil, poses, sharpness), the look (boil rate, paper margin, shadow), each character's drawn size and each monster's waddle (how far it tilts and how often it steps), while the game runs. "Copy values" copies them as JSON, to make tuned values the defaults in `src/characters.js` and `src/renderer.js`.
 
 ## Per-frame cost
 

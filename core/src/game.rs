@@ -100,6 +100,8 @@ pub struct Game {
     pub boil_poses: u32,
     /// How big each character is drawn: the player, then each enemy kind. Hit areas do not change.
     pub draw_scale: [f32; 5],
+    /// Each enemy kind's waddle: (tilt each way in radians, pose changes per second). Starts from `KINDS`.
+    pub waddle: [(f32, f32); 4],
     /// Half extents of the visible area in world units.
     pub view_w: f32,
     pub view_h: f32,
@@ -155,6 +157,12 @@ impl Game {
             boil_fps: 4.0,
             boil_poses: MAX_POSES,
             draw_scale: [1.0; 5],
+            waddle: [
+                (KINDS[0].tilt.to_radians(), KINDS[0].rate),
+                (KINDS[1].tilt.to_radians(), KINDS[1].rate),
+                (KINDS[2].tilt.to_radians(), KINDS[2].rate),
+                (KINDS[3].tilt.to_radians(), KINDS[3].rate),
+            ],
             view_w: 640.0,
             view_h: 360.0,
             input: (0.0, 0.0),
@@ -886,6 +894,13 @@ impl Game {
         }
     }
 
+    /// Set an enemy kind's waddle: how far it tilts each way (radians) and how often it changes pose.
+    pub fn set_waddle(&mut self, kind: usize, tilt: f32, rate: f32) {
+        if let Some(w) = self.waddle.get_mut(kind) {
+            *w = (tilt.clamp(0.0, 1.5), rate.clamp(0.0, 30.0));
+        }
+    }
+
     /// The line boil pose of one instance. Each instance starts at its own pose and steps at its own moment,
     /// both taken from its seed, so a crowd does not boil in lockstep.
     fn boil_pose(&self, seed: f32) -> u32 {
@@ -999,8 +1014,9 @@ impl Game {
         let e = self.enemies[i];
         let k = &KINDS[e.kind as usize];
         // Two poses, flipped back and forth. That is the whole walk cycle.
-        let pose = ((self.anim * k.rate + e.seed * 7.0).floor() as i32) & 1;
-        let (tilt, hop) = if pose == 0 { (0.13, 0.0) } else { (-0.13, -3.0) };
+        let (lean, rate) = self.waddle[e.kind as usize];
+        let pose = ((self.anim * rate + e.seed * 7.0).floor() as i32) & 1;
+        let (tilt, hop) = if pose == 0 { (lean, 0.0) } else { (-lean, -3.0) };
         let c = [k.color[0], k.color[1], k.color[2], 1.0];
         let shadow = [INK[0], INK[1], INK[2], 0.2];
         let s = self.draw_scale[1 + e.kind as usize];
@@ -1009,7 +1025,7 @@ impl Game {
             // Wisps hover and flap by squeezing their width.
             let hw = if pose == 0 { k.hw } else { k.hw * 0.7 };
             let bob = (self.anim * 5.0 + e.seed * 20.0).sin() * 3.0;
-            self.put(e.x, e.y - 26.0 * s + bob, hw * s * e.face, k.hh * s, tilt * 0.5, k.part, e.flash, e.seed, c);
+            self.put(e.x, e.y - 26.0 * s + bob, hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
         } else {
             self.put(e.x, e.y - k.hh * s + hop, k.hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
         }

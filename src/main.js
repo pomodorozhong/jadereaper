@@ -11,6 +11,13 @@ import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
 const STATE_FLOATS = 32;
 
+/** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
+ * Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends changes (jr_set_waddle). */
+const WADDLE = {
+  blotTilt: 7.5, blotRate: 5, wispTilt: 3.75, wispRate: 9, bruteTilt: 7.5, bruteRate: 3, eliteTilt: 7.5, eliteRate: 2.5,
+};
+const WADDLE_KINDS = ['blot', 'wisp', 'brute', 'elite'];
+
 /** ?debug: sliders for every visual setting. Bake settings re-draw the traced characters; look settings apply live. */
 const DEBUG_SLIDERS = [
   ['Bake (re-draws the characters)'],
@@ -30,10 +37,19 @@ const DEBUG_SLIDERS = [
   ['size', 'wisp', 'Wisp', 0.5, 2, 0.05],
   ['size', 'brute', 'Brute', 0.5, 2, 0.05],
   ['size', 'elite', 'Elite', 0.5, 2, 0.05],
+  ['Waddle (live): tilt each way in degrees, and pose changes per second'],
+  ['waddle', 'blotTilt', 'Blot tilt', 0, 30, 0.25],
+  ['waddle', 'blotRate', 'Blot rate', 0, 15, 0.5],
+  ['waddle', 'wispTilt', 'Wisp tilt', 0, 30, 0.25],
+  ['waddle', 'wispRate', 'Wisp rate', 0, 15, 0.5],
+  ['waddle', 'bruteTilt', 'Brute tilt', 0, 30, 0.25],
+  ['waddle', 'bruteRate', 'Brute rate', 0, 15, 0.5],
+  ['waddle', 'eliteTilt', 'Elite tilt', 0, 30, 0.25],
+  ['waddle', 'eliteRate', 'Elite rate', 0, 15, 0.5],
 ];
 function addDebugPanel(renderer, core) {
-  const sets = { bake: BAKE, look: LOOK, size: SIZE };
-  const defaults = { bake: { ...BAKE }, look: { ...LOOK }, size: { ...SIZE } };
+  const sets = { bake: BAKE, look: LOOK, size: SIZE, waddle: WADDLE };
+  const defaults = { bake: { ...BAKE }, look: { ...LOOK }, size: { ...SIZE }, waddle: { ...WADDLE } };
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:50;background:#fffdf6ee;border:1px solid #b9ae95;border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif;color:#2b2622;max-height:calc(100vh - 24px);overflow:auto';
   const btn = 'all:unset;cursor:pointer;padding:0 6px;border:1px solid #b9ae95;border-radius:4px';
@@ -62,6 +78,11 @@ function addDebugPanel(renderer, core) {
     sets[which][key] = v; el.value = v; el.nextElementSibling.textContent = v;
     if (key === 'boilFps' || key === 'poses') core.jr_set_boil(LOOK.boilFps, BAKE.poses);
     if (which === 'size') core.jr_set_draw_scale(SIZE_ORDER.indexOf(key), v);
+    if (which === 'waddle') {
+      const kind = WADDLE_KINDS.findIndex((k) => key.startsWith(k));
+      const name = WADDLE_KINDS[kind];
+      core.jr_set_waddle(kind, WADDLE[name + 'Tilt'] * Math.PI / 180, WADDLE[name + 'Rate']);
+    }
     if (which === 'bake' || which === 'size') rebake();
   };
   const sliders = [...panel.querySelectorAll('input[type=range]')];
@@ -72,7 +93,7 @@ function addDebugPanel(renderer, core) {
   panel.querySelector('#dbgResetAll').onclick = () => {
     for (const el of sliders) set(el, defaults[el.dataset.set][el.dataset.key]);
   };
-  panel.querySelector('#dbgCopy').onclick = () => navigator.clipboard?.writeText(JSON.stringify({ bake: BAKE, look: LOOK, size: SIZE }, null, 1));
+  panel.querySelector('#dbgCopy').onclick = () => navigator.clipboard?.writeText(JSON.stringify({ bake: BAKE, look: LOOK, size: SIZE, waddle: WADDLE }, null, 1));
   panel.querySelector('#dbgFold').onclick = (e) => {
     const body = panel.querySelector('#dbgBody');
     body.hidden = !body.hidden; e.target.textContent = body.hidden ? 'Show' : 'Hide';
