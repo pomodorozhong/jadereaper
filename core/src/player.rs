@@ -79,6 +79,8 @@ pub struct Player {
     pub buffer: [f32; N_BUTTONS],
     /// Enemy ids already hit by the current skill use, so each is hit once.
     pub hits: Vec<u32>,
+    /// Time left slowed (the Dragon's freezing field).
+    pub slow: f32,
 }
 
 impl Player {
@@ -99,6 +101,7 @@ impl Player {
             act: Act::Free,
             buffer: [0.0; N_BUTTONS],
             hits: Vec::with_capacity(64),
+            slow: 0.0,
         }
     }
 
@@ -149,7 +152,8 @@ impl Game {
             my /= len;
             len = 1.0;
         }
-        let speed = WALK_SPEED * self.stats.speed;
+        let speed = WALK_SPEED * self.stats.speed * if self.player.slow > 0.0 { crate::dragon::FIELD_SLOW } else { 1.0 };
+        self.player.slow = (self.player.slow - dt).max(0.0);
         let regen = self.stats.regen;
         let roll_dist = ROLL_DIST * self.stats.roll;
 

@@ -357,6 +357,7 @@ async function boot() {
         owned: Array.from(s.subarray(STATE.OWNED0, STATE.OWNED0 + CARDS.length)),
         bossBar: s[STATE.BOSS_KIND] ? {
           kind: s[STATE.BOSS_KIND] - 1, health: s[STATE.BOSS_HP], max: s[STATE.BOSS_MAX], meter: s[STATE.BOSS_METER], flags: s[STATE.BOSS_FLAGS],
+          stance: s[STATE.STANCE], finisher: s[STATE.FINISHER],
         } : null,
         grabbed: s[STATE.ACT] === 5,
       });

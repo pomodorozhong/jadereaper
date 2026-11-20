@@ -85,6 +85,8 @@ pub struct Look {
     pub seed: f32,
     /// The held part's angle, while swinging.
     pub swing: Option<f32>,
+    /// Blends every part's colour halfway to this one (the Dragon's stance).
+    pub tint: Option<[f32; 3]>,
 }
 
 impl Game {
@@ -116,7 +118,11 @@ impl Game {
         let pivot = if spin != 0.0 { rig.height() * 0.5 * s } else { 0.0 };
         let mut held = None;
         for (k, p) in rig.parts.iter().enumerate() {
-            let col = [p.color[0], p.color[1], p.color[2], look.alpha];
+            let tc = match look.tint {
+                Some(t) => [(p.color[0] + t[0]) * 0.5, (p.color[1] + t[1]) * 0.5, (p.color[2] + t[2]) * 0.5],
+                None => p.color,
+            };
+            let col = [tc[0], tc[1], tc[2], look.alpha];
             let seed = (look.seed + k as f32 * 0.17).fract();
             if p.held {
                 if let Some(a) = look.swing {

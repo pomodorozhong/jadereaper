@@ -3,7 +3,7 @@
 use crate::defs::*;
 use crate::game::{Act, Game, Phase};
 use crate::geom::{Area, Shape};
-use crate::moves::{After, MOVES};
+use crate::moves::{After, Special, Stance, MOVES};
 use crate::elements::{element_color, STAR_RADIUS, TRAIL_TIME, WELL_RANGE, WELL_TIME};
 use crate::player::HURT_IFRAME;
 use crate::rigs::{Doing, Look};
@@ -84,9 +84,24 @@ impl Game {
                 continue;
             }
             let prog = (e.pt / self.windup_of(&e)).clamp(0.0, 1.0);
-            let color = if e.kind == K_ELITE || KINDS[e.kind as usize].boss { WARN_BOSS } else { WARN };
-            let area = self.move_area(&e);
-            self.draw_warning(area, prog, color);
+            let mut color = if e.kind == K_ELITE || KINDS[e.kind as usize].boss { WARN_BOSS } else { WARN };
+            if e.kind == K_DRAGON {
+                // The Dragon's warnings take its stance's colour.
+                let c = self.stance_color();
+                color = [c[0] * 0.8, c[1] * 0.8, c[2] * 0.8, 0.6];
+            }
+            if m.special == Special::Finisher {
+                // The finisher fills the screen: a wash that darkens as it builds.
+                let r = self.view_w.max(self.view_h) * 2.5;
+                let (cx, cy) = self.cam;
+                self.put(cx, cy, r, r, 0.0, P_WARN_CIRCLE, prog, 0.0, [color[0], color[1], color[2], 0.25 + 0.35 * prog]);
+                continue;
+            }
+            let (areas, n) = self.move_areas(&e);
+            for a in &areas[..n] {
+                self.draw_warning(*a, prog, color);
+            }
+            let area = areas[0];
             if let After::Wave { to, .. } = m.after {
                 // The shock ring that will follow: its whole reach, faint.
                 let ring = Area { shape: Shape::Ring { inner: m.reach, outer: to }, ..area };
@@ -108,6 +123,13 @@ impl Game {
         }
         for i in 0..self.hazards.len() {
             let h = self.hazards[i];
+            if h.rehit > 0.0 {
+                // A burning pool.
+                let c = element_color(E_FIRE + 1);
+                let flick = 0.5 + 0.1 * (self.anim * 12.0 + h.x).sin();
+                self.put(h.x, h.y, h.r, h.r * 0.8, 0.0, P_SPLAT, 0.0, (h.x * 0.01).fract(), [c[0], c[1], c[2], flick * (h.life / 4.0).min(1.0) + 0.2]);
+                continue;
+            }
             if h.band > 0.0 {
                 let outer = h.r + h.band * 0.5;
                 let inner = (h.r - h.band * 0.5).max(0.0);
@@ -207,6 +229,14 @@ impl Game {
         }
     }
 
+    /// The colour of the Dragon's stance.
+    fn stance_color(&self) -> [f32; 3] {
+        match self.stance {
+            Stance::Ice => element_color(E_ICE + 1),
+            _ => element_color(E_FIRE + 1),
+        }
+    }
+
     /// The arena's edge: an ink band with stones along it.
     fn draw_walls(&mut self) {
         let Some([x0, y0, x1, y1]) = self.arena else { return };
@@ -259,13 +289,18 @@ impl Game {
             }
         };
         let mut y = e.y;
+        if e.kind == K_DRAGON && e.phase == Phase::Windup && mv.special == Special::Dive {
+            // Up into the air before the dive.
+            y -= 160.0 * (e.pt / self.windup_of(&e)).min(1.0);
+        }
         if e.kind == K_WISP {
             // Wisps hover.
             y += (self.anim * 5.0 + e.seed * 20.0).sin() * 3.0;
         }
         let shadow = [INK[0], INK[1], INK[2], 0.2];
         self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_GROUND_SHADOW, 0.0, 0.0, shadow);
-        self.draw_rig(rig, doing, Look { x, y, face: e.face, scale: s, flash: e.flash, alpha: 1.0, seed: e.seed, swing: None });
+        let tint = if e.kind == K_DRAGON { Some(self.stance_color()) } else { None };
+        self.draw_rig(rig, doing, Look { x, y, face: e.face, scale: s, flash: e.flash, alpha: 1.0, seed: e.seed, swing: None, tint });
         if boss.map_or(false, |b| b.enraged()) {
             // Red ink veins once enraged.
             let h = rig.height() * s;
@@ -332,6 +367,6 @@ impl Game {
         let s = self.draw_scale[0];
         let shadow = [INK[0], INK[1], INK[2], 0.22];
         self.put(px, py, 20.0 * s, 7.0 * s, 0.0, P_GROUND_SHADOW, 0.0, 0.0, shadow);
-        self.draw_rig(&RIGS[RG_PLAYER], doing, Look { x: px, y: py, face: f, scale: s, flash, alpha, seed: 0.37, swing });
+        self.draw_rig(&RIGS[RG_PLAYER], doing, Look { x: px, y: py, face: f, scale: s, flash, alpha, seed: 0.37, swing, tint: None });
     }
 }

@@ -31,7 +31,7 @@
     { "name": "dragon_wing", "id": 29 }
   ],
 
-  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win", "enrage", "boss_down", "grab"],
+  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win", "enrage", "boss_down", "grab", "stance", "finisher"],
 
   "rigs": [
     { "name": "player",
@@ -62,6 +62,16 @@
       "windup": { "dx": -10, "dy": -6, "tilt": -0.15, "sx": 1.05, "sy": 0.95 },
       "attack": { "dx": 14, "dy": 2, "tilt": 0.18, "sx": 1.1, "sy": 0.92 },
       "hurt": { "dx": -8, "dy": 6, "tilt": -0.25, "sx": 1.15, "sy": 0.8 },
+      "roll": { "dx": 0, "dy": 0, "tilt": 0, "sx": 1, "sy": 1 } },
+    { "name": "dragon",
+      "parts": [
+        { "part": "dragon_wing", "x": -30, "y": -110, "hw": 70, "hh": 34, "rot": -0.5, "color": [0.55, 0.50, 0.48], "held": false },
+        { "part": "dragon_body", "x": 0, "y": -60, "hw": 90, "hh": 46, "rot": 0, "color": [0.62, 0.56, 0.50], "held": false },
+        { "part": "dragon_head", "x": 84, "y": -96, "hw": 38, "hh": 28, "rot": -0.2, "color": [0.70, 0.64, 0.56], "held": false }
+      ],
+      "windup": { "dx": -10, "dy": -12, "tilt": -0.12, "sx": 1.04, "sy": 0.96 },
+      "attack": { "dx": 14, "dy": 4, "tilt": 0.16, "sx": 1.08, "sy": 0.94 },
+      "hurt": { "dx": -8, "dy": 8, "tilt": -0.25, "sx": 1.12, "sy": 0.82 },
       "roll": { "dx": 0, "dy": 0, "tilt": 0, "sx": 1, "sy": 1 } }
   ],
 
@@ -71,7 +81,9 @@
     { "name": "brute", "rig": "brute", "hp": 110, "speed": 48, "r": 26, "rate": 3, "tilt": 7.5, "poise": 40, "boss": false, "moves": ["brute_slam"] },
     { "name": "elite", "rig": "elite", "hp": 700, "speed": 60, "r": 44, "rate": 2.5, "tilt": 7.5, "poise": 120, "boss": false, "moves": ["elite_bite", "elite_stomp"] },
     { "name": "glutton", "rig": "glutton", "hp": 2400, "speed": 85, "r": 58, "rate": 2, "tilt": 3, "poise": 260, "boss": true,
-      "moves": ["glutton_bite", "glutton_tail", "glutton_stomp", "glutton_charge", "glutton_breath", "glutton_grab", "glutton_summon", "glutton_eat"] }
+      "moves": ["glutton_bite", "glutton_tail", "glutton_stomp", "glutton_charge", "glutton_breath", "glutton_grab", "glutton_summon", "glutton_eat"] },
+    { "name": "dragon", "rig": "dragon", "hp": 3200, "speed": 70, "r": 64, "rate": 1.5, "tilt": 2, "poise": 320, "boss": true,
+      "moves": ["dragon_claw", "dragon_dive", "dragon_pools", "dragon_flame_line", "dragon_lances", "dragon_field", "dragon_shards", "dragon_finisher"] }
   ],
 
   "skills": [
@@ -128,7 +140,7 @@
     { "name": "shrine_steps", "w": 1000, "h": 700, "boss": "none",
       "waves": [["blot", "blot", "wisp", "brute"], ["wisp", "wisp", "brute", "blot", "blot"], ["elite", "blot", "blot"]] },
     { "name": "glutton_hall", "w": 1200, "h": 860, "boss": "glutton", "waves": [["glutton"]] },
-    { "name": "dragon_peak", "w": 1300, "h": 900, "boss": "elite", "waves": [["elite", "elite"]] }
+    { "name": "dragon_peak", "w": 1300, "h": 900, "boss": "dragon", "waves": [["dragon"]] }
   ],
 
   "moves": [
@@ -159,6 +171,23 @@
     { "name": "glutton_summon", "windup": 0.7, "active": 0.1, "recover": 0.6, "area": "circle", "reach": 0, "width": 0, "damage": 0,
       "dash": 0, "after": "none", "range": [0, 900], "chain": 0, "weight": 1, "cooldown": 14, "special": "summon" },
     { "name": "glutton_eat", "windup": 1.1, "active": 0.1, "recover": 0.5, "area": "circle", "reach": 0, "width": 0, "damage": 0,
-      "dash": 0, "after": "none", "range": [0, 900], "chain": 0, "weight": 3, "cooldown": 5, "special": "eat" }
+      "dash": 0, "after": "none", "range": [0, 900], "chain": 0, "weight": 3, "cooldown": 5, "special": "eat" },
+
+    { "name": "dragon_claw", "windup": 0.5, "active": 0.15, "recover": 0.7, "area": "arc", "reach": 160, "width": 0.8, "damage": 14,
+      "dash": 40, "after": "none", "range": [0, 220], "chain": 1, "weight": 3 },
+    { "name": "dragon_dive", "windup": 0.8, "active": 0.15, "recover": 0.9, "area": "circle", "reach": 120, "width": 0, "damage": 20,
+      "dash": 0, "after": "none", "range": [150, 900], "chain": 0, "weight": 3, "cooldown": 3, "big": true, "special": "dive", "knockdown": true, "stance": "fire" },
+    { "name": "dragon_pools", "windup": 0.7, "active": 0.1, "recover": 0.8, "area": "circle", "reach": 70, "width": 0, "damage": 10,
+      "dash": 0, "after": "none", "range": [0, 900], "chain": 0, "weight": 2, "cooldown": 5, "special": "pools", "stance": "fire" },
+    { "name": "dragon_flame_line", "windup": 0.7, "active": 0.5, "recover": 0.8, "area": "line", "reach": 640, "width": 30, "damage": 14,
+      "dash": 0, "after": "none", "range": [0, 700], "chain": 0, "weight": 2, "cooldown": 3, "big": true, "special": "lances", "stance": "fire" },
+    { "name": "dragon_lances", "windup": 0.6, "active": 0.45, "recover": 0.8, "area": "line", "reach": 600, "width": 24, "damage": 12,
+      "dash": 0, "after": "none", "range": [0, 700], "chain": 2, "weight": 3, "cooldown": 3, "special": "lances", "stance": "ice" },
+    { "name": "dragon_field", "windup": 0.8, "active": 0.15, "recover": 0.9, "area": "circle", "reach": 260, "width": 0, "damage": 8,
+      "dash": 0, "after": "none", "range": [0, 260], "chain": 0, "weight": 2, "cooldown": 6, "big": true, "special": "field", "stance": "ice" },
+    { "name": "dragon_shards", "windup": 0.75, "active": 0.12, "recover": 0.8, "area": "circle", "reach": 52, "width": 0, "damage": 12,
+      "dash": 0, "after": "none", "range": [0, 900], "chain": 0, "weight": 2, "cooldown": 4, "special": "shards", "stance": "ice" },
+    { "name": "dragon_finisher", "windup": 3.0, "active": 0.1, "recover": 1.4, "area": "circle", "reach": 3000, "width": 0, "damage": 0,
+      "dash": 0, "after": "none", "range": [0, 0], "chain": 0, "weight": 0, "big": true, "special": "finisher" }
   ]
 }

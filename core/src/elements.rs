@@ -100,6 +100,7 @@ impl Game {
         if element == 0 || i >= self.enemies.len() {
             return;
         }
+        self.note_element_damage(i, element, dmg);
         let boss = self.is_boss(i);
         let (x, y) = (self.enemies[i].x, self.enemies[i].y);
         match element - 1 {
@@ -174,6 +175,7 @@ impl Game {
                     e.hp -= dmg;
                     let (x, y) = (e.x, e.y);
                     self.event(EV_HIT, x, y, dmg);
+                    self.note_element_damage(i, E_FIRE + 1, dmg);
                 }
             } else {
                 s.burn_dps = 0.0;

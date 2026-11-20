@@ -58,6 +58,9 @@ impl Game {
         self.orbit = None;
         self.fx.clear();
         self.focus = None;
+        self.boss = None;
+        self.stance = crate::moves::Stance::Any;
+        self.player.slow = 0.0;
         self.player.x = 0.0;
         self.player.y = b[3] - 90.0;
         self.player.kx = 0.0;

@@ -50,7 +50,9 @@ export const EVENT = {
   "WIN": 14,
   "ENRAGE": 15,
   "BOSS_DOWN": 16,
-  "GRAB": 17
+  "GRAB": 17,
+  "STANCE": 18,
+  "FINISHER": 19
 };
 
 /** rigs, indexed by id. */
@@ -398,6 +400,82 @@ export const RIGS = [
       "sx": 1,
       "sy": 1
     }
+  },
+  {
+    "id": 6,
+    "name": "dragon",
+    "parts": [
+      {
+        "part": "dragon_wing",
+        "x": -30,
+        "y": -110,
+        "hw": 70,
+        "hh": 34,
+        "rot": -0.5,
+        "color": [
+          0.55,
+          0.5,
+          0.48
+        ],
+        "held": false
+      },
+      {
+        "part": "dragon_body",
+        "x": 0,
+        "y": -60,
+        "hw": 90,
+        "hh": 46,
+        "rot": 0,
+        "color": [
+          0.62,
+          0.56,
+          0.5
+        ],
+        "held": false
+      },
+      {
+        "part": "dragon_head",
+        "x": 84,
+        "y": -96,
+        "hw": 38,
+        "hh": 28,
+        "rot": -0.2,
+        "color": [
+          0.7,
+          0.64,
+          0.56
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -10,
+      "dy": -12,
+      "tilt": -0.12,
+      "sx": 1.04,
+      "sy": 0.96
+    },
+    "attack": {
+      "dx": 14,
+      "dy": 4,
+      "tilt": 0.16,
+      "sx": 1.08,
+      "sy": 0.94
+    },
+    "hurt": {
+      "dx": -8,
+      "dy": 8,
+      "tilt": -0.25,
+      "sx": 1.12,
+      "sy": 0.82
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
   }
 ];
 
@@ -484,6 +562,28 @@ export const KINDS = [
       "glutton_grab",
       "glutton_summon",
       "glutton_eat"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "dragon",
+    "rig": "dragon",
+    "hp": 3200,
+    "speed": 70,
+    "r": 64,
+    "rate": 1.5,
+    "tilt": 2,
+    "poise": 320,
+    "boss": true,
+    "moves": [
+      "dragon_claw",
+      "dragon_dive",
+      "dragon_pools",
+      "dragon_flame_line",
+      "dragon_lances",
+      "dragon_field",
+      "dragon_shards",
+      "dragon_finisher"
     ]
   }
 ];
@@ -983,11 +1083,10 @@ export const ROOMS = [
     "name": "dragon_peak",
     "w": 1300,
     "h": 900,
-    "boss": "elite",
+    "boss": "dragon",
     "waves": [
       [
-        "elite",
-        "elite"
+        "dragon"
       ]
     ]
   }
@@ -1281,5 +1380,181 @@ export const MOVES = [
     "weight": 3,
     "cooldown": 5,
     "special": "eat"
+  },
+  {
+    "id": 13,
+    "name": "dragon_claw",
+    "windup": 0.5,
+    "active": 0.15,
+    "recover": 0.7,
+    "area": "arc",
+    "reach": 160,
+    "width": 0.8,
+    "damage": 14,
+    "dash": 40,
+    "after": "none",
+    "range": [
+      0,
+      220
+    ],
+    "chain": 1,
+    "weight": 3
+  },
+  {
+    "id": 14,
+    "name": "dragon_dive",
+    "windup": 0.8,
+    "active": 0.15,
+    "recover": 0.9,
+    "area": "circle",
+    "reach": 120,
+    "width": 0,
+    "damage": 20,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      150,
+      900
+    ],
+    "chain": 0,
+    "weight": 3,
+    "cooldown": 3,
+    "big": true,
+    "special": "dive",
+    "knockdown": true,
+    "stance": "fire"
+  },
+  {
+    "id": 15,
+    "name": "dragon_pools",
+    "windup": 0.7,
+    "active": 0.1,
+    "recover": 0.8,
+    "area": "circle",
+    "reach": 70,
+    "width": 0,
+    "damage": 10,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      900
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 5,
+    "special": "pools",
+    "stance": "fire"
+  },
+  {
+    "id": 16,
+    "name": "dragon_flame_line",
+    "windup": 0.7,
+    "active": 0.5,
+    "recover": 0.8,
+    "area": "line",
+    "reach": 640,
+    "width": 30,
+    "damage": 14,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      700
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 3,
+    "big": true,
+    "special": "lances",
+    "stance": "fire"
+  },
+  {
+    "id": 17,
+    "name": "dragon_lances",
+    "windup": 0.6,
+    "active": 0.45,
+    "recover": 0.8,
+    "area": "line",
+    "reach": 600,
+    "width": 24,
+    "damage": 12,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      700
+    ],
+    "chain": 2,
+    "weight": 3,
+    "cooldown": 3,
+    "special": "lances",
+    "stance": "ice"
+  },
+  {
+    "id": 18,
+    "name": "dragon_field",
+    "windup": 0.8,
+    "active": 0.15,
+    "recover": 0.9,
+    "area": "circle",
+    "reach": 260,
+    "width": 0,
+    "damage": 8,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      260
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 6,
+    "big": true,
+    "special": "field",
+    "stance": "ice"
+  },
+  {
+    "id": 19,
+    "name": "dragon_shards",
+    "windup": 0.75,
+    "active": 0.12,
+    "recover": 0.8,
+    "area": "circle",
+    "reach": 52,
+    "width": 0,
+    "damage": 12,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      900
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 4,
+    "special": "shards",
+    "stance": "ice"
+  },
+  {
+    "id": 20,
+    "name": "dragon_finisher",
+    "windup": 3,
+    "active": 0.1,
+    "recover": 1.4,
+    "area": "circle",
+    "reach": 3000,
+    "width": 0,
+    "damage": 0,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      0
+    ],
+    "chain": 0,
+    "weight": 0,
+    "big": true,
+    "special": "finisher"
   }
 ];

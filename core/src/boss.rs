@@ -50,11 +50,38 @@ pub struct BossState {
     pub dir: f32,
     /// The player is held by its grab.
     pub holding: bool,
+    /// The Dragon: time in the current stance, weak-element damage dealt in it (all of it, and towards the next
+    /// knockdown), health thresholds passed (bits), finishers so far, and where its current move lands.
+    pub stance_t: f32,
+    pub weak_dmg: f32,
+    pub weak_meter: f32,
+    pub passed: u8,
+    pub finishers: u8,
+    pub spots: [(f32, f32); 5],
+    pub nspots: u8,
 }
 
 impl BossState {
     pub fn new(id: u32) -> BossState {
-        BossState { id, phase: 1, meter: 0.0, down: 0.0, cooldowns: [0.0; N_MOVES], chain: 0, recent: 0.0, rage: 0.0, dir: 0.0, holding: false }
+        BossState {
+            id,
+            phase: 1,
+            meter: 0.0,
+            down: 0.0,
+            cooldowns: [0.0; N_MOVES],
+            chain: 0,
+            recent: 0.0,
+            rage: 0.0,
+            dir: 0.0,
+            holding: false,
+            stance_t: 0.0,
+            weak_dmg: 0.0,
+            weak_meter: 0.0,
+            passed: 0,
+            finishers: 0,
+            spots: [(0.0, 0.0); 5],
+            nspots: 0,
+        }
     }
 
     pub fn enraged(&self) -> bool {
@@ -137,7 +164,7 @@ impl Game {
 
         // Enrage, for good.
         let hp = self.enemies[i].hp;
-        if b.phase == 1 && (hp < max_hp * ENRAGE_HP || b.recent > max_hp * ENRAGE_BURST || b.rage >= 1.0) {
+        if self.enemies[i].kind == K_GLUTTON && b.phase == 1 && (hp < max_hp * ENRAGE_HP || b.recent > max_hp * ENRAGE_BURST || b.rage >= 1.0) {
             b.phase = 2;
             let (x, y) = (self.enemies[i].x, self.enemies[i].y);
             self.shake = self.shake.max(1.0);
@@ -165,6 +192,9 @@ impl Game {
             return;
         }
         b.meter = (b.meter - poise * 0.04 * dt).max(0.0);
+        if self.is_dragon(i) {
+            self.dragon_stance(i, &mut b, dt);
+        }
 
         let pace = self.enemies[i].status.pace().max(0.5);
         let dt = dt * pace;
@@ -200,6 +230,7 @@ impl Game {
                             b.dir = to_player;
                         }
                         self.start_windup(i);
+                        self.dragon_aim(i, &mut b);
                     } else {
                         self.enemies[i].think = 0.2;
                     }
@@ -230,6 +261,7 @@ impl Game {
                             }
                         }
                         _ => {
+                            self.dragon_strikes(i, &mut b);
                             if let After::Wave { to, speed, band } = m.after {
                                 let a = self.move_area(&self.enemies[i]);
                                 self.add_hazard(Hazard {
@@ -245,6 +277,8 @@ impl Game {
                                     dmg: m.damage * 0.6,
                                     boss: true,
                                     warned: windup_for(&m, enraged),
+                                    rehit: 0.0,
+                                    cool: 0.0,
                                 });
                             }
                             self.event(EV_STRIKE, x, y, e.kind as f32);
@@ -258,14 +292,15 @@ impl Game {
                     en.x += en.dx * m.dash * dt / m.active;
                     en.y += en.dy * m.dash * dt / m.active;
                 }
-                let attack = !matches!(m.special, Special::Summon | Special::Eat);
+                let attack = !matches!(m.special, Special::Summon | Special::Eat | Special::Finisher);
                 if attack && !self.enemies[i].struck {
-                    let area = self.boss_area(i, pt / m.active);
+                    let (areas, n) = self.strike_areas(i, pt / m.active);
                     let (ex, ey) = (self.enemies[i].x, self.enemies[i].y);
-                    if area.hits(px, py, PLAYER_R) {
+                    if areas[..n].iter().any(|a| a.hits(px, py, PLAYER_R)) {
                         let warned = windup_for(&m, enraged) + pt;
                         if self.hurt_player(m.damage, true, (ex, ey), warned) {
                             self.enemies[i].struck = true;
+                            self.dragon_hit(&m);
                             if m.special == Special::Grab {
                                 b.holding = true;
                                 self.player.act = Act::Grabbed { t: 0.0, mash: 0 };
@@ -282,6 +317,7 @@ impl Game {
                         en.chain -= 1;
                         b.dir = to_player;
                         self.start_windup(i);
+                        self.dragon_aim(i, &mut b);
                     } else if enraged && b.chain > 0 && !b.holding {
                         // Enraged: straight into the next move.
                         b.chain -= 1;

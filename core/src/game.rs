@@ -95,6 +95,9 @@ pub struct Hazard {
     pub boss: bool,
     /// Time since the warning for the attack that made it started.
     pub warned: f32,
+    /// A lingering pool hurts again after this long (0 for a shot or ring, which hit once).
+    pub rehit: f32,
+    pub cool: f32,
 }
 
 /// Beads flung into an orbit around the player by an orbit skill.
@@ -558,6 +561,17 @@ impl Game {
             Act::Down { .. } => 4.0,
             Act::Grabbed { .. } => 5.0,
         };
+        // 62 the Dragon's stance (0 none, 1 fire, 2 ice), 63 how far its finisher has built (0..1).
+        s[62] = match self.stance {
+            crate::moves::Stance::Any => 0.0,
+            crate::moves::Stance::Fire => 1.0,
+            crate::moves::Stance::Ice => 2.0,
+        };
+        s[63] = self
+            .enemies
+            .iter()
+            .find(|e| e.kind == K_DRAGON && e.mv as usize == M_DRAGON_FINISHER && e.phase == Phase::Windup)
+            .map_or(0.0, |e| (e.pt / MOVES[M_DRAGON_FINISHER].windup).min(1.0));
         s[26] = self.player.x;
         s[27] = self.player.y;
         for c in 0..3 {

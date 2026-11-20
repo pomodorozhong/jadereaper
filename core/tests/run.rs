@@ -72,9 +72,12 @@ fn beating_the_last_room_wins() {
     let mut g = start(4, [SK_SCYTHE, SK_TALISMAN, SK_PULSE]);
     g.choose(0);
     g.enter_room(N_ROOMS - 1);
-    g.player.max_hp = 1e6;
-    g.player.hp = 1e6;
-    bot::play(&mut g, 900.0, |_| false);
+    // Wait for the boss, then leave it nearly beaten.
+    bot::play(&mut g, 10.0, |g| !g.enemies.is_empty());
+    for e in g.enemies.iter_mut() {
+        e.hp = 30.0;
+    }
+    bot::play(&mut g, 120.0, |_| false);
     assert!(g.won && g.over, "room {}, wave {}, {} enemies left", g.room, g.wave, g.enemies.len());
 }
 

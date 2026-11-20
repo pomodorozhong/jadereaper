@@ -368,6 +368,8 @@ button.card { font-family: var(--hand); }
 .boss-meter { width: 70%; height: 5px; border-radius: 2px; overflow: hidden; background: var(--paper-dark); }
 .boss-meter-fill { height: 100%; width: 0; background: var(--jade); }
 .boss-bar.down .boss-meter-fill { background: var(--vermilion); }
+.boss-weak { font-size: 15px; font-weight: 700; }
+.prompt.finisher { top: 26%; }
 .prompt { position: fixed; left: 50%; top: 38%; transform: translateX(-50%) rotate(-2deg); font-family: var(--title); font-size: 26px; font-weight: 700; color: var(--vermilion); text-shadow: 0 0 4px var(--paper), 0 0 4px var(--paper); animation: fade 0.2s; }
 
 /* Damage numbers float up from where a hit lands. */

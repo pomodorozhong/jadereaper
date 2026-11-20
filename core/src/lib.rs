@@ -13,6 +13,7 @@ pub mod bot;
 pub mod cards;
 pub mod content;
 pub mod defs;
+pub mod dragon;
 pub mod elements;
 pub mod draw;
 pub mod enemy;

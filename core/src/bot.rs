@@ -34,6 +34,10 @@ impl Bot {
         let (dx, dy) = dir_to(px, py, e.x, e.y);
         let aim = (e.x - px, e.y - py);
 
+        if let Some((ox, oy)) = g.pool_escape() {
+            // Walk out of burning ground.
+            return Input { mx: ox, my: oy, ax: aim.0, ay: aim.1, buttons: 0 };
+        }
         if g.threat(0.08) {
             // Roll through the attacker.
             return Input { mx: dx, my: dy, ax: aim.0, ay: aim.1, buttons: B_ROLL };

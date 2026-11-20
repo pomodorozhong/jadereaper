@@ -60,6 +60,8 @@ pub const EV_WIN: f32 = 14.0;
 pub const EV_ENRAGE: f32 = 15.0;
 pub const EV_BOSS_DOWN: f32 = 16.0;
 pub const EV_GRAB: f32 = 17.0;
+pub const EV_STANCE: f32 = 18.0;
+pub const EV_FINISHER: f32 = 19.0;
 
 // rigs
 pub const RG_PLAYER: usize = 0;
@@ -68,8 +70,9 @@ pub const RG_WISP: usize = 2;
 pub const RG_BRUTE: usize = 3;
 pub const RG_ELITE: usize = 4;
 pub const RG_GLUTTON: usize = 5;
-pub const N_RIGS: usize = 6;
-pub const RIGS: [Rig; 6] = [
+pub const RG_DRAGON: usize = 6;
+pub const N_RIGS: usize = 7;
+pub const RIGS: [Rig; 7] = [
     // player
     Rig { parts: &[RigPart { part: P_SCYTHE, x: -15.0, y: -46.0, hw: 20.0, hh: 34.0, rot: -0.45, color: [0.36, 0.66, 0.52], held: true }, RigPart { part: P_PLAYER_BODY, x: 0.0, y: -40.0, hw: 40.0, hh: 40.0, rot: 0.0, color: [0.2, 0.42, 0.36], held: false }, RigPart { part: P_PLAYER_HEAD, x: 2.0, y: -60.0, hw: 15.0, hh: 15.0, rot: 0.0, color: [0.15, 0.33, 0.29], held: false }], windup: Pose { dx: -4.0, dy: 0.0, tilt: -0.12, sx: 1.05, sy: 0.95 }, attack: Pose { dx: 6.0, dy: 0.0, tilt: 0.15, sx: 0.95, sy: 1.05 }, hurt: Pose { dx: -6.0, dy: -2.0, tilt: -0.3, sx: 1.1, sy: 0.9 }, roll: Pose { dx: 0.0, dy: -6.0, tilt: 0.0, sx: 0.75, sy: 0.75 } },
     // blot
@@ -82,6 +85,8 @@ pub const RIGS: [Rig; 6] = [
     Rig { parts: &[RigPart { part: P_ELITE, x: 0.0, y: -52.0, hw: 52.0, hh: 52.0, rot: 0.0, color: [0.74, 0.25, 0.18], held: false }], windup: Pose { dx: -6.0, dy: -8.0, tilt: -0.22, sx: 1.08, sy: 0.92 }, attack: Pose { dx: 8.0, dy: 2.0, tilt: 0.28, sx: 1.12, sy: 0.9 }, hurt: Pose { dx: -6.0, dy: 0.0, tilt: -0.28, sx: 1.1, sy: 0.9 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
     // glutton
     Rig { parts: &[RigPart { part: P_GLUTTON_TAIL, x: -70.0, y: -30.0, hw: 46.0, hh: 18.0, rot: 0.3, color: [0.3, 0.22, 0.28], held: false }, RigPart { part: P_GLUTTON_BODY, x: 0.0, y: -56.0, hw: 78.0, hh: 56.0, rot: 0.0, color: [0.36, 0.26, 0.32], held: false }, RigPart { part: P_GLUTTON_HEAD, x: 62.0, y: -78.0, hw: 40.0, hh: 34.0, rot: -0.1, color: [0.48, 0.34, 0.38], held: false }], windup: Pose { dx: -10.0, dy: -6.0, tilt: -0.15, sx: 1.05, sy: 0.95 }, attack: Pose { dx: 14.0, dy: 2.0, tilt: 0.18, sx: 1.1, sy: 0.92 }, hurt: Pose { dx: -8.0, dy: 6.0, tilt: -0.25, sx: 1.15, sy: 0.8 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
+    // dragon
+    Rig { parts: &[RigPart { part: P_DRAGON_WING, x: -30.0, y: -110.0, hw: 70.0, hh: 34.0, rot: -0.5, color: [0.55, 0.5, 0.48], held: false }, RigPart { part: P_DRAGON_BODY, x: 0.0, y: -60.0, hw: 90.0, hh: 46.0, rot: 0.0, color: [0.62, 0.56, 0.5], held: false }, RigPart { part: P_DRAGON_HEAD, x: 84.0, y: -96.0, hw: 38.0, hh: 28.0, rot: -0.2, color: [0.7, 0.64, 0.56], held: false }], windup: Pose { dx: -10.0, dy: -12.0, tilt: -0.12, sx: 1.04, sy: 0.96 }, attack: Pose { dx: 14.0, dy: 4.0, tilt: 0.16, sx: 1.08, sy: 0.94 }, hurt: Pose { dx: -8.0, dy: 8.0, tilt: -0.25, sx: 1.12, sy: 0.82 }, roll: Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 } },
 ];
 
 // kinds
@@ -90,8 +95,9 @@ pub const K_WISP: u8 = 1;
 pub const K_BRUTE: u8 = 2;
 pub const K_ELITE: u8 = 3;
 pub const K_GLUTTON: u8 = 4;
-pub const N_KINDS: usize = 5;
-pub const KINDS: [Kind; 5] = [
+pub const K_DRAGON: u8 = 5;
+pub const N_KINDS: usize = 6;
+pub const KINDS: [Kind; 6] = [
     // blot
     Kind { rig: RG_BLOT, hp: 30.0, speed: 70.0, r: 16.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
     // wisp
@@ -102,6 +108,8 @@ pub const KINDS: [Kind; 5] = [
     Kind { rig: RG_ELITE, hp: 700.0, speed: 60.0, r: 44.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
     // glutton
     Kind { rig: RG_GLUTTON, hp: 2400.0, speed: 85.0, r: 58.0, rate: 2.0, tilt: 3.0, poise: 260.0, boss: true, moves: &[M_GLUTTON_BITE, M_GLUTTON_TAIL, M_GLUTTON_STOMP, M_GLUTTON_CHARGE, M_GLUTTON_BREATH, M_GLUTTON_GRAB, M_GLUTTON_SUMMON, M_GLUTTON_EAT] },
+    // dragon
+    Kind { rig: RG_DRAGON, hp: 3200.0, speed: 70.0, r: 64.0, rate: 1.5, tilt: 2.0, poise: 320.0, boss: true, moves: &[M_DRAGON_CLAW, M_DRAGON_DIVE, M_DRAGON_POOLS, M_DRAGON_FLAME_LINE, M_DRAGON_LANCES, M_DRAGON_FIELD, M_DRAGON_SHARDS, M_DRAGON_FINISHER] },
 ];
 
 // skills
@@ -220,7 +228,7 @@ pub const ROOMS: [Room; 6] = [
     // glutton_hall
     Room { w: 1200.0, h: 860.0, boss: K_GLUTTON + 1, waves: &[&[K_GLUTTON]] },
     // dragon_peak
-    Room { w: 1300.0, h: 900.0, boss: K_ELITE + 1, waves: &[&[K_ELITE, K_ELITE]] },
+    Room { w: 1300.0, h: 900.0, boss: K_DRAGON + 1, waves: &[&[K_DRAGON]] },
 ];
 
 // moves
@@ -237,8 +245,16 @@ pub const M_GLUTTON_BREATH: usize = 9;
 pub const M_GLUTTON_GRAB: usize = 10;
 pub const M_GLUTTON_SUMMON: usize = 11;
 pub const M_GLUTTON_EAT: usize = 12;
-pub const N_MOVES: usize = 13;
-pub const MOVES: [Move; 13] = [
+pub const M_DRAGON_CLAW: usize = 13;
+pub const M_DRAGON_DIVE: usize = 14;
+pub const M_DRAGON_POOLS: usize = 15;
+pub const M_DRAGON_FLAME_LINE: usize = 16;
+pub const M_DRAGON_LANCES: usize = 17;
+pub const M_DRAGON_FIELD: usize = 18;
+pub const M_DRAGON_SHARDS: usize = 19;
+pub const M_DRAGON_FINISHER: usize = 20;
+pub const N_MOVES: usize = 21;
+pub const MOVES: [Move; 21] = [
     // blot_lunge
     Move { windup: 0.55, active: 0.18, recover: 0.75, area: AreaKind::Line, reach: 120.0, width: 18.0, damage: 8.0, dash: 110.0, after: After::None, range: (0.0, 130.0), chain: 0, weight: 1.0, cooldown: 0.0, phases: 3, big: false, special: Special::None, knockdown: false, stance: Stance::Any },
     // wisp_shot
@@ -265,4 +281,20 @@ pub const MOVES: [Move; 13] = [
     Move { windup: 0.7, active: 0.1, recover: 0.6, area: AreaKind::Circle, reach: 0.0, width: 0.0, damage: 0.0, dash: 0.0, after: After::None, range: (0.0, 900.0), chain: 0, weight: 1.0, cooldown: 14.0, phases: 3, big: false, special: Special::Summon, knockdown: false, stance: Stance::Any },
     // glutton_eat
     Move { windup: 1.1, active: 0.1, recover: 0.5, area: AreaKind::Circle, reach: 0.0, width: 0.0, damage: 0.0, dash: 0.0, after: After::None, range: (0.0, 900.0), chain: 0, weight: 3.0, cooldown: 5.0, phases: 3, big: false, special: Special::Eat, knockdown: false, stance: Stance::Any },
+    // dragon_claw
+    Move { windup: 0.5, active: 0.15, recover: 0.7, area: AreaKind::Arc, reach: 160.0, width: 0.8, damage: 14.0, dash: 40.0, after: After::None, range: (0.0, 220.0), chain: 1, weight: 3.0, cooldown: 0.0, phases: 3, big: false, special: Special::None, knockdown: false, stance: Stance::Any },
+    // dragon_dive
+    Move { windup: 0.8, active: 0.15, recover: 0.9, area: AreaKind::Circle, reach: 120.0, width: 0.0, damage: 20.0, dash: 0.0, after: After::None, range: (150.0, 900.0), chain: 0, weight: 3.0, cooldown: 3.0, phases: 3, big: true, special: Special::Dive, knockdown: true, stance: Stance::Fire },
+    // dragon_pools
+    Move { windup: 0.7, active: 0.1, recover: 0.8, area: AreaKind::Circle, reach: 70.0, width: 0.0, damage: 10.0, dash: 0.0, after: After::None, range: (0.0, 900.0), chain: 0, weight: 2.0, cooldown: 5.0, phases: 3, big: false, special: Special::Pools, knockdown: false, stance: Stance::Fire },
+    // dragon_flame_line
+    Move { windup: 0.7, active: 0.5, recover: 0.8, area: AreaKind::Line, reach: 640.0, width: 30.0, damage: 14.0, dash: 0.0, after: After::None, range: (0.0, 700.0), chain: 0, weight: 2.0, cooldown: 3.0, phases: 3, big: true, special: Special::Lances, knockdown: false, stance: Stance::Fire },
+    // dragon_lances
+    Move { windup: 0.6, active: 0.45, recover: 0.8, area: AreaKind::Line, reach: 600.0, width: 24.0, damage: 12.0, dash: 0.0, after: After::None, range: (0.0, 700.0), chain: 2, weight: 3.0, cooldown: 3.0, phases: 3, big: false, special: Special::Lances, knockdown: false, stance: Stance::Ice },
+    // dragon_field
+    Move { windup: 0.8, active: 0.15, recover: 0.9, area: AreaKind::Circle, reach: 260.0, width: 0.0, damage: 8.0, dash: 0.0, after: After::None, range: (0.0, 260.0), chain: 0, weight: 2.0, cooldown: 6.0, phases: 3, big: true, special: Special::Field, knockdown: false, stance: Stance::Ice },
+    // dragon_shards
+    Move { windup: 0.75, active: 0.12, recover: 0.8, area: AreaKind::Circle, reach: 52.0, width: 0.0, damage: 12.0, dash: 0.0, after: After::None, range: (0.0, 900.0), chain: 0, weight: 2.0, cooldown: 4.0, phases: 3, big: false, special: Special::Shards, knockdown: false, stance: Stance::Ice },
+    // dragon_finisher
+    Move { windup: 3.0, active: 0.1, recover: 1.4, area: AreaKind::Circle, reach: 3000.0, width: 0.0, damage: 0.0, dash: 0.0, after: After::None, range: (0.0, 0.0), chain: 0, weight: 0.0, cooldown: 0.0, phases: 3, big: true, special: Special::Finisher, knockdown: false, stance: Stance::Any },
 ];

@@ -2,7 +2,6 @@
 
 use jadereaper_core::cards::*;
 use jadereaper_core::defs::*;
-use jadereaper_core::elements::*;
 use jadereaper_core::game::{Game, Input, STEP};
 
 fn arena() -> Game {

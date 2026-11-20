@@ -172,7 +172,26 @@ impl Game {
                 pool.push((c, slot as i32, w));
             }
         }
+        let wanted = pool.clone();
         self.deal(&mut pool, Pick::Reward);
+        self.make_sure_of_wanted(&wanted);
+    }
+
+    /// When an element is wanted (fire and ice before the final boss) and no offered card brings one, the last
+    /// offer is swapped for the likeliest wanted element card.
+    fn make_sure_of_wanted(&mut self, pool: &[(usize, i32, f32)]) {
+        let wanted = |c: i32| c >= 0 && CARDS[c as usize].element > 0 && self.want_element.contains(&CARDS[c as usize].element);
+        if self.want_element == [0, 0] || self.choices.iter().any(|&c| wanted(c)) {
+            return;
+        }
+        let best = pool
+            .iter()
+            .filter(|p| p.2 > 0.0 && wanted(p.0 as i32))
+            .max_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(core::cmp::Ordering::Equal));
+        if let Some(&(card, slot, _)) = best {
+            self.choices[2] = card as i32;
+            self.choice_slots[2] = slot;
+        }
     }
 
     /// Draw three different cards from a weighted pool and wait for a choice.

@@ -213,6 +213,8 @@ impl Game {
                                 dmg: m.damage,
                                 boss,
                                 warned,
+                                rehit: 0.0,
+                                cool: 0.0,
                             }),
                             After::Wave { to, speed, band } => {
                                 let a = self.move_area(&self.enemies[i]);
@@ -229,6 +231,8 @@ impl Game {
                                     dmg: m.damage * 0.6,
                                     boss,
                                     warned,
+                                    rehit: 0.0,
+                                    cool: 0.0,
                                 });
                             }
                         }
@@ -281,7 +285,7 @@ impl Game {
                 continue;
             }
             let m = &MOVES[e.mv as usize];
-            if matches!(m.special, Special::Summon | Special::Eat) {
+            if matches!(m.special, Special::Summon | Special::Eat | Special::Finisher) {
                 continue;
             }
             let soon = match e.phase {
@@ -289,6 +293,19 @@ impl Game {
                 Phase::Active => !e.struck && !matches!(m.after, After::Shot { .. }),
                 _ => false,
             };
+            if self.boss_of(i).is_some() {
+                let (areas, n) = if e.phase == Phase::Active {
+                    self.strike_areas(i, (e.pt + within) / m.active)
+                } else if m.special == Special::Sweep {
+                    ([self.boss_area(i, 0.0); 5], 1)
+                } else {
+                    self.move_areas(e)
+                };
+                if soon && areas[..n].iter().any(|a| a.hits(px, py, PLAYER_R + 6.0)) {
+                    return true;
+                }
+                continue;
+            }
             let area = if m.special == Special::Sweep {
                 // Where the swept line will be.
                 let k = if e.phase == Phase::Active { (e.pt + within) / m.active } else { 0.0 };
@@ -310,6 +327,10 @@ impl Game {
             }
         }
         for h in &self.hazards {
+            if h.rehit > 0.0 {
+                // Lingering ground is walked out of, not rolled through.
+                continue;
+            }
             let d = dist(h.x, h.y, px, py);
             let gap = if h.band > 0.0 {
                 (d - h.r).abs() - h.band * 0.5 - PLAYER_R
@@ -328,6 +349,16 @@ impl Game {
             }
         }
         false
+    }
+
+    /// The way out of the nearest lingering pool the player stands in, if any.
+    pub fn pool_escape(&self) -> Option<(f32, f32)> {
+        let (px, py) = (self.player.x, self.player.y);
+        self.hazards
+            .iter()
+            .filter(|h| h.rehit > 0.0 && dist(h.x, h.y, px, py) < h.r + PLAYER_R + 8.0)
+            .map(|h| dir_to(h.x, h.y, px, py))
+            .next()
     }
 
     pub(crate) fn add_hazard(&mut self, h: Hazard) {
@@ -349,13 +380,21 @@ impl Game {
             h.warned += dt;
             let d = dist(h.x, h.y, px, py);
             let hit = if h.band > 0.0 { (d - h.r).abs() < h.band * 0.5 + PLAYER_R } else { d < h.r + PLAYER_R };
+            h.cool = (h.cool - dt).max(0.0);
             let h = *h;
             let mut gone = h.life <= 0.0;
-            if hit && self.hurt_player(h.dmg, h.boss, (h.x, h.y), h.warned) {
-                gone = true;
-            }
-            if hit && h.band == 0.0 && !self.player.invulnerable() {
-                gone = true;
+            if h.rehit > 0.0 {
+                // A lingering pool: hurts whoever stands in it, again every `rehit` seconds.
+                if hit && h.cool <= 0.0 && self.hurt_player(h.dmg, h.boss, (h.x, h.y), h.warned) {
+                    self.hazards[i].cool = h.rehit;
+                }
+            } else {
+                if hit && self.hurt_player(h.dmg, h.boss, (h.x, h.y), h.warned) {
+                    gone = true;
+                }
+                if hit && h.band == 0.0 && !self.player.invulnerable() {
+                    gone = true;
+                }
             }
             if gone {
                 self.hazards.swap_remove(i);

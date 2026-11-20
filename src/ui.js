@@ -99,6 +99,18 @@ export function createUI({ onAction }) {
       $('bossBar').classList.toggle('down', !!(flags & 2));
       set('bossFill', 'width', `${Math.max(0, Math.min(100, (health / max) * 100)).toFixed(1)}%`);
       set('bossMeter', 'width', `${(flags & 2 ? 100 : meter * 100).toFixed(1)}%`);
+      // The Dragon's stance shows its weakness, the other element.
+      const { stance, finisher } = bossBar;
+      $('bossWeak').hidden = !stance;
+      if (stance) {
+        const weak = ELEMENTS.find((e) => e.name === (stance === 1 ? 'ice' : 'fire'));
+        set('bossWeak', 'text', t('hud.weak', { element: t(`element.${weak.name}`) }));
+        $('bossWeak').style.color = rgb(weak.color);
+      }
+      $('finisherPrompt').hidden = !(finisher > 0);
+      if (finisher > 0) set('finisherPrompt', 'text', t('hud.finisher'));
+    } else {
+      $('finisherPrompt').hidden = true;
     }
     $('grabPrompt').hidden = !grabbed;
     const skillSig = getLang() + loadout.join(',') + elements.join(',');
