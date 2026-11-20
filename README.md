@@ -1,6 +1,6 @@
 # Jade Reaper
 
-A survivor game backbone that runs natively in the browser. The simulation is Rust compiled to WebAssembly, the picture is drawn with WebGPU, and everything on screen is styled as cut paper and ink.
+A room-based action game in the making, running natively in the browser. Today's prototype still plays as a survivor game; [ROADMAP.md](ROADMAP.md) has the plan for the change. The simulation is Rust compiled to WebAssembly, the picture is drawn with WebGPU, and everything on screen is styled as cut paper and ink.
 
 ## Play it online
 

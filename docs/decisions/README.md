@@ -24,3 +24,4 @@ Copy [0000-template.md](0000-template.md) to the next free number, such as `0002
 | [0002](0002-node-for-tooling.md) | Run the repository's tools on Node, not Python | decided |
 | [0003](0003-character-art-pipeline.md) | Trace character art to stroke JSON and bake the boil at load time | decided |
 | [0004](0004-serve-the-lightbox-locally.md) | Serve the Lightbox from the local server, and keep it publishable | decided |
+| [0005](0005-room-based-action-game.md) | Make the game a room-based action game, not a survivor game | decided |
