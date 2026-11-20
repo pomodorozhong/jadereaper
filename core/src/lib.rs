@@ -8,8 +8,10 @@
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
+pub mod cards;
 pub mod content;
 pub mod defs;
+pub mod elements;
 pub mod draw;
 pub mod enemy;
 pub mod game;
@@ -103,7 +105,13 @@ pub extern "C" fn jr_set_loadout(a: u32, b: u32, c: u32) {
     }
 }
 
-/// Pick one of the offered upgrades (0..2).
+/// Offer the starting passive: three character cards. Call after `jr_start` and `jr_set_loadout`.
+#[no_mangle]
+pub extern "C" fn jr_offer_passive() {
+    g().offer_passive();
+}
+
+/// Take one of the offered cards (0..2).
 #[no_mangle]
 pub extern "C" fn jr_choose(i: u32) {
     g().choose(i as usize);

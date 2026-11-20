@@ -6,7 +6,9 @@
 //!
 //! The player is in `player.rs`, enemies in `enemy.rs` and drawing in `draw.rs`; they all add to `Game`.
 
+use crate::cards::{Pick, SkillMods, Stats, NO_SLOT};
 use crate::defs::*;
+use crate::elements::{Patch, Status, Well};
 pub use crate::player::{Act, Input, Player};
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
@@ -61,6 +63,8 @@ pub struct Enemy {
     pub think: f32,
     /// Time since it appeared.
     pub age: f32,
+    /// Burn, chill, freeze and star marks.
+    pub status: Status,
 }
 
 /// An enemy's attack cycle.
@@ -95,7 +99,8 @@ pub struct Hazard {
 
 /// Beads flung into an orbit around the player by an orbit skill.
 pub struct Orbit {
-    pub skill: usize,
+    /// The skill button that flung it.
+    pub slot: usize,
     /// Time left.
     pub t: f32,
     pub spin: f32,
@@ -116,6 +121,8 @@ pub struct Shot {
     pub r: f32,
     pub pierce: i32,
     pub last: u32,
+    /// The element of the skill that threw it (0 for none, or element id + 1).
+    pub element: u8,
 }
 
 pub struct Gem {
@@ -185,13 +192,26 @@ pub struct Game {
     pub min_warned: f32,
     pub gems: Vec<Gem>,
     pub fx: Vec<Fx>,
-    pub up: [u8; N_UPGRADES],
     pub choices: [i32; 3],
     pub pending: u32,
     pub kills: u32,
     pub shake: f32,
     /// Time left frozen after a hit lands.
     pub hitstop: f32,
+    /// Cards on each skill button.
+    pub mods: [SkillMods; 3],
+    /// Cards on the character and the roll.
+    pub stats: Stats,
+    /// How many of each card the player has.
+    pub owned: [u8; N_CARDS],
+    /// The skill button each offered card goes on, or `NO_SLOT`.
+    pub choice_slots: [i32; 3],
+    /// What the offered cards are for.
+    pub pick: Pick,
+    /// Elements the next offers lean hard towards (element id + 1, 0 for none), such as before the final boss.
+    pub want_element: [u8; 2],
+    pub wells: Vec<Well>,
+    pub patches: Vec<Patch>,
     /// Turns off camera shake and hit-stop.
     pub reduce_motion: bool,
     pub cam: (f32, f32),
@@ -259,7 +279,14 @@ impl Game {
             min_warned: f32::INFINITY,
             gems: Vec::with_capacity(MAX_GEMS),
             fx: Vec::with_capacity(MAX_FX),
-            up: [0; N_UPGRADES],
+            mods: [SkillMods::default(); 3],
+            stats: Stats::default(),
+            owned: [0; N_CARDS],
+            choice_slots: [NO_SLOT; 3],
+            pick: Pick::None,
+            want_element: [0; 2],
+            wells: Vec::with_capacity(8),
+            patches: Vec::with_capacity(40),
             choices: [-1; 3],
             pending: 0,
             kills: 0,
@@ -365,10 +392,6 @@ impl Game {
         }
     }
 
-    pub(crate) fn lvl(&self, id: usize) -> f32 {
-        self.up[id] as f32
-    }
-
     /// Freeze the action for a moment as a hit lands.
     pub(crate) fn hit_stop(&mut self, t: f32) {
         if !self.reduce_motion {
@@ -392,6 +415,7 @@ impl Game {
         self.separate();
         self.move_hazards(dt);
         self.move_shots(dt);
+        self.move_elements(dt);
         self.reap();
         self.move_gems(dt);
         self.move_fx(dt);
@@ -404,7 +428,7 @@ impl Game {
             self.pending += 1;
         }
         if self.pending > 0 && !self.choosing && !self.over {
-            self.offer();
+            self.offer_reward();
         }
     }
 
@@ -423,7 +447,7 @@ impl Game {
 
     fn move_gems(&mut self, dt: f32) {
         let (px, py) = (self.player.x, self.player.y);
-        let lure = 95.0 * (1.0 + 0.3 * self.lvl(U_LURE));
+        let lure = 110.0;
         let mut i = 0;
         while i < self.gems.len() {
             let g = &mut self.gems[i];
@@ -479,53 +503,11 @@ impl Game {
         }
     }
 
-    // ------------------------------------------------------------ upgrades
-
-    fn offer(&mut self) {
-        let mut pool = [0usize; N_UPGRADES];
-        let mut n = 0;
-        for id in 0..N_UPGRADES {
-            if self.up[id] < UPGRADE_MAX[id] {
-                pool[n] = id;
-                n += 1;
-            }
-        }
-        if n == 0 {
-            // Everything maxed: heal instead.
-            self.player.hp = (self.player.hp + 30.0 * self.pending as f32).min(self.player.max_hp);
-            self.pending = 0;
-            return;
-        }
-        for c in 0..3 {
-            if c < n {
-                let j = c + (self.rng.next() as usize) % (n - c);
-                pool.swap(c, j);
-                self.choices[c] = pool[c] as i32;
-            } else {
-                self.choices[c] = -1;
-            }
-        }
-        self.choosing = true;
-        self.event(EV_LEVELUP, self.player.x, self.player.y, self.player.level as f32);
-    }
-
-    pub fn choose(&mut self, i: usize) {
-        if !self.choosing || i >= 3 || self.choices[i] < 0 {
-            return;
-        }
-        let id = self.choices[i] as usize;
-        if self.up[id] < UPGRADE_MAX[id] {
-            self.up[id] += 1;
-            if id == U_VITALITY {
-                self.player.max_hp += 20.0;
-                self.player.hp += 20.0;
-            }
-        }
-        self.choices = [-1; 3];
-        self.choosing = false;
+    /// After a card is taken: offer the next one if more level ups are waiting.
+    pub(crate) fn after_pick(&mut self) {
         self.pending = self.pending.saturating_sub(1);
         if self.pending > 0 {
-            self.offer();
+            self.offer_reward();
         }
     }
 
@@ -558,9 +540,11 @@ impl Game {
 
     /// HUD state read by the host. Layout:
     /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,
-    /// 7 choosing, 8..10 offered upgrade ids (-1 for none), 11 game over,
+    /// 7 choosing, 8..10 offered card ids (-1 for none), 11 game over,
     /// 12 camera x, 13 camera y, 14 enemy count, 15 running,
-    /// 16..20 upgrade levels, 26 player x, 27 player y, 28..30 loadout skill ids, 31 camera zoom.
+    /// 16..18 element on each skill button (0 none, or element id + 1), 19 what is being picked (0 nothing,
+    /// 1 the starting passive, 2 a reward), 20..22 the button each offered card goes on (-1 none),
+    /// 26 player x, 27 player y, 28..30 loadout skill ids, 31 camera zoom, 32.. how many of each card is held.
     fn write_state(&mut self) {
         let p = &self.player;
         let s = &mut self.state;
@@ -580,8 +564,17 @@ impl Game {
         s[13] = self.cam.1;
         s[14] = self.enemies.len() as f32;
         s[15] = self.running as u8 as f32;
-        for id in 0..N_UPGRADES {
-            s[16 + id] = self.up[id] as f32;
+        for c in 0..3 {
+            s[16 + c] = self.mods[c].element as f32;
+            s[20 + c] = self.choice_slots[c] as f32;
+        }
+        s[19] = match self.pick {
+            Pick::None => 0.0,
+            Pick::Passive => 1.0,
+            Pick::Reward => 2.0,
+        };
+        for c in 0..N_CARDS.min(STATE_FLOATS - 32) {
+            s[32 + c] = self.owned[c] as f32;
         }
         s[26] = self.player.x;
         s[27] = self.player.y;

@@ -62,6 +62,7 @@ export const KINDS = [
     "rate": 2,
     "tilt": 2.25,
     "poise": 8,
+    "boss": false,
     "moves": [
       "blot_lunge"
     ]
@@ -84,6 +85,7 @@ export const KINDS = [
     "rate": 9,
     "tilt": 3.75,
     "poise": 5,
+    "boss": false,
     "moves": [
       "wisp_shot"
     ]
@@ -106,6 +108,7 @@ export const KINDS = [
     "rate": 3,
     "tilt": 7.5,
     "poise": 40,
+    "boss": false,
     "moves": [
       "brute_slam"
     ]
@@ -128,6 +131,7 @@ export const KINDS = [
     "rate": 2.5,
     "tilt": 7.5,
     "poise": 120,
+    "boss": false,
     "moves": [
       "elite_bite",
       "elite_stomp"
@@ -312,6 +316,204 @@ export const SKILLS = [
     "combo": 1,
     "walk": 0,
     "lasts": 0
+  }
+];
+
+/** elements, indexed by id. */
+export const ELEMENTS = [
+  {
+    "id": 0,
+    "name": "fire",
+    "glyph": "火",
+    "color": [
+      0.86,
+      0.36,
+      0.16
+    ]
+  },
+  {
+    "id": 1,
+    "name": "ice",
+    "glyph": "冰",
+    "color": [
+      0.45,
+      0.7,
+      0.88
+    ]
+  },
+  {
+    "id": 2,
+    "name": "lightning",
+    "glyph": "雷",
+    "color": [
+      0.93,
+      0.8,
+      0.3
+    ]
+  },
+  {
+    "id": 3,
+    "name": "celestial",
+    "glyph": "星",
+    "color": [
+      0.55,
+      0.45,
+      0.85
+    ]
+  }
+];
+
+/** cards, indexed by id. */
+export const CARDS = [
+  {
+    "id": 0,
+    "name": "fire",
+    "glyph": "火",
+    "target": "any",
+    "element": "fire",
+    "effect": "none",
+    "amount": 0,
+    "passive": false
+  },
+  {
+    "id": 1,
+    "name": "ice",
+    "glyph": "冰",
+    "target": "any",
+    "element": "ice",
+    "effect": "none",
+    "amount": 0,
+    "passive": false
+  },
+  {
+    "id": 2,
+    "name": "lightning",
+    "glyph": "雷",
+    "target": "any",
+    "element": "lightning",
+    "effect": "none",
+    "amount": 0,
+    "passive": false
+  },
+  {
+    "id": 3,
+    "name": "celestial",
+    "glyph": "星",
+    "target": "any",
+    "element": "celestial",
+    "effect": "none",
+    "amount": 0,
+    "passive": false
+  },
+  {
+    "id": 4,
+    "name": "quick_hands",
+    "glyph": "捷",
+    "target": "any",
+    "element": "none",
+    "effect": "recovery",
+    "amount": 0.8,
+    "passive": false
+  },
+  {
+    "id": 5,
+    "name": "long_reach",
+    "glyph": "長",
+    "target": "any",
+    "element": "none",
+    "effect": "reach",
+    "amount": 1.2,
+    "passive": false
+  },
+  {
+    "id": 6,
+    "name": "heavy_blow",
+    "glyph": "重",
+    "target": "any",
+    "element": "none",
+    "effect": "damage",
+    "amount": 1.25,
+    "passive": false
+  },
+  {
+    "id": 7,
+    "name": "crushing",
+    "glyph": "碎",
+    "target": "any",
+    "element": "none",
+    "effect": "stagger",
+    "amount": 1.4,
+    "passive": false
+  },
+  {
+    "id": 8,
+    "name": "vitality",
+    "glyph": "命",
+    "target": "character",
+    "element": "none",
+    "effect": "max_hp",
+    "amount": 25,
+    "passive": true
+  },
+  {
+    "id": 9,
+    "name": "swift",
+    "glyph": "風",
+    "target": "character",
+    "element": "none",
+    "effect": "speed",
+    "amount": 0.1,
+    "passive": true
+  },
+  {
+    "id": 10,
+    "name": "mending",
+    "glyph": "癒",
+    "target": "character",
+    "element": "none",
+    "effect": "regen",
+    "amount": 0.6,
+    "passive": true
+  },
+  {
+    "id": 11,
+    "name": "might",
+    "glyph": "力",
+    "target": "character",
+    "element": "none",
+    "effect": "might",
+    "amount": 0.1,
+    "passive": true
+  },
+  {
+    "id": 12,
+    "name": "thick_paper",
+    "glyph": "紙",
+    "target": "character",
+    "element": "none",
+    "effect": "armor",
+    "amount": 0.15,
+    "passive": true
+  },
+  {
+    "id": 13,
+    "name": "long_roll",
+    "glyph": "滾",
+    "target": "roll",
+    "element": "none",
+    "effect": "roll_dist",
+    "amount": 0.25,
+    "passive": true
+  },
+  {
+    "id": 14,
+    "name": "fire_trail",
+    "glyph": "焰",
+    "target": "roll",
+    "element": "fire",
+    "effect": "trail",
+    "amount": 0,
+    "passive": false
   }
 ];
 

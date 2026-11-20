@@ -24,21 +24,25 @@ const PART_SLOTS = 32;
 /** Enum values in game.json, mapped to their Rust names. `weight` is stored as a number. */
 const ENUMS = {
   weight: { light: 0, medium: 1, heavy: 2 },
-  SkillKind: ['melee', 'shot', 'nova'],
+  SkillKind: ['melee', 'shot', 'nova', 'orbit', 'leap'],
   AreaKind: ['circle', 'arc', 'line', 'ring'],
+  Effect: ['none', 'recovery', 'reach', 'damage', 'stagger', 'max_hp', 'speed', 'regen', 'might', 'armor', 'roll_dist', 'trail'],
 };
+/** A card's target: one of these, or the name of a skill. */
+const TARGETS = { any: 'Target::AnySkill', character: 'Target::Character', roll: 'Target::Roll' };
 
 /**
  * The tables in game.json besides parts and events. `fields` maps each field to its type:
  * f32, u8, bool, str (JavaScript only), f32x2, f32x3, part (a part name), ref:<table> or refs:<table> (names in
- * another table), enum:<name>, after (a move's after-effect).
+ * another table), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
+ * card's target), after (a move's after-effect).
  */
 const TABLES = {
   kinds: {
     rust: 'Kind', prefix: 'K_', id: 'u8',
     fields: {
       part: 'part', hp: 'f32', speed: 'f32', r: 'f32', xp: 'f32', color: 'f32x3', hw: 'f32', hh: 'f32', rate: 'f32',
-      tilt: 'f32', poise: 'f32', moves: 'refs:moves',
+      tilt: 'f32', poise: 'f32', boss: 'bool', moves: 'refs:moves',
     },
   },
   skills: {
@@ -46,7 +50,17 @@ const TABLES = {
     fields: {
       glyph: 'str', weight: 'enum:weight', kind: 'enum:SkillKind', startup: 'f32', active: 'f32', recovery: 'f32',
       cancel: 'f32', damage: 'f32', stagger: 'f32', knockback: 'f32', area: 'enum:AreaKind', reach: 'f32', width: 'f32',
-      hyper: 'bool', dash: 'f32', combo: 'u8', walk: 'f32',
+      hyper: 'bool', dash: 'f32', combo: 'u8', walk: 'f32', lasts: 'f32',
+    },
+  },
+  elements: {
+    rust: 'Element', prefix: 'E_', id: 'u8',
+    fields: { glyph: 'str', color: 'f32x3' },
+  },
+  cards: {
+    rust: 'Card', prefix: 'C_', id: 'usize',
+    fields: {
+      glyph: 'str', target: 'target', element: 'opt:elements', effect: 'enum:Effect', amount: 'f32', passive: 'bool',
     },
   },
   moves: {
@@ -123,6 +137,11 @@ export function validate(content) {
           const values = ENUMS[type.slice(5)];
           const ok = Array.isArray(values) ? values.includes(v) : v in values;
           if (!ok) bad(`one of ${(Array.isArray(values) ? values : Object.keys(values)).join(', ')}`);
+        } else if (type === 'target') {
+          if (!(v in TARGETS) && !names.skills.has(v)) problems.push(`${where}: "${field}" should be any, character, roll or a skill name, got ${JSON.stringify(v)}`);
+        } else if (type.startsWith('opt:')) {
+          const target = type.slice(4);
+          if (v !== 'none' && !names[target].has(v)) problems.push(`${where}: "${field}" names ${target} "${v}", which is not defined`);
         } else if (type === 'after') {
           const ok = v === 'none'
             || (v?.shot && isNum(v.shot.speed) && isNum(v.shot.r) && Object.keys(v).length === 1)
@@ -146,6 +165,8 @@ function rustValue(type, v) {
   if (type.startsWith('refs:')) return `&[${v.map((r) => `${TABLES[type.slice(5)].prefix}${upper(r)}`).join(', ')}]`;
   if (type === 'enum:weight') return String(ENUMS.weight[v]);
   if (type.startsWith('enum:')) return `${type.slice(5)}::${pascal(v)}`;
+  if (type === 'target') return TARGETS[v] ?? `Target::Skill(SK_${upper(v)})`;
+  if (type.startsWith('opt:')) return v === 'none' ? '0' : `${TABLES[type.slice(4)].prefix}${upper(v)} + 1`;
   if (type === 'after') {
     if (v === 'none') return 'After::None';
     if (v.shot) return `After::Shot { speed: ${f32(v.shot.speed)}, r: ${f32(v.shot.r)} }`;
@@ -162,7 +183,7 @@ export function generate(content) {
   if (problems.length) throw new Error(`${SOURCE} has problems:\n  ${problems.join('\n  ')}`);
 
   // Rust.
-  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', ''];
+  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', ''];
   rs.push('// Part ids.');
   for (const p of content.parts) rs.push(`pub const P_${upper(p.name)}: f32 = ${f32(p.id)};`);
   rs.push(`/// Every defined part id.`, `pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(', ')}];`);

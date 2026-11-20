@@ -5,11 +5,10 @@ import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
-import { EVENT, STATE, UPGRADES, SKILLS } from './data.js';
+import { EVENT, STATE, STATE_FLOATS, SKILLS, CARDS, ELEMENTS } from './data.js';
 import { pickLang, setLang, getLang, nextLang } from './i18n.js';
 import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
-const STATE_FLOATS = 32;
 
 /** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
  * Tuned by the maintainer. Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends
@@ -138,7 +137,21 @@ async function boot() {
   const seed = () => (Math.random() * 0xffffffff) >>> 0;
   // Views are rebuilt on every read because wasm memory can grow and detach them.
   const readState = () => new Float32Array(core.memory.buffer, core.jr_state_ptr(), STATE_FLOATS);
-  const upgradeLevels = (s) => Array.from(s.subarray(STATE.UPGRADE0, STATE.UPGRADE0 + UPGRADES.length));
+  const three = (s, at) => Array.from(s.subarray(at, at + 3));
+  // A card offer waiting for a confirm: the slot of an element card that would replace another element.
+  let armed = -1;
+  const offer = (s) => ({
+    choices: three(s, STATE.CHOICE0), slots: three(s, STATE.CHOICE_SLOT0), kind: s[STATE.PICK],
+    loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0), armed,
+  });
+  /** True when taking offered card i would replace another element on its skill, so it needs a second pick. */
+  function needsConfirm(s, i) {
+    const card = CARDS[s[STATE.CHOICE0 + i]];
+    const slot = s[STATE.CHOICE_SLOT0 + i];
+    if (!card || card.element === 'none' || slot < 0) return false;
+    const old = s[STATE.ELEMENT0 + slot];
+    return old > 0 && ELEMENTS[old - 1].name !== card.element;
+  }
 
   function toTitle() {
     core.jr_reset(seed());
@@ -158,6 +171,9 @@ async function boot() {
     if (picked.length !== 3) { pickSkills(); return; }
     core.jr_start(seed());
     core.jr_set_loadout(...picked);
+    core.jr_offer_passive();
+    core.jr_update(0);
+    armed = -1;
     mode = 'playing';
     ui.showHud(true);
     ui.show(null);
@@ -225,7 +241,14 @@ async function boot() {
         break;
       case 'choose':
         if (mode === 'levelup') {
-          core.jr_choose(Number(value));
+          const i = Number(value);
+          if (needsConfirm(readState(), i) && armed !== i) {
+            armed = i;
+            ui.cards(offer(readState()));
+            break;
+          }
+          armed = -1;
+          core.jr_choose(i);
           afterChoice();
         }
         break;
@@ -237,7 +260,7 @@ async function boot() {
     core.jr_update(0);
     const s = readState();
     if (s[STATE.CHOOSING]) {
-      ui.levelUp(Array.from(s.subarray(STATE.CHOICE0, STATE.CHOICE0 + 3)), upgradeLevels(s));
+      ui.cards(offer(s));
     } else {
       mode = 'playing';
       ui.show(null);
@@ -329,8 +352,9 @@ async function boot() {
       }
       ui.hud({
         hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], xp: s[STATE.XP], xpNext: s[STATE.XP_NEXT],
-        level: s[STATE.LEVEL], time: s[STATE.TIME], kills: s[STATE.KILLS], upgrades: upgradeLevels(s),
-        loadout: Array.from(s.subarray(STATE.LOADOUT0, STATE.LOADOUT0 + 3)),
+        level: s[STATE.LEVEL], time: s[STATE.TIME], kills: s[STATE.KILLS],
+        loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0),
+        owned: Array.from(s.subarray(STATE.OWNED0, STATE.OWNED0 + CARDS.length)),
       });
       if (s[STATE.OVER]) {
         mode = 'over';
@@ -338,7 +362,8 @@ async function boot() {
         ui.gameOver(run, save, recordRun(save, run));
       } else if (s[STATE.CHOOSING]) {
         mode = 'levelup';
-        ui.levelUp(Array.from(s.subarray(STATE.CHOICE0, STATE.CHOICE0 + 3)), upgradeLevels(s));
+        armed = -1;
+        ui.cards(offer(s));
       }
     }
 

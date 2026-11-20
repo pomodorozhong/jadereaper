@@ -28,10 +28,10 @@
   "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike"],
 
   "kinds": [
-    { "name": "blot", "part": "blot", "hp": 30, "speed": 70, "r": 16, "xp": 1, "color": [0.33, 0.31, 0.30], "hw": 24, "hh": 24, "rate": 2, "tilt": 2.25, "poise": 8, "moves": ["blot_lunge"] },
-    { "name": "wisp", "part": "wisp", "hp": 18, "speed": 110, "r": 12, "xp": 1, "color": [0.36, 0.40, 0.56], "hw": 25, "hh": 21, "rate": 9, "tilt": 3.75, "poise": 5, "moves": ["wisp_shot"] },
-    { "name": "brute", "part": "brute", "hp": 110, "speed": 48, "r": 26, "xp": 5, "color": [0.58, 0.31, 0.24], "hw": 30, "hh": 30, "rate": 3, "tilt": 7.5, "poise": 40, "moves": ["brute_slam"] },
-    { "name": "elite", "part": "elite", "hp": 700, "speed": 60, "r": 44, "xp": 40, "color": [0.74, 0.25, 0.18], "hw": 52, "hh": 52, "rate": 2.5, "tilt": 7.5, "poise": 120, "moves": ["elite_bite", "elite_stomp"] }
+    { "name": "blot", "part": "blot", "hp": 30, "speed": 70, "r": 16, "xp": 1, "color": [0.33, 0.31, 0.30], "hw": 24, "hh": 24, "rate": 2, "tilt": 2.25, "poise": 8, "boss": false, "moves": ["blot_lunge"] },
+    { "name": "wisp", "part": "wisp", "hp": 18, "speed": 110, "r": 12, "xp": 1, "color": [0.36, 0.40, 0.56], "hw": 25, "hh": 21, "rate": 9, "tilt": 3.75, "poise": 5, "boss": false, "moves": ["wisp_shot"] },
+    { "name": "brute", "part": "brute", "hp": 110, "speed": 48, "r": 26, "xp": 5, "color": [0.58, 0.31, 0.24], "hw": 30, "hh": 30, "rate": 3, "tilt": 7.5, "poise": 40, "boss": false, "moves": ["brute_slam"] },
+    { "name": "elite", "part": "elite", "hp": 700, "speed": 60, "r": 44, "xp": 40, "color": [0.74, 0.25, 0.18], "hw": 52, "hh": 52, "rate": 2.5, "tilt": 7.5, "poise": 120, "boss": false, "moves": ["elite_bite", "elite_stomp"] }
   ],
 
   "skills": [
@@ -51,6 +51,31 @@
       "damage": 42, "stagger": 80, "knockback": 300, "area": "arc", "reach": 150, "width": 1.4, "hyper": true, "dash": 0, "combo": 1, "walk": 0, "lasts": 0 },
     { "name": "leap", "glyph": "月", "weight": "heavy", "kind": "leap", "startup": 0.45, "active": 0.10, "recovery": 0.55, "cancel": 0.35,
       "damage": 36, "stagger": 70, "knockback": 360, "area": "circle", "reach": 110, "width": 0, "hyper": true, "dash": 260, "combo": 1, "walk": 0, "lasts": 0 }
+  ],
+
+  "elements": [
+    { "name": "fire", "glyph": "火", "color": [0.86, 0.36, 0.16] },
+    { "name": "ice", "glyph": "冰", "color": [0.45, 0.70, 0.88] },
+    { "name": "lightning", "glyph": "雷", "color": [0.93, 0.80, 0.30] },
+    { "name": "celestial", "glyph": "星", "color": [0.55, 0.45, 0.85] }
+  ],
+
+  "cards": [
+    { "name": "fire", "glyph": "火", "target": "any", "element": "fire", "effect": "none", "amount": 0, "passive": false },
+    { "name": "ice", "glyph": "冰", "target": "any", "element": "ice", "effect": "none", "amount": 0, "passive": false },
+    { "name": "lightning", "glyph": "雷", "target": "any", "element": "lightning", "effect": "none", "amount": 0, "passive": false },
+    { "name": "celestial", "glyph": "星", "target": "any", "element": "celestial", "effect": "none", "amount": 0, "passive": false },
+    { "name": "quick_hands", "glyph": "捷", "target": "any", "element": "none", "effect": "recovery", "amount": 0.8, "passive": false },
+    { "name": "long_reach", "glyph": "長", "target": "any", "element": "none", "effect": "reach", "amount": 1.2, "passive": false },
+    { "name": "heavy_blow", "glyph": "重", "target": "any", "element": "none", "effect": "damage", "amount": 1.25, "passive": false },
+    { "name": "crushing", "glyph": "碎", "target": "any", "element": "none", "effect": "stagger", "amount": 1.4, "passive": false },
+    { "name": "vitality", "glyph": "命", "target": "character", "element": "none", "effect": "max_hp", "amount": 25, "passive": true },
+    { "name": "swift", "glyph": "風", "target": "character", "element": "none", "effect": "speed", "amount": 0.1, "passive": true },
+    { "name": "mending", "glyph": "癒", "target": "character", "element": "none", "effect": "regen", "amount": 0.6, "passive": true },
+    { "name": "might", "glyph": "力", "target": "character", "element": "none", "effect": "might", "amount": 0.1, "passive": true },
+    { "name": "thick_paper", "glyph": "紙", "target": "character", "element": "none", "effect": "armor", "amount": 0.15, "passive": true },
+    { "name": "long_roll", "glyph": "滾", "target": "roll", "element": "none", "effect": "roll_dist", "amount": 0.25, "passive": true },
+    { "name": "fire_trail", "glyph": "焰", "target": "roll", "element": "fire", "effect": "trail", "amount": 0, "passive": false }
   ],
 
   "moves": [

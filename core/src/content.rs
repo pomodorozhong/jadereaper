@@ -5,6 +5,7 @@
 use crate::defs::Kind;
 use crate::moves::{After, Move};
 use crate::skills::{AreaKind, SkillDef, SkillKind};
+use crate::cards::{Card, Effect, Element, Target};
 
 // Part ids.
 pub const P_ELLIPSE: f32 = 0.0;
@@ -55,13 +56,13 @@ pub const K_ELITE: u8 = 3;
 pub const N_KINDS: usize = 4;
 pub const KINDS: [Kind; 4] = [
     // blot
-    Kind { part: P_BLOT, hp: 30.0, speed: 70.0, r: 16.0, xp: 1.0, color: [0.33, 0.31, 0.3], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0, moves: &[M_BLOT_LUNGE] },
+    Kind { part: P_BLOT, hp: 30.0, speed: 70.0, r: 16.0, xp: 1.0, color: [0.33, 0.31, 0.3], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0, boss: false, moves: &[M_BLOT_LUNGE] },
     // wisp
-    Kind { part: P_WISP, hp: 18.0, speed: 110.0, r: 12.0, xp: 1.0, color: [0.36, 0.4, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0, moves: &[M_WISP_SHOT] },
+    Kind { part: P_WISP, hp: 18.0, speed: 110.0, r: 12.0, xp: 1.0, color: [0.36, 0.4, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0, boss: false, moves: &[M_WISP_SHOT] },
     // brute
-    Kind { part: P_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, xp: 5.0, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0, moves: &[M_BRUTE_SLAM] },
+    Kind { part: P_BRUTE, hp: 110.0, speed: 48.0, r: 26.0, xp: 5.0, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0, boss: false, moves: &[M_BRUTE_SLAM] },
     // elite
-    Kind { part: P_ELITE, hp: 700.0, speed: 60.0, r: 44.0, xp: 40.0, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
+    Kind { part: P_ELITE, hp: 700.0, speed: 60.0, r: 44.0, xp: 40.0, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0, boss: false, moves: &[M_ELITE_BITE, M_ELITE_STOMP] },
 ];
 
 // skills
@@ -91,6 +92,73 @@ pub const SKILLS: [SkillDef; 8] = [
     SkillDef { weight: 2, kind: SkillKind::Melee, startup: 0.5, active: 0.12, recovery: 0.6, cancel: 0.4, damage: 42.0, stagger: 80.0, knockback: 300.0, area: AreaKind::Arc, reach: 150.0, width: 1.4, hyper: true, dash: 0.0, combo: 1, walk: 0.0, lasts: 0.0 },
     // leap
     SkillDef { weight: 2, kind: SkillKind::Leap, startup: 0.45, active: 0.1, recovery: 0.55, cancel: 0.35, damage: 36.0, stagger: 70.0, knockback: 360.0, area: AreaKind::Circle, reach: 110.0, width: 0.0, hyper: true, dash: 260.0, combo: 1, walk: 0.0, lasts: 0.0 },
+];
+
+// elements
+pub const E_FIRE: u8 = 0;
+pub const E_ICE: u8 = 1;
+pub const E_LIGHTNING: u8 = 2;
+pub const E_CELESTIAL: u8 = 3;
+pub const N_ELEMENTS: usize = 4;
+pub const ELEMENTS: [Element; 4] = [
+    // fire
+    Element { color: [0.86, 0.36, 0.16] },
+    // ice
+    Element { color: [0.45, 0.7, 0.88] },
+    // lightning
+    Element { color: [0.93, 0.8, 0.3] },
+    // celestial
+    Element { color: [0.55, 0.45, 0.85] },
+];
+
+// cards
+pub const C_FIRE: usize = 0;
+pub const C_ICE: usize = 1;
+pub const C_LIGHTNING: usize = 2;
+pub const C_CELESTIAL: usize = 3;
+pub const C_QUICK_HANDS: usize = 4;
+pub const C_LONG_REACH: usize = 5;
+pub const C_HEAVY_BLOW: usize = 6;
+pub const C_CRUSHING: usize = 7;
+pub const C_VITALITY: usize = 8;
+pub const C_SWIFT: usize = 9;
+pub const C_MENDING: usize = 10;
+pub const C_MIGHT: usize = 11;
+pub const C_THICK_PAPER: usize = 12;
+pub const C_LONG_ROLL: usize = 13;
+pub const C_FIRE_TRAIL: usize = 14;
+pub const N_CARDS: usize = 15;
+pub const CARDS: [Card; 15] = [
+    // fire
+    Card { target: Target::AnySkill, element: E_FIRE + 1, effect: Effect::None, amount: 0.0, passive: false },
+    // ice
+    Card { target: Target::AnySkill, element: E_ICE + 1, effect: Effect::None, amount: 0.0, passive: false },
+    // lightning
+    Card { target: Target::AnySkill, element: E_LIGHTNING + 1, effect: Effect::None, amount: 0.0, passive: false },
+    // celestial
+    Card { target: Target::AnySkill, element: E_CELESTIAL + 1, effect: Effect::None, amount: 0.0, passive: false },
+    // quick_hands
+    Card { target: Target::AnySkill, element: 0, effect: Effect::Recovery, amount: 0.8, passive: false },
+    // long_reach
+    Card { target: Target::AnySkill, element: 0, effect: Effect::Reach, amount: 1.2, passive: false },
+    // heavy_blow
+    Card { target: Target::AnySkill, element: 0, effect: Effect::Damage, amount: 1.25, passive: false },
+    // crushing
+    Card { target: Target::AnySkill, element: 0, effect: Effect::Stagger, amount: 1.4, passive: false },
+    // vitality
+    Card { target: Target::Character, element: 0, effect: Effect::MaxHp, amount: 25.0, passive: true },
+    // swift
+    Card { target: Target::Character, element: 0, effect: Effect::Speed, amount: 0.1, passive: true },
+    // mending
+    Card { target: Target::Character, element: 0, effect: Effect::Regen, amount: 0.6, passive: true },
+    // might
+    Card { target: Target::Character, element: 0, effect: Effect::Might, amount: 0.1, passive: true },
+    // thick_paper
+    Card { target: Target::Character, element: 0, effect: Effect::Armor, amount: 0.15, passive: true },
+    // long_roll
+    Card { target: Target::Roll, element: 0, effect: Effect::RollDist, amount: 0.25, passive: true },
+    // fire_trail
+    Card { target: Target::Roll, element: E_FIRE + 1, effect: Effect::Trail, amount: 0.0, passive: false },
 ];
 
 // moves

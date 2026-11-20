@@ -4,6 +4,7 @@ use crate::defs::*;
 use crate::game::{Act, Game, Phase};
 use crate::geom::{Area, Shape};
 use crate::moves::{After, MOVES};
+use crate::elements::{element_color, STAR_RADIUS, TRAIL_TIME, WELL_RANGE, WELL_TIME};
 use crate::skills::SKILLS;
 use core::f32::consts::TAU;
 
@@ -101,6 +102,19 @@ impl Game {
                 let ring = Area { shape: Shape::Ring { inner: m.reach, outer: to }, ..area };
                 self.draw_warning(ring, 0.0, [color[0], color[1], color[2], color[3] * 0.5]);
             }
+        }
+        for i in 0..self.patches.len() {
+            let p = self.patches[i];
+            let c = element_color(p.element);
+            let a = (p.t / TRAIL_TIME).min(1.0) * 0.6;
+            self.put(p.x, p.y, 24.0, 14.0, 0.0, P_SPLAT, 0.0, (i as f32 * 0.37).fract(), [c[0], c[1], c[2], a]);
+        }
+        for i in 0..self.wells.len() {
+            let w = self.wells[i];
+            let c = element_color(E_CELESTIAL + 1);
+            let r = WELL_RANGE * (0.3 + 0.7 * w.t / WELL_TIME);
+            self.put(w.x, w.y, r, r, 0.0, P_WARN_RING, 1.0, 0.8, [c[0], c[1], c[2], 0.6]);
+            self.put(w.x, w.y, STAR_RADIUS, STAR_RADIUS, 0.0, P_WARN_CIRCLE, 1.0 - w.t / WELL_TIME, 0.0, [c[0], c[1], c[2], 0.5]);
         }
         for i in 0..self.hazards.len() {
             let h = self.hazards[i];
@@ -233,6 +247,32 @@ impl Game {
             self.put(e.x, e.y - 26.0 * s + bob, hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
         } else {
             self.put(e.x, e.y - k.hh * s + hop, k.hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
+        }
+        self.draw_status(&e, k.hh * 2.0 * s);
+    }
+
+    /// Element marks on an enemy `top` units tall: flames, chill dots, an ice wash, star marks.
+    fn draw_status(&mut self, e: &crate::game::Enemy, top: f32) {
+        let st = e.status;
+        let (x, y) = (e.x, e.y - top - 8.0);
+        if st.frozen > 0.0 {
+            let c = element_color(E_ICE + 1);
+            self.put(e.x, e.y - top * 0.5, top * 0.6, top * 0.6, 0.0, P_STONE, 0.0, e.seed, [c[0], c[1], c[2], 0.55]);
+        }
+        if st.burn > 0.0 {
+            let c = element_color(E_FIRE + 1);
+            let q = (self.anim * 8.0 + e.seed * 9.0).floor();
+            for k in 0..2 {
+                let j = ((q + k as f32 * 3.1) * 1.7).sin();
+                self.put(e.x + (k as f32 - 0.5) * 14.0 + j * 3.0, e.y - top * 0.4, 6.0, 9.0 + j * 2.0, j * 0.3, P_SPLAT, 0.0, 0.3 + k as f32 * 0.2, [c[0], c[1], c[2], 0.85]);
+            }
+        }
+        let n = st.chill as usize + st.marks as usize;
+        for k in 0..n {
+            let ice = k < st.chill as usize;
+            let c = if ice { element_color(E_ICE + 1) } else { [0.95, 0.82, 0.35] };
+            let part = if ice { P_BEAD } else { P_GEM };
+            self.put(x + (k as f32 - (n as f32 - 1.0) * 0.5) * 12.0, y, 5.0, 6.0, 0.0, part, 0.0, 0.1, [c[0], c[1], c[2], 1.0]);
         }
     }
 

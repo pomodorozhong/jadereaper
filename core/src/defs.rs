@@ -1,7 +1,7 @@
 //! Shared definitions: the instance format sent to the renderer, constants, and a tiny RNG.
 //!
 //! Part ids, event types, enemy kinds, skills and moves are generated into `content.rs` from `content/game.json`
-//! (see `tools/content.mjs`) and re-exported here. Upgrade ids are still mirrored by hand in `src/data.js`.
+//! (see `tools/content.mjs`) and re-exported here, as are elements and cards.
 
 pub use crate::content::*;
 
@@ -33,16 +33,7 @@ pub const PART_SLOTS: f32 = 32.0;
 /// Most line boil poses a part can have; the rect table holds `PART_SLOTS * MAX_POSES` entries.
 pub const MAX_POSES: u32 = 8;
 
-// Upgrade ids.
-pub const U_VITALITY: usize = 0;
-pub const U_SWIFT: usize = 1;
-pub const U_LURE: usize = 2;
-pub const U_MIGHT: usize = 3;
-pub const U_MENDING: usize = 4;
-pub const N_UPGRADES: usize = 5;
-pub const UPGRADE_MAX: [u8; N_UPGRADES] = [5, 5, 5, 5, 5];
-
-pub const STATE_FLOATS: usize = 32;
+pub const STATE_FLOATS: usize = 64;
 
 // Button bits in `jr_input`.
 pub const B_SKILL1: u32 = 1;
@@ -83,6 +74,8 @@ pub struct Kind {
     pub tilt: f32,
     /// Stagger it takes before a hit interrupts it.
     pub poise: f32,
+    /// A boss: never pulled by gravity wells, never frozen, and its hits always interrupt.
+    pub boss: bool,
     /// Its attacks (ids into `MOVES`).
     pub moves: &'static [usize],
 }

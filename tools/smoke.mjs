@@ -3,7 +3,7 @@
 //
 //     npm run smoke
 //
-// With WebGPU, it picks three skills, starts a run and plays a few seconds. This includes the CI
+// With WebGPU, it picks three skills and a starting passive, and plays a few seconds of a run. This includes the CI
 // runner, which has no GPU but gets a software adapter from Chromium. Without
 // WebGPU, it checks that the "Cannot start" screen shows the WebGPU reason.
 // Then it opens the Lightbox and checks that it loads cleanly.
@@ -61,6 +61,10 @@ try {
     for (let i = 0; i < 3; i++) await page.locator('#skillCards .card').nth(i).click();
     await page.locator('#pickBegin').click();
     await page.locator('#hud').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
+    // Take the first starting passive.
+    await page.locator('#levelup').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
+    await page.waitForTimeout(400);
+    await page.locator('#cards .card').first().click();
     await page.waitForTimeout(PLAY_MS);
     if (await page.locator('#error').isVisible()) problems.push('the "Cannot start" screen appeared during the run');
     if (!(await page.locator('#hud').isVisible())) problems.push('the HUD disappeared during the run');

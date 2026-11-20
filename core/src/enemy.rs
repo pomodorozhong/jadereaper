@@ -5,6 +5,7 @@ use crate::game::*;
 use crate::geom::{dir_to, dist, Area, Shape};
 use crate::moves::*;
 use crate::player::PLAYER_R;
+use crate::elements::Status;
 use crate::skills::AreaKind;
 use core::f32::consts::TAU;
 
@@ -69,6 +70,7 @@ impl Game {
             struck: false,
             think,
             age: 0.0,
+            status: Status::default(),
         });
         Some(self.enemies.len() - 1)
     }
@@ -180,9 +182,10 @@ impl Game {
             e.y += e.ky * dt;
             e.kx *= decay;
             e.ky *= decay;
-            if e.stun > 0.0 {
-                // Interrupted: a wind-up or strike in progress is lost.
-                e.stun -= dt;
+            let pace = e.status.pace();
+            if e.stun > 0.0 || pace <= 0.0 {
+                // Interrupted or frozen: a wind-up or strike in progress is lost.
+                e.stun = (e.stun - dt).max(0.0);
                 if matches!(e.phase, Phase::Windup | Phase::Active) {
                     e.phase = Phase::Recover;
                     e.pt = 0.0;
@@ -192,6 +195,8 @@ impl Game {
             let d = dist(e.x, e.y, px, py);
             let (tx, ty) = dir_to(e.x, e.y, px, py);
             let m = MOVES[e.mv as usize];
+            // Chills slow everything it does, wind-ups included, so warnings only get longer.
+            let dt = dt * pace;
             e.pt += dt;
             match e.phase {
                 Phase::Approach => {
@@ -309,7 +314,7 @@ impl Game {
     pub fn threat(&self, within: f32) -> bool {
         let (px, py) = (self.player.x, self.player.y);
         for e in &self.enemies {
-            if e.stun > 0.0 {
+            if e.stun > 0.0 || e.status.frozen > 0.0 {
                 continue;
             }
             let m = &MOVES[e.mv as usize];
@@ -480,11 +485,12 @@ impl Game {
             }
             if let Some(i) = hit {
                 let sh = &mut self.shots[s];
-                let (vx, vy, dmg, stagger, kb) = (sh.vx, sh.vy, sh.dmg, sh.stagger, sh.knockback);
+                let (vx, vy, dmg, stagger, kb, element) = (sh.vx, sh.vy, sh.dmg, sh.stagger, sh.knockback, sh.element);
                 sh.last = self.enemies[i].id;
                 sh.pierce -= 1;
                 let v = (vx * vx + vy * vy).sqrt().max(1e-3);
                 self.hurt_enemy(i, dmg, stagger, vx / v * kb, vy / v * kb);
+                self.apply_element(i, element, dmg, stagger);
             }
             if self.shots[s].life <= 0.0 || self.shots[s].pierce <= 0 {
                 self.shots.swap_remove(s);
