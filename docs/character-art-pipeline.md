@@ -8,7 +8,7 @@ How a character goes from the artist's paper drawing to the screen. Why it works
 | --- | --- | --- | --- |
 | 1. Draw | On paper, outside the repository | Once per drawing | A photo or scan (PNG, JPG or WebP) |
 | 2. Trace | The Lightbox, `tools/lightbox.html`, by hand | Once per character, again when the art changes | `assets/characters/<name>.json` and `<name>.preset.json`, committed |
-| 3. Bake | `src/renderer.js`, at page load | Once per start-up | Atlas texture and rect table: one cell per part per boil pose |
+| 3. Bake | `src/characters.js` and `src/renderer.js`, at page load | Once per start-up | Atlas texture and rect table: one cell per part per boil pose |
 | 4. Simulate | Rust core, `core/` | Every frame | Instance buffer, 12 floats per part, with the pose in the part id |
 | 5. Draw | WebGPU, `src/shader.wgsl` | Every frame | The frame on screen: one quad per part, plus margin and shadow |
 
@@ -48,8 +48,10 @@ Anything hidden behind a moving part must still be drawn, or patched with the fi
 
 ## Bake at load time
 
-At start-up, `renderer.js` draws each part's boil poses (6 by default, the Lightbox's tuned default; decision 0003 first planned 3) with Canvas2D into the existing part atlas. It uses the same per-stroke jitter as the Lightbox: each stroke gets its own seeded wobble per pose, so neighbouring lines never move together. This takes a few milliseconds per character, once, and needs no build step or generated PNGs.
+At start-up, `src/characters.js` draws each part mapped in `assets/characters.json` in its boil poses (8 by default, tuned in the game; decision 0003 first planned 3) with Canvas2D, fitted to the box the core draws the part in, and `src/renderer.js` packs them into the existing part atlas. Strokes are drawn the same width on screen for every character. The jitter lives in `src/boil.js`, which the Lightbox imports too, so its boil preview matches the game: each stroke gets its own seeded wobble per pose, so neighbouring lines never move together. This takes a few milliseconds per character, once, and needs no build step or generated PNGs.
+
+Open the game with `?debug` for a panel of sliders that tune the bake (line width, line boil, poses, sharpness), the look (boil rate, paper margin, shadow) and each character's drawn size, while the game runs. "Copy values" copies them as JSON, to make tuned values the defaults in `src/characters.js` and `src/renderer.js`.
 
 ## Per-frame cost
 
-The per-frame cost does not change. Each part of each character instance is still one textured quad. The Rust core picks the pose on a 4 fps cycle and encodes it in the part id (`part_id = base + pose`), so the 12-float instance format does not grow. Once the puppet rigs from roadmap step 1 exist, the core also sets each part's offset and tilt around its pivot. The shader still adds the cutout margin, shadow, hit flash and outline wobble.
+The per-frame cost does not change. Each part of each character instance is still one textured quad. The Rust core picks each instance's pose on a 4 fps cycle and encodes it in the part id (`part_id = base + 32 * pose`), so the 12-float instance format does not grow. Each instance starts on its own pose and steps at its own moment, both taken from its seed, so a crowd does not boil in lockstep. Parts without traced art have the same image in every pose row of the rect table. Once the puppet rigs from roadmap step 1 exist, the core also sets each part's offset and tilt around its pivot. The shader still adds the cutout margin, shadow and hit flash. The line boil replaces the shader's old outline wobble, which is off and will be removed.
