@@ -20,8 +20,6 @@ const DEBUG_SLIDERS = [
   ['bake', 'texels', 'Sharpness', 1, 6, 0.5],
   ['Look (live)'],
   ['look', 'boilFps', 'Boil fps', 0, 24, 1],
-  ['look', 'stopMotionFps', 'Outline wobble fps', 0, 24, 1],
-  ['look', 'wobble', 'Outline wobble', 0, 6, 0.1],
   ['look', 'margin', 'Paper margin', 0, 6, 0.1],
   ['look', 'shadowX', 'Shadow x', -8, 8, 0.5],
   ['look', 'shadowY', 'Shadow y', -8, 8, 0.5],

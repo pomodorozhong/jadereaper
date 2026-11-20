@@ -8,14 +8,14 @@ const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 640; // world units across the shorter screen side
 
 /** Look settings sent to the shader each frame. The ?debug panel changes them at run time. */
-// Tuned by the maintainer in the ?debug panel: both boils are off (fps 0), so the lines hold still.
+// Tuned by the maintainer in the ?debug panel. The line boil replaces the old outline wobble, which stays off.
 export const LOOK = {
-  stopMotionFps: 0,   // how often the outline wobble steps
-  boilFps: 0,         // how often the traced characters change pose
+  stopMotionFps: 0,   // how often the old outline wobble steps (off)
+  boilFps: 4,         // how often the traced characters change pose
   margin: 2.1,        // white cutout margin, world units
   shadowX: 3.5, shadowY: 6,
   shadowAlpha: 0.5,
-  wobble: 0,          // the shader's outline wobble on cutout parts, world units
+  wobble: 0,          // the shader's old outline wobble on cutout parts, world units (off)
 };
 
 /**
