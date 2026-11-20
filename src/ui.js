@@ -1,5 +1,5 @@
 // Paper UI: screens, HUD and menu focus. All DOM work lives here.
-import { UPGRADES } from './data.js';
+import { UPGRADES, SKILLS, SLOT_KEYS } from './data.js';
 import { formatTime } from './save.js';
 import { t, getLang, setText } from './i18n.js';
 
@@ -64,7 +64,22 @@ export function createUI({ onAction }) {
     else $(id).style.setProperty(prop, value);
   }
 
-  function hud({ hp, maxHp, xp, xpNext, level, time, kills, upgrades }) {
+  function hud({ hp, maxHp, xp, xpNext, level, time, kills, upgrades, loadout }) {
+    const skillSig = getLang() + loadout.join(',');
+    if (cache.skills !== skillSig) {
+      cache.skills = skillSig;
+      $('skills').replaceChildren(...loadout.map((id, slot) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.title = t(`skill.${id}.name`);
+        const glyph = document.createElement('b');
+        glyph.textContent = SKILLS[id]?.glyph ?? '?';
+        const key = document.createElement('small');
+        key.textContent = SLOT_KEYS[slot];
+        chip.append(glyph, key);
+        return chip;
+      }));
+    }
     set('hpFill', 'width', `${Math.max(0, Math.min(100, (hp / maxHp) * 100)).toFixed(1)}%`);
     set('hpText', 'text', String(Math.ceil(hp)));
     set('xpFill', 'width', `${Math.max(0, Math.min(100, (xp / xpNext) * 100)).toFixed(1)}%`);
@@ -89,6 +104,20 @@ export function createUI({ onAction }) {
 
   function showHud(visible) {
     $('hud').hidden = !visible;
+    if (!visible) $('numbers').replaceChildren();
+  }
+
+  /** A damage number floating up from a screen point. */
+  function damage(x, y, value) {
+    const layer = $('numbers');
+    if (layer.childElementCount > 40) layer.firstElementChild.remove();
+    const el = document.createElement('span');
+    el.textContent = String(Math.round(value));
+    if (value >= 25) el.className = 'big';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.addEventListener('animationend', () => el.remove());
+    layer.append(el);
   }
 
   function levelUp(choices, upgrades) {
@@ -164,7 +193,7 @@ export function createUI({ onAction }) {
   }
 
   return {
-    show, navigate, confirm, hud, showHud, levelUp, gameOver, records, settings, error,
+    show, navigate, confirm, hud, showHud, damage, levelUp, gameOver, records, settings, error,
     get screen() { return current; },
     get locked() { return performance.now() < lockedUntil; },
   };

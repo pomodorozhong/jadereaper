@@ -1,19 +1,20 @@
-//! Game state, simulation step and instance building.
+//! Game state and the simulation step.
 //!
-//! All simulation happens on the ground plane (x right, y down). Characters
-//! are drawn standing up from their ground point, so draw code offsets parts
-//! upwards. Animation is done by posing rigid paper parts (tilt, hop, flip)
-//! on a low, stepped frame rate instead of playing sprite frames.
+//! All simulation happens on the ground plane (x right, y down). Characters are drawn standing up from their
+//! ground point, so draw code offsets parts upwards. Animation is done by posing rigid paper parts (tilt, hop,
+//! flip) on a low, stepped frame rate instead of playing sprite frames.
+//!
+//! The player is in `player.rs`, enemies in `enemy.rs` and drawing in `draw.rs`; they all add to `Game`.
 
 use crate::defs::*;
-use core::f32::consts::TAU;
+pub use crate::player::{Act, Input, Player};
 
-const MAX_ENEMIES: usize = 500;
-const MAX_GEMS: usize = 700;
-const MAX_FX: usize = 500;
-const MAX_SHOTS: usize = 200;
-const CELL: f32 = 96.0;
-const BUCKETS: usize = 4096;
+pub(crate) const MAX_ENEMIES: usize = 500;
+pub(crate) const MAX_GEMS: usize = 700;
+pub(crate) const MAX_FX: usize = 500;
+pub(crate) const MAX_SHOTS: usize = 200;
+pub(crate) const CELL: f32 = 96.0;
+pub(crate) const BUCKETS: usize = 4096;
 /// The simulation always advances in steps of this length, so a seed and its inputs replay the same run.
 pub const STEP: f32 = 1.0 / 60.0;
 /// Most steps run in one update. A longer stall (a background tab, a debugger) is dropped, not caught up.
@@ -30,102 +31,61 @@ pub struct Enemy {
     pub kind: u8,
     pub flash: f32,
     pub seed: f32,
-    pub bead_cd: f32,
     pub id: u32,
     pub face: f32,
+    /// Stagger built up by hits; past the kind's poise the enemy is interrupted.
+    pub stagger: f32,
+    /// Time left interrupted.
+    pub stun: f32,
 }
 
+/// A projectile thrown by the player.
 pub struct Shot {
-    x: f32,
-    y: f32,
-    vx: f32,
-    vy: f32,
-    life: f32,
-    dmg: f32,
-    pierce: i32,
-    last: u32,
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
+    pub life: f32,
+    pub dmg: f32,
+    pub stagger: f32,
+    pub knockback: f32,
+    pub r: f32,
+    pub pierce: i32,
+    pub last: u32,
 }
 
 pub struct Gem {
-    x: f32,
-    y: f32,
-    value: f32,
-    seed: f32,
-    pull: bool,
-    heart: bool,
+    pub x: f32,
+    pub y: f32,
+    pub value: f32,
+    pub seed: f32,
+    pub pull: bool,
+    pub heart: bool,
 }
 
 pub struct Fx {
-    x: f32,
-    y: f32,
-    vx: f32,
-    vy: f32,
-    life: f32,
-    max: f32,
-    part: f32,
-    hw: f32,
-    hh: f32,
-    rot: f32,
-    vr: f32,
-    grow: f32,
-    color: [f32; 4],
-    seed: f32,
-    /// Drawn above characters instead of on the ground.
-    top: bool,
-}
-
-/// One step's input: movement, aim and buttons.
-#[derive(Clone, Copy, Default)]
-pub struct Input {
-    /// Movement, each axis in -1..1.
-    pub mx: f32,
-    pub my: f32,
-    /// Aim, from the player towards the aim point in world units. Zero keeps the last aim.
-    pub ax: f32,
-    pub ay: f32,
-    /// Held buttons, `B_*` bits.
-    pub buttons: u32,
-}
-
-impl Input {
-    pub fn moving(mx: f32, my: f32) -> Input {
-        Input { mx, my, ..Input::default() }
-    }
-}
-
-/// What the player's body is doing.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Act {
-    Free,
-    /// Rolling in a direction; `t` counts up from 0 through the move and then the recovery.
-    Roll { t: f32, dx: f32, dy: f32 },
-}
-
-pub struct Player {
     pub x: f32,
     pub y: f32,
-    pub hp: f32,
-    pub max_hp: f32,
-    pub xp: f32,
-    pub xp_next: f32,
-    pub level: u32,
-    pub aim: (f32, f32),
-    pub face: f32,
-    pub walk: f32,
-    pub moving: bool,
-    pub iframe: f32,
-    pub attack: f32,
-    pub act: Act,
-    /// Time left on each button's buffered press (skill 1, 2, 3, roll).
-    pub buffer: [f32; N_BUTTONS],
-    /// Aim point offset from the player, as last sent.
-    pub aim_at: (f32, f32),
+    pub vx: f32,
+    pub vy: f32,
+    pub life: f32,
+    pub max: f32,
+    pub part: f32,
+    pub hw: f32,
+    pub hh: f32,
+    pub rot: f32,
+    pub vr: f32,
+    pub grow: f32,
+    pub color: [f32; 4],
+    pub seed: f32,
+    /// Drawn above characters instead of on the ground.
+    pub top: bool,
 }
 
-impl Player {
-    /// True while hits do no damage: after being hurt, and early in a roll.
-    pub fn invulnerable(&self) -> bool {
-        self.iframe > 0.0 || matches!(self.act, Act::Roll { t, .. } if t < ROLL_INVULN)
+impl Fx {
+    /// A still effect at a spot; set the other fields with struct update syntax.
+    pub fn at(x: f32, y: f32, part: f32, life: f32, hw: f32, hh: f32, color: [f32; 4]) -> Fx {
+        Fx { x, y, vx: 0.0, vy: 0.0, life, max: life, part, hw, hh, rot: 0.0, vr: 0.0, grow: 0.0, color, seed: 0.5, top: true }
     }
 }
 
@@ -149,8 +109,10 @@ pub struct Game {
     pub view_w: f32,
     pub view_h: f32,
     pub input: Input,
-    prev_buttons: u32,
+    pub(crate) prev_buttons: u32,
     pub player: Player,
+    /// The skill on each of the three skill buttons.
+    pub loadout: [usize; 3],
     pub enemies: Vec<Enemy>,
     pub shots: Vec<Shot>,
     pub gems: Vec<Gem>,
@@ -160,26 +122,29 @@ pub struct Game {
     pub pending: u32,
     pub kills: u32,
     pub shake: f32,
+    /// Time left frozen after a hit lands.
+    pub hitstop: f32,
+    /// Turns off camera shake and hit-stop.
+    pub reduce_motion: bool,
     pub cam: (f32, f32),
     /// Time not yet simulated, below one `STEP`.
     acc: f32,
     /// Fixed steps run since the start.
     pub steps: u32,
-    spawn_acc: f32,
-    next_elite: f32,
-    next_id: u32,
-    t_scythe: f32,
-    t_talisman: f32,
-    t_pulse: f32,
+    /// Spawn enemies on a timer. Tests turn it off and place enemies themselves.
+    pub auto_spawn: bool,
+    pub(crate) spawn_acc: f32,
+    pub(crate) next_elite: f32,
+    pub(crate) next_id: u32,
     pub inst: Vec<Inst>,
     pub events: Vec<[f32; 4]>,
     pub state: [f32; STATE_FLOATS],
     // Scratch buffers for the spatial grid and draw sorting.
-    cell_start: Vec<u32>,
-    cell_cursor: Vec<u32>,
-    cell_items: Vec<u16>,
-    push: Vec<(f32, f32)>,
-    order: Vec<(f32, u16)>,
+    pub(crate) cell_start: Vec<u32>,
+    pub(crate) cell_cursor: Vec<u32>,
+    pub(crate) cell_items: Vec<u16>,
+    pub(crate) push: Vec<(f32, f32)>,
+    pub(crate) order: Vec<(f32, u16)>,
 }
 
 fn xp_for(level: u32) -> f32 {
@@ -187,14 +152,8 @@ fn xp_for(level: u32) -> f32 {
     4.0 + l * 3.5 + l * l * 0.4
 }
 
-fn cell_key(cx: i32, cy: i32) -> usize {
-    (((cy & 63) as usize) << 6) | ((cx & 63) as usize)
-}
-
 impl Game {
     pub fn new(seed: u32) -> Game {
-        let mut up = [0u8; N_UPGRADES];
-        up[U_SCYTHE] = 1;
         Game {
             rng: Rng(seed | 1),
             running: false,
@@ -215,42 +174,26 @@ impl Game {
             view_h: 360.0,
             input: Input::default(),
             prev_buttons: 0,
-            player: Player {
-                x: 0.0,
-                y: 0.0,
-                hp: 100.0,
-                max_hp: 100.0,
-                xp: 0.0,
-                xp_next: xp_for(1),
-                level: 1,
-                aim: (1.0, 0.0),
-                face: 1.0,
-                walk: 0.0,
-                moving: false,
-                iframe: 0.0,
-                attack: 0.0,
-                act: Act::Free,
-                buffer: [0.0; N_BUTTONS],
-                aim_at: (100.0, 0.0),
-            },
+            player: Player::new(xp_for(1)),
+            loadout: [crate::skills::SK_SCYTHE, crate::skills::SK_TALISMAN, crate::skills::SK_PULSE],
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
             gems: Vec::with_capacity(MAX_GEMS),
             fx: Vec::with_capacity(MAX_FX),
-            up,
+            up: [0; N_UPGRADES],
             choices: [-1; 3],
             pending: 0,
             kills: 0,
             shake: 0.0,
+            hitstop: 0.0,
+            reduce_motion: false,
             cam: (0.0, -30.0),
             acc: 0.0,
             steps: 0,
+            auto_spawn: true,
             spawn_acc: 0.0,
             next_elite: 90.0,
             next_id: 1,
-            t_scythe: 0.6,
-            t_talisman: 0.5,
-            t_pulse: 2.0,
             inst: Vec::with_capacity(MAX_INST),
             events: Vec::with_capacity(256),
             state: [0.0; STATE_FLOATS],
@@ -291,7 +234,7 @@ impl Game {
         }
         // Camera follows the player, with a decaying shake.
         self.shake = (self.shake - dt * 3.0).max(0.0);
-        let s = self.shake * self.shake * 9.0;
+        let s = if self.reduce_motion { 0.0 } else { self.shake * self.shake * 9.0 };
         let q = (self.anim * 30.0).floor();
         self.cam = (
             self.player.x + s * (q * 12.9898).sin(),
@@ -301,24 +244,33 @@ impl Game {
         self.write_state();
     }
 
-    fn event(&mut self, kind: f32, x: f32, y: f32, v: f32) {
+    pub(crate) fn event(&mut self, kind: f32, x: f32, y: f32, v: f32) {
         if self.events.len() < 256 {
             self.events.push([kind, x, y, v]);
         }
     }
 
-    fn lvl(&self, id: usize) -> f32 {
+    pub(crate) fn lvl(&self, id: usize) -> f32 {
         self.up[id] as f32
+    }
+
+    /// Freeze the action for a moment as a hit lands.
+    pub(crate) fn hit_stop(&mut self, t: f32) {
+        if !self.reduce_motion {
+            self.hitstop = self.hitstop.max(t);
+        }
     }
 
     // ---------------------------------------------------------------- step
 
     fn step(&mut self, dt: f32) {
-        self.time += dt;
         self.steps += 1;
-
+        if self.hitstop > 0.0 {
+            self.hitstop -= dt;
+            return;
+        }
+        self.time += dt;
         self.move_player(dt);
-        self.weapons(dt);
         self.spawn(dt);
         self.move_enemies(dt);
         self.separate();
@@ -339,523 +291,7 @@ impl Game {
         }
     }
 
-    /// Read this step's input: buffer new presses, aim, then move or roll.
-    fn move_player(&mut self, dt: f32) {
-        let inp = self.input;
-        let pressed = inp.buttons & !self.prev_buttons;
-        self.prev_buttons = inp.buttons;
-        let p = &mut self.player;
-        for (b, t) in p.buffer.iter_mut().enumerate() {
-            *t = if pressed & (1 << b) != 0 { BUFFER } else { (*t - dt).max(0.0) };
-        }
-        let (ax, ay) = (inp.ax, inp.ay);
-        let al = (ax * ax + ay * ay).sqrt();
-        if al.is_finite() && al > 1.0 {
-            p.aim = (ax / al, ay / al);
-            p.aim_at = (ax, ay);
-        }
-
-        let (mut mx, mut my) = (inp.mx, inp.my);
-        if !mx.is_finite() || !my.is_finite() {
-            mx = 0.0;
-            my = 0.0;
-        }
-        let mut len = (mx * mx + my * my).sqrt();
-        if len > 1.0 {
-            mx /= len;
-            my /= len;
-            len = 1.0;
-        }
-        let speed = 190.0 * (1.0 + 0.08 * self.up[U_SWIFT] as f32);
-        let regen = 0.4 * self.up[U_MENDING] as f32;
-        let p = &mut self.player;
-
-        // Start a buffered roll when the body is free: in the move direction, or the aim when standing still.
-        if p.act == Act::Free && p.buffer[3] > 0.0 {
-            p.buffer[3] = 0.0;
-            let (dx, dy) = if len > 0.15 { (mx / len, my / len) } else { p.aim };
-            p.act = Act::Roll { t: 0.0, dx, dy };
-        }
-
-        match p.act {
-            Act::Free => {
-                p.moving = len > 0.15;
-                if p.moving {
-                    p.x += mx * speed * dt;
-                    p.y += my * speed * dt;
-                    p.walk += dt;
-                }
-            }
-            Act::Roll { t, dx, dy } => {
-                p.moving = false;
-                if t < ROLL_TIME {
-                    // Fast at first, easing out, covering ROLL_DIST in all.
-                    let v = |t: f32| 2.0 * t / ROLL_TIME - (t / ROLL_TIME) * (t / ROLL_TIME);
-                    let d = ROLL_DIST * (v((t + dt).min(ROLL_TIME)) - v(t));
-                    p.x += dx * d;
-                    p.y += dy * d;
-                }
-                let t = t + dt;
-                p.act = if t >= ROLL_TIME + ROLL_RECOVER - 1e-4 { Act::Free } else { Act::Roll { t, dx, dy } };
-            }
-        }
-        let fx = if let Act::Roll { dx, .. } = p.act { dx } else { p.aim.0 };
-        if fx.abs() > 0.1 {
-            p.face = fx.signum();
-        }
-        p.iframe = (p.iframe - dt).max(0.0);
-        p.attack = (p.attack - dt).max(0.0);
-        p.hp = (p.hp + regen * dt).min(p.max_hp);
-    }
-
-    fn hurt_enemy(&mut self, i: usize, dmg: f32, kx: f32, ky: f32) {
-        let e = &mut self.enemies[i];
-        e.hp -= dmg;
-        e.flash = 1.0;
-        let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
-        e.kx += kx * heavy;
-        e.ky += ky * heavy;
-        let (x, y) = (e.x, e.y);
-        self.event(EV_HIT, x, y, dmg);
-    }
-
-    fn weapons(&mut self, dt: f32) {
-        let might = 1.0 + 0.12 * self.lvl(U_MIGHT);
-        let haste = 0.92f32.powf(self.lvl(U_HASTE));
-        let (px, py) = (self.player.x, self.player.y);
-
-        // Scythe: a sweeping arc in the aim direction.
-        self.t_scythe -= dt;
-        if self.t_scythe <= 0.0 {
-            let lvl = self.lvl(U_SCYTHE);
-            self.t_scythe = 0.9 * haste;
-            let (ax, ay) = self.player.aim;
-            let reach = 105.0 + 14.0 * lvl;
-            let dmg = (14.0 + 6.0 * lvl) * might;
-            let cosw = if lvl >= 5.0 { -2.0 } else { -0.15 };
-            for i in 0..self.enemies.len() {
-                let e = &self.enemies[i];
-                let (dx, dy) = (e.x - px, e.y - py);
-                let d = (dx * dx + dy * dy).sqrt().max(0.001);
-                let r = KINDS[e.kind as usize].r;
-                if d < reach + r && (d < 30.0 || (dx * ax + dy * ay) / d > cosw) {
-                    self.hurt_enemy(i, dmg, dx / d * 240.0, dy / d * 240.0);
-                }
-            }
-            self.player.attack = 0.25;
-            let rot = ay.atan2(ax);
-            let arcs = if lvl >= 5.0 { 2 } else { 1 };
-            for k in 0..arcs {
-                self.add_fx(Fx {
-                    x: px,
-                    y: py - 24.0,
-                    vx: 0.0,
-                    vy: 0.0,
-                    life: 0.22,
-                    max: 0.22,
-                    part: P_SLASH,
-                    hw: reach,
-                    hh: reach,
-                    rot: rot + k as f32 * TAU * 0.5,
-                    vr: 5.0,
-                    grow: 60.0,
-                    color: [0.25, 0.62, 0.48, 0.9],
-                    seed: 0.3,
-                    top: true,
-                });
-            }
-            self.event(EV_SLASH, px, py, 0.0);
-        }
-
-        // Talisman: flies at the nearest enemies.
-        if self.up[U_TALISMAN] > 0 {
-            self.t_talisman -= dt;
-            if self.t_talisman <= 0.0 {
-                let lvl = self.lvl(U_TALISMAN);
-                self.t_talisman = 0.95 * haste;
-                let count = 1 + (lvl as usize) / 2;
-                let mut best = [(f32::MAX, 0usize); 4];
-                for (i, e) in self.enemies.iter().enumerate() {
-                    let d = (e.x - px).powi(2) + (e.y - py).powi(2);
-                    for s in 0..count {
-                        if d < best[s].0 {
-                            for t in (s + 1..count).rev() {
-                                best[t] = best[t - 1];
-                            }
-                            best[s] = (d, i);
-                            break;
-                        }
-                    }
-                }
-                let mut fired = false;
-                for s in 0..count {
-                    if best[s].0 > 520.0 * 520.0 || self.shots.len() >= MAX_SHOTS {
-                        continue;
-                    }
-                    let e = &self.enemies[best[s].1];
-                    let (dx, dy) = (e.x - px, e.y - py);
-                    let d = (dx * dx + dy * dy).sqrt().max(0.001);
-                    self.shots.push(Shot {
-                        x: px,
-                        y: py,
-                        vx: dx / d * 540.0,
-                        vy: dy / d * 540.0,
-                        life: 1.3,
-                        dmg: (8.0 + 4.0 * lvl) * might,
-                        pierce: 1 + (lvl as i32) / 3,
-                        last: 0,
-                    });
-                    fired = true;
-                }
-                if fired {
-                    self.event(EV_SHOOT, px, py, 0.0);
-                } else {
-                    self.t_talisman = 0.15;
-                }
-            }
-        }
-
-        // Jade beads: orbit the player. Positions come from the clock, so
-        // there is nothing to store.
-        if self.up[U_BEADS] > 0 {
-            let lvl = self.lvl(U_BEADS);
-            let dmg = (6.0 + 3.0 * lvl) * might;
-            let n = self.bead_count();
-            for k in 0..n {
-                let (bx, by) = self.bead_pos(k, n);
-                for i in 0..self.enemies.len() {
-                    let e = &self.enemies[i];
-                    if e.bead_cd > 0.0 {
-                        continue;
-                    }
-                    let r = KINDS[e.kind as usize].r + 12.0;
-                    let (dx, dy) = (e.x - bx, e.y - by);
-                    if dx * dx + dy * dy < r * r {
-                        let (ox, oy) = (e.x - px, e.y - py);
-                        let d = (ox * ox + oy * oy).sqrt().max(0.001);
-                        self.enemies[i].bead_cd = 0.45;
-                        self.hurt_enemy(i, dmg, ox / d * 160.0, oy / d * 160.0);
-                    }
-                }
-            }
-        }
-
-        // Spirit pulse: a ring that damages and shoves everything nearby.
-        if self.up[U_PULSE] > 0 {
-            self.t_pulse -= dt;
-            if self.t_pulse <= 0.0 {
-                let lvl = self.lvl(U_PULSE);
-                self.t_pulse = 4.2 * haste;
-                let radius = 150.0 + 30.0 * lvl;
-                let dmg = (10.0 + 6.0 * lvl) * might;
-                for i in 0..self.enemies.len() {
-                    let e = &self.enemies[i];
-                    let (dx, dy) = (e.x - px, e.y - py);
-                    let d = (dx * dx + dy * dy).sqrt().max(0.001);
-                    if d < radius {
-                        self.hurt_enemy(i, dmg, dx / d * 520.0, dy / d * 520.0);
-                    }
-                }
-                self.add_fx(Fx {
-                    x: px,
-                    y: py - 10.0,
-                    vx: 0.0,
-                    vy: 0.0,
-                    life: 0.35,
-                    max: 0.35,
-                    part: P_RING,
-                    hw: 20.0,
-                    hh: 20.0,
-                    rot: 0.0,
-                    vr: 0.0,
-                    grow: (radius - 20.0) / 0.35,
-                    color: [0.25, 0.62, 0.48, 0.8],
-                    seed: 0.7,
-                    top: true,
-                });
-                self.event(EV_PULSE, px, py, 0.0);
-            }
-        }
-    }
-
-    fn bead_count(&self) -> usize {
-        if self.up[U_BEADS] == 0 {
-            0
-        } else {
-            1 + self.up[U_BEADS] as usize
-        }
-    }
-
-    fn bead_pos(&self, k: usize, n: usize) -> (f32, f32) {
-        let radius = 78.0 + 6.0 * self.lvl(U_BEADS);
-        let a = self.time * 2.8 + k as f32 * TAU / n as f32;
-        (self.player.x + a.cos() * radius, self.player.y + a.sin() * radius * 0.8)
-    }
-
-    fn spawn_ring(&self) -> f32 {
-        (self.view_w * self.view_w + self.view_h * self.view_h).sqrt() + 70.0
-    }
-
-    fn spawn_enemy(&mut self, kind: u8) {
-        if self.enemies.len() >= MAX_ENEMIES {
-            return;
-        }
-        let a = self.rng.range(0.0, TAU);
-        let ring = self.spawn_ring();
-        let k = &KINDS[kind as usize];
-        let scale = 1.0 + self.time / 120.0;
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1).max(1);
-        let seed = self.rng.f();
-        self.enemies.push(Enemy {
-            x: self.player.x + a.cos() * ring,
-            y: self.player.y + a.sin() * ring,
-            kx: 0.0,
-            ky: 0.0,
-            hp: k.hp * scale,
-            kind,
-            flash: 0.0,
-            seed,
-            bead_cd: 0.0,
-            id,
-            face: 1.0,
-        });
-    }
-
-    fn spawn(&mut self, dt: f32) {
-        let t = self.time;
-        let rate = 1.0 + t / 24.0;
-        self.spawn_acc += rate * dt;
-        while self.spawn_acc >= 1.0 {
-            self.spawn_acc -= 1.0;
-            let roll = self.rng.f();
-            let brute = if t > 60.0 { ((t - 60.0) / 400.0).min(0.25) } else { 0.0 };
-            let wisp = if t > 25.0 { 0.3 } else { 0.0 };
-            let kind = if roll < brute {
-                K_BRUTE
-            } else if roll < brute + wisp {
-                K_WISP
-            } else {
-                K_BLOT
-            };
-            self.spawn_enemy(kind);
-        }
-        if t >= self.next_elite {
-            self.next_elite += 90.0;
-            self.spawn_enemy(K_ELITE);
-            self.event(EV_ELITE, self.player.x, self.player.y, 0.0);
-        }
-    }
-
-    fn move_enemies(&mut self, dt: f32) {
-        let (px, py) = (self.player.x, self.player.y);
-        let ring = self.spawn_ring();
-        let far = ring * 1.8;
-        let decay = (-8.0 * dt).exp();
-        let mut hit: Option<f32> = None;
-        for e in self.enemies.iter_mut() {
-            let k = &KINDS[e.kind as usize];
-            let (dx, dy) = (px - e.x, py - e.y);
-            let d = (dx * dx + dy * dy).sqrt().max(0.001);
-            if d > far {
-                // Left far behind: bring it back to the spawn ring on the
-                // other side so the crowd keeps closing in.
-                e.x = px + dx / d * ring;
-                e.y = py + dy / d * ring;
-                continue;
-            }
-            e.x += (dx / d * k.speed + e.kx) * dt;
-            e.y += (dy / d * k.speed + e.ky) * dt;
-            e.kx *= decay;
-            e.ky *= decay;
-            e.flash = (e.flash - dt * 6.0).max(0.0);
-            e.bead_cd = (e.bead_cd - dt).max(0.0);
-            if dx.abs() > 4.0 {
-                e.face = dx.signum();
-            }
-            if d < k.r + 10.0 {
-                hit = Some(hit.map_or(k.dmg, |h: f32| h.max(k.dmg)));
-            }
-        }
-        if let Some(dmg) = hit {
-            if !self.player.invulnerable() {
-                self.player.hp -= dmg;
-                self.player.iframe = 0.8;
-                self.shake = 1.0;
-                self.event(EV_HURT, px, py, dmg);
-                for _ in 0..6 {
-                    let a = self.rng.range(0.0, TAU);
-                    let s = self.rng.range(80.0, 220.0);
-                    let seed = self.rng.f();
-                    self.add_fx(Fx {
-                        x: px,
-                        y: py - 30.0,
-                        vx: a.cos() * s,
-                        vy: a.sin() * s - 60.0,
-                        life: 0.5,
-                        max: 0.5,
-                        part: P_SCRAP,
-                        hw: 4.0,
-                        hh: 4.0,
-                        rot: a,
-                        vr: 9.0,
-                        grow: 0.0,
-                        color: [0.20, 0.42, 0.36, 1.0],
-                        seed,
-                        top: true,
-                    });
-                }
-                if self.player.hp <= 0.0 {
-                    self.player.hp = 0.0;
-                    self.over = true;
-                    self.event(EV_DEATH, px, py, 0.0);
-                }
-            }
-        }
-    }
-
-    /// Push overlapping enemies apart using a hashed uniform grid.
-    fn separate(&mut self) {
-        let n = self.enemies.len();
-        if n < 2 {
-            return;
-        }
-        for c in self.cell_start.iter_mut() {
-            *c = 0;
-        }
-        for e in &self.enemies {
-            let k = cell_key((e.x / CELL).floor() as i32, (e.y / CELL).floor() as i32);
-            self.cell_start[k + 1] += 1;
-        }
-        for i in 0..BUCKETS {
-            self.cell_start[i + 1] += self.cell_start[i];
-        }
-        self.cell_cursor.copy_from_slice(&self.cell_start);
-        self.cell_items.clear();
-        self.cell_items.resize(n, 0);
-        for (i, e) in self.enemies.iter().enumerate() {
-            let k = cell_key((e.x / CELL).floor() as i32, (e.y / CELL).floor() as i32);
-            self.cell_items[self.cell_cursor[k] as usize] = i as u16;
-            self.cell_cursor[k] += 1;
-        }
-        self.push.clear();
-        self.push.resize(n, (0.0, 0.0));
-        for i in 0..n {
-            let e = self.enemies[i];
-            let er = KINDS[e.kind as usize].r;
-            let cx = (e.x / CELL).floor() as i32;
-            let cy = (e.y / CELL).floor() as i32;
-            for oy in -1..=1 {
-                for ox in -1..=1 {
-                    let k = cell_key(cx + ox, cy + oy);
-                    for s in self.cell_start[k]..self.cell_start[k + 1] {
-                        let j = self.cell_items[s as usize] as usize;
-                        if j <= i {
-                            continue;
-                        }
-                        let o = &self.enemies[j];
-                        let rr = er + KINDS[o.kind as usize].r;
-                        let (dx, dy) = (o.x - e.x, o.y - e.y);
-                        let d2 = dx * dx + dy * dy;
-                        if d2 < rr * rr && d2 > 0.0001 {
-                            let d = d2.sqrt();
-                            let f = (rr - d) * 0.5 / d;
-                            self.push[i].0 -= dx * f;
-                            self.push[i].1 -= dy * f;
-                            self.push[j].0 += dx * f;
-                            self.push[j].1 += dy * f;
-                        }
-                    }
-                }
-            }
-        }
-        for (e, p) in self.enemies.iter_mut().zip(self.push.iter()) {
-            e.x += p.0 * 0.6;
-            e.y += p.1 * 0.6;
-        }
-    }
-
-    fn move_shots(&mut self, dt: f32) {
-        let mut s = 0;
-        while s < self.shots.len() {
-            let (x, y, dmg, last) = {
-                let sh = &mut self.shots[s];
-                sh.x += sh.vx * dt;
-                sh.y += sh.vy * dt;
-                sh.life -= dt;
-                (sh.x, sh.y, sh.dmg, sh.last)
-            };
-            let mut hit = None;
-            for (i, e) in self.enemies.iter().enumerate() {
-                if e.id == last || e.hp <= 0.0 {
-                    continue;
-                }
-                let r = KINDS[e.kind as usize].r + 8.0;
-                let (dx, dy) = (e.x - x, e.y - y);
-                if dx * dx + dy * dy < r * r {
-                    hit = Some(i);
-                    break;
-                }
-            }
-            if let Some(i) = hit {
-                let (vx, vy) = (self.shots[s].vx, self.shots[s].vy);
-                self.shots[s].last = self.enemies[i].id;
-                self.shots[s].pierce -= 1;
-                self.hurt_enemy(i, dmg, vx * 0.3, vy * 0.3);
-            }
-            if self.shots[s].life <= 0.0 || self.shots[s].pierce <= 0 {
-                self.shots.swap_remove(s);
-            } else {
-                s += 1;
-            }
-        }
-    }
-
-    /// Remove dead enemies and drop their rewards.
-    fn reap(&mut self) {
-        let mut i = 0;
-        while i < self.enemies.len() {
-            if self.enemies[i].hp > 0.0 {
-                i += 1;
-                continue;
-            }
-            let e = self.enemies.swap_remove(i);
-            let k = &KINDS[e.kind as usize];
-            self.kills += 1;
-            self.event(EV_KILL, e.x, e.y, e.kind as f32);
-            let heart = self.rng.f() < if e.kind == K_ELITE { 1.0 } else { 0.012 };
-            self.drop_gem(e.x, e.y, k.xp, false);
-            if heart {
-                self.drop_gem(e.x + 14.0, e.y, 0.0, true);
-            }
-            let n = if e.kind >= K_BRUTE { 9 } else { 4 };
-            for _ in 0..n {
-                let a = self.rng.range(0.0, TAU);
-                let s = self.rng.range(20.0, 150.0);
-                let size = self.rng.range(0.25, 0.6) * k.r;
-                let seed = self.rng.f();
-                self.add_fx(Fx {
-                    x: e.x,
-                    y: e.y - k.r * 0.5,
-                    vx: a.cos() * s,
-                    vy: a.sin() * s * 0.6,
-                    life: 0.55,
-                    max: 0.55,
-                    part: P_SPLAT,
-                    hw: size,
-                    hh: size * 0.8,
-                    rot: a,
-                    vr: 0.0,
-                    grow: 8.0,
-                    color: [INK[0], INK[1], INK[2], 0.7],
-                    seed,
-                    top: false,
-                });
-            }
-        }
-    }
-
-    fn drop_gem(&mut self, x: f32, y: f32, value: f32, heart: bool) {
+    pub(crate) fn drop_gem(&mut self, x: f32, y: f32, value: f32, heart: bool) {
         if !heart && self.gems.len() >= MAX_GEMS {
             // Too many on the ground: fold the value into an existing gem.
             let i = (self.rng.next() as usize) % self.gems.len();
@@ -899,7 +335,7 @@ impl Game {
         }
     }
 
-    fn add_fx(&mut self, f: Fx) {
+    pub(crate) fn add_fx(&mut self, f: Fx) {
         if self.fx.len() < MAX_FX {
             self.fx.push(f);
         }
@@ -976,214 +412,6 @@ impl Game {
         }
     }
 
-    // ---------------------------------------------------------------- draw
-
-    #[allow(clippy::too_many_arguments)]
-    fn put(&mut self, x: f32, y: f32, hw: f32, hh: f32, rot: f32, part: f32, flash: f32, seed: f32, color: [f32; 4]) {
-        if self.inst.len() >= MAX_INST {
-            return;
-        }
-        // Cull what the camera cannot see.
-        let m = hw.abs().max(hh) + 24.0;
-        if (x - self.cam.0).abs() > self.view_w + m || (y - self.cam.1).abs() > self.view_h + m {
-            return;
-        }
-        let part = part + PART_SLOTS * self.boil_pose(seed) as f32;
-        self.inst.push(Inst { x, y, hw, hh, rot, part, flash, seed, color });
-    }
-
-    /// Set the line boil: poses per second, and poses per part (1 to `MAX_POSES`).
-    pub fn set_boil(&mut self, fps: f32, poses: u32) {
-        self.boil_fps = fps.max(0.0);
-        self.boil_poses = poses.clamp(1, MAX_POSES);
-    }
-
-    /// Set how big a character is drawn: 0 is the player, 1 + kind an enemy kind. Hit areas do not change.
-    pub fn set_draw_scale(&mut self, who: usize, scale: f32) {
-        if let Some(s) = self.draw_scale.get_mut(who) {
-            *s = scale.clamp(0.1, 4.0);
-        }
-    }
-
-    /// Set an enemy kind's waddle: how far it tilts each way (radians) and how often it changes pose.
-    pub fn set_waddle(&mut self, kind: usize, tilt: f32, rate: f32) {
-        if let Some(w) = self.waddle.get_mut(kind) {
-            *w = (tilt.clamp(0.0, 1.5), rate.clamp(0.0, 30.0));
-        }
-    }
-
-    /// The line boil pose of one instance. Each instance starts at its own pose and steps at its own moment,
-    /// both taken from its seed, so a crowd does not boil in lockstep.
-    fn boil_pose(&self, seed: f32) -> u32 {
-        if self.boil_poses <= 1 {
-            return 0;
-        }
-        let phase = (seed * 7.31).fract();
-        let start = (seed * 1000.0) as i32;
-        let step = (self.anim * self.boil_fps + phase).floor() as i32;
-        (start + step).rem_euclid(self.boil_poses as i32) as u32
-    }
-
-    fn build(&mut self) {
-        self.inst.clear();
-        self.draw_ground();
-
-        // Ground-level effects and pickups.
-        for i in 0..self.fx.len() {
-            if !self.fx[i].top {
-                self.draw_fx(i);
-            }
-        }
-        for i in 0..self.gems.len() {
-            let g = &self.gems[i];
-            let (x, y, seed, heart) = (g.x, g.y, g.seed, g.heart);
-            // Two-pose rock, like a paper tag on a string.
-            let pose = (((self.anim * 4.0 + seed * 9.0).floor() as i32) & 1) as f32;
-            let rot = pose * 0.3 - 0.15;
-            if heart {
-                self.put(x, y - 12.0, 11.0, 11.0, rot, P_HEART, 0.0, seed, [0.78, 0.27, 0.18, 1.0]);
-            } else {
-                let big = self.gems[i].value >= 5.0;
-                let s = if big { 10.0 } else { 7.0 };
-                let c = if big { [0.85, 0.72, 0.30, 1.0] } else { [0.36, 0.72, 0.56, 1.0] };
-                self.put(x, y - 8.0, s * 0.8, s, rot, P_GEM, 0.0, seed, c);
-            }
-        }
-
-        // Characters, sorted by depth.
-        self.order.clear();
-        for (i, e) in self.enemies.iter().enumerate() {
-            self.order.push((e.y, i as u16));
-        }
-        self.order.push((self.player.y, u16::MAX));
-        self.order.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(core::cmp::Ordering::Equal));
-        for n in 0..self.order.len() {
-            let idx = self.order[n].1;
-            if idx == u16::MAX {
-                self.draw_player();
-            } else {
-                self.draw_enemy(idx as usize);
-            }
-        }
-
-        // Things in the air.
-        for i in 0..self.shots.len() {
-            let s = &self.shots[i];
-            let (x, y, rot) = (s.x, s.y, s.vy.atan2(s.vx) + TAU * 0.25);
-            self.put(x, y - 24.0, 6.0, 11.0, rot, P_TALISMAN, 0.0, 0.5, [0.89, 0.77, 0.38, 1.0]);
-        }
-        let n = self.bead_count();
-        for k in 0..n {
-            let (x, y) = self.bead_pos(k, n);
-            self.put(x, y - 24.0, 9.0, 9.0, 0.0, P_BEAD, 0.0, k as f32 * 0.13, [0.30, 0.66, 0.50, 1.0]);
-        }
-        for i in 0..self.fx.len() {
-            if self.fx[i].top {
-                self.draw_fx(i);
-            }
-        }
-    }
-
-    fn draw_fx(&mut self, i: usize) {
-        let f = &self.fx[i];
-        let t = (f.life / f.max).clamp(0.0, 1.0);
-        let mut c = f.color;
-        c[3] *= t.sqrt();
-        let (x, y, hw, hh, rot, part, seed) = (f.x, f.y, f.hw, f.hh, f.rot, f.part, f.seed);
-        self.put(x, y, hw, hh, rot, part, 0.0, seed, c);
-    }
-
-    /// Sparse ink strokes and stones so movement reads against the paper.
-    fn draw_ground(&mut self) {
-        const G: f32 = 170.0;
-        let x0 = ((self.cam.0 - self.view_w) / G).floor() as i32;
-        let x1 = ((self.cam.0 + self.view_w) / G).floor() as i32;
-        let y0 = ((self.cam.1 - self.view_h) / G).floor() as i32;
-        let y1 = ((self.cam.1 + self.view_h) / G).floor() as i32;
-        for cy in y0..=y1 {
-            for cx in x0..=x1 {
-                let h = hash2(cx, cy);
-                if h % 100 >= 55 {
-                    continue;
-                }
-                let fx = ((h >> 8) & 255) as f32 / 255.0;
-                let fy = ((h >> 16) & 255) as f32 / 255.0;
-                let x = (cx as f32 + fx) * G;
-                let y = (cy as f32 + fy) * G;
-                let seed = (h & 255) as f32 / 255.0;
-                if (h >> 24) % 4 == 0 {
-                    self.put(x, y, 16.0 + seed * 12.0, 8.0 + seed * 5.0, 0.0, P_STONE, 0.0, seed, [INK[0], INK[1], INK[2], 0.16]);
-                } else {
-                    let flip = if h & 1 == 0 { 1.0 } else { -1.0 };
-                    self.put(x, y, (10.0 + seed * 6.0) * flip, 10.0 + seed * 8.0, 0.0, P_GRASS, 0.0, seed, [0.22, 0.36, 0.30, 0.45]);
-                }
-            }
-        }
-    }
-
-    fn draw_enemy(&mut self, i: usize) {
-        let e = self.enemies[i];
-        let k = &KINDS[e.kind as usize];
-        // Two poses, flipped back and forth. That is the whole walk cycle.
-        let (lean, rate) = self.waddle[e.kind as usize];
-        let pose = ((self.anim * rate + e.seed * 7.0).floor() as i32) & 1;
-        let (tilt, hop) = if pose == 0 { (lean, 0.0) } else { (-lean, -3.0) };
-        let c = [k.color[0], k.color[1], k.color[2], 1.0];
-        let shadow = [INK[0], INK[1], INK[2], 0.2];
-        let s = self.draw_scale[1 + e.kind as usize];
-        self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
-        if e.kind == K_WISP {
-            // Wisps hover and flap by squeezing their width.
-            let hw = if pose == 0 { k.hw } else { k.hw * 0.7 };
-            let bob = (self.anim * 5.0 + e.seed * 20.0).sin() * 3.0;
-            self.put(e.x, e.y - 26.0 * s + bob, hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
-        } else {
-            self.put(e.x, e.y - k.hh * s + hop, k.hw * s * e.face, k.hh * s, tilt, k.part, e.flash, e.seed, c);
-        }
-    }
-
-    fn draw_player(&mut self) {
-        let p = &self.player;
-        let (px, py, f) = (p.x, p.y, p.face);
-        let (tilt, bob) = if let Act::Roll { t, .. } = p.act {
-            // Tucked into a tumble while the roll moves.
-            let k = (t / ROLL_TIME).min(1.0);
-            (k * TAU * f, -6.0 * (k * TAU * 0.5).sin())
-        } else if p.moving {
-            if ((p.walk * 9.0).floor() as i32) & 1 == 0 { (0.10, 0.0) } else { (-0.10, -3.0) }
-        } else if ((self.anim * 2.0).floor() as i32) & 1 == 0 {
-            (0.0, 0.0)
-        } else {
-            (0.0, -1.5)
-        };
-        // Blink while invulnerable.
-        let a = if p.iframe > 0.0 && ((p.iframe * 20.0) as i32) & 1 == 1 { 0.4 } else { 1.0 };
-        let flash = if p.iframe > 0.65 { 1.0 } else { 0.0 };
-        let attack = p.attack;
-        // Drawn size; the hit area stays the same.
-        let s = self.draw_scale[0];
-
-        let shadow = [INK[0], INK[1], INK[2], 0.22];
-        self.put(px, py, 20.0 * s, 7.0 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
-
-        let scythe = [0.36, 0.66, 0.52, a];
-        let swinging = attack > 0.0;
-        if !swinging {
-            // Resting over the shoulder, behind the body.
-            self.put(px - f * 15.0 * s, py - 46.0 * s + bob, 20.0 * s * f, 34.0 * s, -f * 0.45 + tilt, P_SCYTHE, flash, 0.21, scythe);
-        }
-        let top_x = px + 26.0 * s * tilt.sin();
-        // The traced player is one square drawing, so the robe's box is square and stands on the shadow.
-        self.put(px, py - 40.0 * s + bob, 40.0 * s * f, 40.0 * s, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
-        self.put(top_x + f * 2.0 * s, py - 60.0 * s + bob * 1.5, 15.0 * s * f, 15.0 * s, -tilt * 0.6, P_HOOD, flash, 0.53, [0.15, 0.33, 0.29, a]);
-        if swinging {
-            let t = 1.0 - attack / 0.25;
-            let ease = t * t * (3.0 - 2.0 * t);
-            let ang = (-1.3 + 2.8 * ease) * f;
-            self.put(px + f * 12.0 * s, py - 42.0 * s + bob, 20.0 * s * f, 34.0 * s, ang, P_SCYTHE, flash, 0.21, scythe);
-        }
-    }
-
     // --------------------------------------------------------------- state
 
     /// A hash of the simulation state, to check that a seed and its inputs replay the same run.
@@ -1215,7 +443,7 @@ impl Game {
     /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,
     /// 7 choosing, 8..10 offered upgrade ids (-1 for none), 11 game over,
     /// 12 camera x, 13 camera y, 14 enemy count, 15 running,
-    /// 16..25 upgrade levels, 26 player x, 27 player y.
+    /// 16..20 upgrade levels, 26 player x, 27 player y, 28..30 loadout skill ids.
     fn write_state(&mut self) {
         let p = &self.player;
         let s = &mut self.state;
@@ -1240,5 +468,8 @@ impl Game {
         }
         s[26] = self.player.x;
         s[27] = self.player.y;
+        for c in 0..3 {
+            s[28 + c] = self.loadout[c] as f32;
+        }
     }
 }

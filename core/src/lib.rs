@@ -9,7 +9,12 @@
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
 pub mod defs;
+pub mod draw;
+pub mod enemy;
 pub mod game;
+pub mod geom;
+pub mod player;
+pub mod skills;
 
 use game::Game;
 
@@ -132,6 +137,8 @@ mod tests {
             if frame % 30 == 0 {
                 game.input = game::Input::moving(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
             }
+            // Mash the skill buttons, so there are kills and level ups.
+            game.input.buttons = if frame % 4 < 2 { 1 << (frame / 4 % 3) } else { 0 };
             game.update(1.0 / 60.0);
             assert!(game.inst.len() <= MAX_INST);
             if game.choosing {

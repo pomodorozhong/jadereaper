@@ -286,11 +286,21 @@ async function boot() {
       const count = core.jr_event_count();
       if (count) {
         const ev = new Float32Array(core.memory.buffer, core.jr_events_ptr(), count * 4);
-        for (let i = 0; i < count; i++) audio.play(ev[i * 4]);
+        const r = canvas.getBoundingClientRect();
+        for (let i = 0; i < count; i++) {
+          audio.play(ev[i * 4]);
+          if (ev[i * 4] === EVENT.HIT) {
+            // Lift the number from the ground point to about chest height.
+            const sx = r.left + ((ev[i * 4 + 1] - s[STATE.CAM_X]) / view.w + 0.5) * r.width;
+            const sy = r.top + ((ev[i * 4 + 2] - 36 - s[STATE.CAM_Y]) / view.h + 0.5) * r.height;
+            ui.damage(sx, sy, ev[i * 4 + 3]);
+          }
+        }
       }
       ui.hud({
         hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], xp: s[STATE.XP], xpNext: s[STATE.XP_NEXT],
         level: s[STATE.LEVEL], time: s[STATE.TIME], kills: s[STATE.KILLS], upgrades: upgradeLevels(s),
+        loadout: Array.from(s.subarray(STATE.LOADOUT0, STATE.LOADOUT0 + 3)),
       });
       if (s[STATE.OVER]) {
         mode = 'over';

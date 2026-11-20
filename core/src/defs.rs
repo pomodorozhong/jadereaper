@@ -55,18 +55,13 @@ pub const P_SHADOW: f32 = 18.0;
 pub const P_ELITE: f32 = 19.0;
 
 // Upgrade ids.
-pub const U_SCYTHE: usize = 0;
-pub const U_TALISMAN: usize = 1;
-pub const U_BEADS: usize = 2;
-pub const U_PULSE: usize = 3;
-pub const U_VITALITY: usize = 4;
-pub const U_SWIFT: usize = 5;
-pub const U_LURE: usize = 6;
-pub const U_MIGHT: usize = 7;
-pub const U_HASTE: usize = 8;
-pub const U_MENDING: usize = 9;
-pub const N_UPGRADES: usize = 10;
-pub const UPGRADE_MAX: [u8; N_UPGRADES] = [6, 6, 6, 6, 5, 5, 5, 5, 5, 5];
+pub const U_VITALITY: usize = 0;
+pub const U_SWIFT: usize = 1;
+pub const U_LURE: usize = 2;
+pub const U_MIGHT: usize = 3;
+pub const U_MENDING: usize = 4;
+pub const N_UPGRADES: usize = 5;
+pub const UPGRADE_MAX: [u8; N_UPGRADES] = [5, 5, 5, 5, 5];
 
 // Event types, read by the host for sound.
 pub const EV_HIT: f32 = 1.0;
@@ -121,6 +116,8 @@ pub struct Kind {
     pub rate: f32,
     /// How far the puppet tilts each way as it waddles, in degrees.
     pub tilt: f32,
+    /// Stagger it takes before a hit interrupts it.
+    pub poise: f32,
 }
 
 pub const K_BLOT: u8 = 0;
@@ -129,10 +126,10 @@ pub const K_BRUTE: u8 = 2;
 pub const K_ELITE: u8 = 3;
 
 pub const KINDS: [Kind; 4] = [
-    Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25 },
-    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75 },
-    Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5 },
-    Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_ELITE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5 },
+    Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25, poise: 8.0 },
+    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75, poise: 5.0 },
+    Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5, poise: 40.0 },
+    Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_ELITE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5, poise: 120.0 },
 ];
 
 pub struct Rng(pub u32);
