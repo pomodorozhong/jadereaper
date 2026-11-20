@@ -329,6 +329,12 @@ impl Game {
                 self.put(e.x + (k as f32 - 0.5) * 14.0 + j * 3.0, e.y - top * 0.4, 6.0, 9.0 + j * 2.0, j * 0.3, P_SPLAT, 0.0, 0.3 + k as f32 * 0.2, [c[0], c[1], c[2], 0.85]);
             }
         }
+        if st.tag > 0 {
+            // The element tag waiting for a reaction: a coloured bead above the head.
+            let c = element_color(st.tag);
+            let a = (st.tag_t / crate::reactions::TAG_TIME).min(1.0) * 0.6 + 0.4;
+            self.put(x, y - 14.0, 6.0, 6.0, 0.0, P_BEAD, 0.0, 0.6, [c[0], c[1], c[2], a]);
+        }
         let n = st.chill as usize + st.marks as usize;
         for k in 0..n {
             let ice = k < st.chill as usize;

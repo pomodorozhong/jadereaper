@@ -52,7 +52,8 @@ export const EVENT = {
   "BOSS_DOWN": 16,
   "GRAB": 17,
   "STANCE": 18,
-  "FINISHER": 19
+  "FINISHER": 19,
+  "REACTION": 20
 };
 
 /** rigs, indexed by id. */

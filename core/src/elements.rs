@@ -59,6 +59,9 @@ pub struct Status {
     pub chill_t: f32,
     pub frozen: f32,
     pub marks: u8,
+    /// The last element that hit it (element id + 1, or 0) and how long the tag lasts; see `reactions.rs`.
+    pub tag: u8,
+    pub tag_t: f32,
 }
 
 impl Status {
@@ -101,6 +104,10 @@ impl Game {
             return;
         }
         self.note_element_damage(i, element, dmg);
+        self.tag_or_react(i, element, dmg);
+        if i >= self.enemies.len() {
+            return;
+        }
         let boss = self.is_boss(i);
         let (x, y) = (self.enemies[i].x, self.enemies[i].y);
         match element - 1 {
@@ -159,6 +166,10 @@ impl Game {
         for i in 0..self.enemies.len() {
             let s = &mut self.enemies[i].status;
             s.frozen = (s.frozen - dt).max(0.0);
+            s.tag_t = (s.tag_t - dt).max(0.0);
+            if s.tag_t <= 0.0 {
+                s.tag = 0;
+            }
             if s.chill > 0 {
                 s.chill_t -= dt;
                 if s.chill_t <= 0.0 {

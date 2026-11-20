@@ -17,6 +17,8 @@ const WADDLE = {
   blotTilt: 2.25, blotRate: 2, wispTilt: 3.75, wispRate: 9, bruteTilt: 7.5, bruteRate: 3, eliteTilt: 7.5, eliteRate: 2.5,
 };
 const WADDLE_KINDS = ['blot', 'wisp', 'brute', 'elite'];
+/** Reaction names by id (R_* in core/src/reactions.rs), for their text. */
+const REACTIONS = ['', 'steam', 'overload', 'collapse', 'shatter', 'stasis', 'starfall'];
 
 /** ?debug: sliders for every visual setting. Bake settings re-draw the traced characters; look settings apply live. */
 const DEBUG_SLIDERS = [
@@ -342,11 +344,12 @@ async function boot() {
         const r = canvas.getBoundingClientRect();
         for (let i = 0; i < count; i++) {
           audio.play(ev[i * 4]);
-          if (ev[i * 4] === EVENT.HIT) {
+          if (ev[i * 4] === EVENT.HIT || ev[i * 4] === EVENT.REACTION) {
             // Lift the number from the ground point to about chest height.
             const sx = r.left + ((ev[i * 4 + 1] - s[STATE.CAM_X]) / view.w + 0.5) * r.width;
             const sy = r.top + ((ev[i * 4 + 2] - 36 - s[STATE.CAM_Y]) / view.h + 0.5) * r.height;
-            ui.damage(sx, sy, ev[i * 4 + 3]);
+            if (ev[i * 4] === EVENT.HIT) ui.damage(sx, sy, ev[i * 4 + 3]);
+            else ui.reaction(sx, sy, REACTIONS[ev[i * 4 + 3]] ?? '');
           }
         }
       }

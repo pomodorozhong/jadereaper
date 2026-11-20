@@ -62,6 +62,7 @@ pub const EV_BOSS_DOWN: f32 = 16.0;
 pub const EV_GRAB: f32 = 17.0;
 pub const EV_STANCE: f32 = 18.0;
 pub const EV_FINISHER: f32 = 19.0;
+pub const EV_REACTION: f32 = 20.0;
 
 // rigs
 pub const RG_PLAYER: usize = 0;

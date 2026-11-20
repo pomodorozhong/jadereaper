@@ -31,7 +31,7 @@
     { "name": "dragon_wing", "id": 29 }
   ],
 
-  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win", "enrage", "boss_down", "grab", "stance", "finisher"],
+  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win", "enrage", "boss_down", "grab", "stance", "finisher", "reaction"],
 
   "rigs": [
     { "name": "player",

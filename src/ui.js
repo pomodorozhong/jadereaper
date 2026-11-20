@@ -148,6 +148,18 @@ export function createUI({ onAction }) {
     if (!visible) $('numbers').replaceChildren();
   }
 
+  /** A reaction's name floating up from a screen point, in the colour of the reaction. */
+  function reaction(x, y, name) {
+    const layer = $('numbers');
+    const el = document.createElement('span');
+    el.className = 'reaction';
+    el.textContent = t(`reaction.${name}`);
+    el.style.left = `${x}px`;
+    el.style.top = `${y - 24}px`;
+    el.addEventListener('animationend', () => el.remove());
+    layer.append(el);
+  }
+
   /** A damage number floating up from a screen point. */
   function damage(x, y, value) {
     const layer = $('numbers');
@@ -282,7 +294,7 @@ export function createUI({ onAction }) {
   }
 
   return {
-    show, navigate, confirm, hud, showHud, damage, skillPick, cards, gameOver, records, settings, error,
+    show, navigate, confirm, hud, showHud, damage, reaction, skillPick, cards, gameOver, records, settings, error,
     get screen() { return current; },
     get locked() { return performance.now() < lockedUntil; },
   };
