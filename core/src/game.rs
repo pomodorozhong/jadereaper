@@ -14,6 +14,10 @@ const MAX_FX: usize = 500;
 const MAX_SHOTS: usize = 200;
 const CELL: f32 = 96.0;
 const BUCKETS: usize = 4096;
+/// The simulation always advances in steps of this length, so a seed and its inputs replay the same run.
+pub const STEP: f32 = 1.0 / 60.0;
+/// Most steps run in one update. A longer stall (a background tab, a debugger) is dropped, not caught up.
+const MAX_STEPS: u32 = 8;
 
 #[derive(Clone, Copy)]
 pub struct Enemy {
@@ -117,6 +121,10 @@ pub struct Game {
     pub kills: u32,
     pub shake: f32,
     pub cam: (f32, f32),
+    /// Time not yet simulated, below one `STEP`.
+    acc: f32,
+    /// Fixed steps run since the start.
+    pub steps: u32,
     spawn_acc: f32,
     next_elite: f32,
     next_id: u32,
@@ -191,6 +199,8 @@ impl Game {
             kills: 0,
             shake: 0.0,
             cam: (0.0, -30.0),
+            acc: 0.0,
+            steps: 0,
             spawn_acc: 0.0,
             next_elite: 90.0,
             next_id: 1,
@@ -213,12 +223,27 @@ impl Game {
         self.view_h = half_h.max(100.0);
     }
 
+    /// Advance by a frame's time: the simulation runs in fixed `STEP`s and keeps the remainder for the next
+    /// frame. Drawing, the camera and the HUD state follow every call.
     pub fn update(&mut self, dt: f32) {
-        let dt = if dt.is_finite() { dt.clamp(0.0, 0.05) } else { 0.0 };
+        let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
         self.events.clear();
         self.anim += dt;
         if self.running && !self.choosing && !self.over {
-            self.step(dt);
+            self.acc += dt;
+            let mut n = 0;
+            // The small slack keeps 1/60 s frames from skipping a step through rounding.
+            while self.acc >= STEP - 1e-5 && n < MAX_STEPS && !self.choosing && !self.over {
+                self.step(STEP);
+                self.acc -= STEP;
+                n += 1;
+            }
+            if n == MAX_STEPS || self.choosing || self.over {
+                self.acc = 0.0;
+            }
+            self.acc = self.acc.max(0.0);
+        } else {
+            self.acc = 0.0;
         }
         // Camera follows the player, with a decaying shake.
         self.shake = (self.shake - dt * 3.0).max(0.0);
@@ -246,6 +271,7 @@ impl Game {
 
     fn step(&mut self, dt: f32) {
         self.time += dt;
+        self.steps += 1;
 
         // Player movement.
         let (mut mx, mut my) = self.input;
@@ -1070,6 +1096,31 @@ impl Game {
     }
 
     // --------------------------------------------------------------- state
+
+    /// A hash of the simulation state, to check that a seed and its inputs replay the same run.
+    pub fn state_hash(&self) -> u32 {
+        let mut h: u32 = 0x811c_9dc5;
+        let mut mix = |v: u32| {
+            for b in v.to_le_bytes() {
+                h ^= b as u32;
+                h = h.wrapping_mul(0x0100_0193);
+            }
+        };
+        mix(self.rng.0);
+        mix(self.steps);
+        let p = &self.player;
+        for v in [p.x, p.y, p.hp, p.max_hp, p.xp] {
+            mix(v.to_bits());
+        }
+        mix(self.enemies.len() as u32);
+        for e in &self.enemies {
+            for v in [e.x, e.y, e.hp] {
+                mix(v.to_bits());
+            }
+        }
+        mix(self.kills);
+        h
+    }
 
     /// HUD state read by the host. Layout:
     /// 0 hp, 1 max hp, 2 xp, 3 xp needed, 4 level, 5 time, 6 kills,

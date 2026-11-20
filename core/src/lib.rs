@@ -71,6 +71,8 @@ pub extern "C" fn jr_input(mx: f32, my: f32) {
     g().input = (mx, my);
 }
 
+/// Advance by a frame's time in seconds. The simulation runs in fixed 60 Hz steps (`game::STEP`) and carries
+/// the remainder to the next call, so the same seed and inputs replay the same run.
 #[no_mangle]
 pub extern "C" fn jr_update(dt: f32) {
     g().update(dt);
@@ -80,6 +82,12 @@ pub extern "C" fn jr_update(dt: f32) {
 #[no_mangle]
 pub extern "C" fn jr_choose(i: u32) {
     g().choose(i as usize);
+}
+
+/// A hash of the simulation state, for replay checks.
+#[no_mangle]
+pub extern "C" fn jr_state_hash() -> u32 {
+    g().state_hash()
 }
 
 #[no_mangle]
@@ -180,6 +188,52 @@ mod tests {
         assert_eq!(after.hw.abs(), before.hw.abs() * 2.0);
         assert_eq!(after.hh, before.hh * 2.0);
         game.set_draw_scale(9, 2.0); // out of range is ignored
+    }
+
+    /// Play a scripted run: the same seed and inputs, fed through the given frame times.
+    fn replay(seed: u32, frames: &[f32]) -> u32 {
+        let mut game = Game::new(seed);
+        game.set_view(640.0, 360.0);
+        game.running = true;
+        let mut t = 0.0;
+        for &dt in frames {
+            t += dt;
+            // Inputs change on step boundaries, so different frame splits see the same input in every step.
+            let k = (t * 2.0) as u32;
+            let mut r = Rng(k * 2654435761 | 1);
+            game.input = (r.range(-1.0, 1.0), r.range(-1.0, 1.0));
+            game.update(dt);
+            if game.choosing {
+                game.choose(0);
+            }
+        }
+        game.state_hash()
+    }
+
+    #[test]
+    fn same_seed_and_inputs_replay_the_same_run() {
+        let frames = vec![1.0 / 60.0; 60 * 40];
+        let a = replay(11, &frames);
+        assert_eq!(a, replay(11, &frames));
+        assert_ne!(a, replay(12, &frames));
+    }
+
+    #[test]
+    fn frame_rate_does_not_change_the_simulation() {
+        // One 1/30 s frame runs the same two steps as two 1/60 s frames.
+        let mut game = Game::new(4);
+        game.running = true;
+        let mut other = Game::new(4);
+        other.running = true;
+        game.input = (0.7, -0.2);
+        other.input = (0.7, -0.2);
+        for _ in 0..600 {
+            game.update(1.0 / 30.0);
+            other.update(1.0 / 60.0);
+            other.update(1.0 / 60.0);
+        }
+        assert_eq!(game.steps, 1200);
+        assert_eq!(game.state_hash(), other.state_hash());
     }
 
     #[test]
