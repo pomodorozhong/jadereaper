@@ -1,6 +1,6 @@
 # Jade Reaper
 
-A room-based action game in the making, running natively in the browser. Today's prototype still plays as a survivor game; [ROADMAP.md](ROADMAP.md) has the plan for the change. The simulation is Rust compiled to WebAssembly, the picture is drawn with WebGPU, and everything on screen is styled as cut paper and ink.
+A room-based action game running natively in the browser: pick three skills, fight through ink-spirit rooms with a roll and well-timed attacks, collect element cards, and bring down two bosses. [ROADMAP.md](ROADMAP.md) has the plan. The simulation is Rust compiled to WebAssembly, the picture is drawn with WebGPU, and everything on screen is styled as cut paper and ink.
 
 ## Play it online
 
@@ -38,14 +38,14 @@ npm run smoke
 | Menu move | Arrow keys or WASD | Stick or d-pad |
 | Menu confirm | Enter or Space | A |
 | Back | Esc | B |
-| Pick upgrade | 1, 2, 3 | Stick, then A |
+| Pick a card | 1, 2, 3 | Stick, then A |
 | Mute | M | |
 
-The roll is a short dodge with a moment of invulnerability. The game pauses itself when the window loses focus.
+Skills have no cooldowns: each has a startup, an active window and a recovery, and a roll can cut the recovery short after its cancel point. The roll is a short dodge with a moment of invulnerability; mash it to break a grab. Enemies warn every attack with an ink wash on the ground. The game pauses itself when the window loses focus.
 
 ## How the paper style works
 
-Characters are puppets made of rigid paper parts, not sprite sheets. The reaper is a robe, a hood and a scythe. A walk cycle is two poses: tilt one way, then tilt the other with a small hop. Enemies do the same, each on its own offset. This needs one still image per part and no animation frames.
+Characters are puppets made of rigid paper parts, not sprite sheets, placed by rigs in `content/game.json`. The reaper is a robe, a hood and a scythe. A walk cycle is two poses: tilt one way, then tilt the other with a small hop. Each rig also has wind-up, attack, hurt and roll poses; the roll tucks and spins the cutout. This needs one still image per part and no animation frames.
 
 The renderer adds the rest to every part: an ink outline, a white cutout margin, a drop shadow and paper grain. Hand-traced characters get a per-stroke line boil like stop-motion, 4 poses a second; see [docs/character-art-pipeline.md](docs/character-art-pipeline.md). Parts are drawn in code as signed distance shapes, and any part can be swapped for your own PNG. See [assets/parts/README.md](assets/parts/README.md).
 
@@ -55,10 +55,11 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 
 | Path | What it is |
 | --- | --- |
-| `core/` | Rust simulation. No dependencies, no bindgen. |
-| `core/src/defs.rs` | Instance format, part ids, upgrade ids, enemy table |
-| `core/src/game.rs` | State, simulation step, puppet posing, instance building |
+| `core/` | Rust simulation. No dependencies, no bindgen. Its modules are described in [docs/architecture.md](docs/architecture.md). |
+| `core/src/content.rs` | Generated from `content/game.json`: part ids, events, rigs, enemy kinds, skills, cards, rooms, moves |
 | `core/src/lib.rs` | The `jr_*` functions exported to JavaScript, and tests |
+| `core/tests/` | Simulation tests, including whole runs played by the scripted bot in `core/src/bot.rs` |
+| `content/game.json` | All game content, in one file |
 | `wasm/` | Built core |
 | `src/main.js` | Loads the core, frame loop, game modes |
 | `src/renderer.js` | WebGPU setup, part image atlas, drawing |
@@ -69,10 +70,11 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 | `src/audio.js` | Synthesized sound effects (no audio files) |
 | `src/ui.js` | Screens, HUD, menu focus |
 | `src/save.js` | Records and settings in localStorage |
-| `src/data.js` | Part names, upgrade text, state and event ids |
+| `src/data.js` | State indices and button bits, and the generated tables from `src/content.js` |
+| `src/content.js`, `src/content.wgsl` | Generated from `content/game.json` |
 | `assets/parts.json` | Optional image overrides for parts |
 | `assets/fonts/` | Bundled UI fonts, cut down to the game's characters, with their licenses |
-| `tools/` | Font subset and check scripts, the local server, the smoke test and the Lightbox |
+| `tools/` | The content generator, font subset and check scripts, the local server, the smoke test and the Lightbox |
 
 ## Fonts
 
@@ -89,13 +91,13 @@ The scripts need Node 26 (see `.node-version`) and the dev dependencies that `np
 
 ## How core and host talk
 
-Each frame the host calls `jr_input`, then `jr_update(dt)`, and reads three buffers out of wasm memory:
+Each frame the host calls `jr_input(mx, my, aim_x, aim_y, buttons)`, then `jr_update(dt)`, and reads three buffers out of wasm memory. The core simulates in fixed 60 Hz steps and keeps the rest of `dt` for the next frame, so a seed and its inputs replay the same run (`jr_state_hash` checks it).
 
 - Instances: 12 floats per paper part (`x, y, half width, half height, rotation, part id, flash, seed, r, g, b, a`). These bytes go to the GPU unchanged.
-- State: 32 floats for the HUD (health, experience, time, offered upgrades and so on). Indices are in `src/data.js` under `STATE`.
-- Events: 4 floats each (`type, x, y, value`), used for sound.
+- State: 64 floats for the HUD (health, room and wave, offered cards, the boss's health and stance, and so on). Indices are in `src/data.js` under `STATE`, and the layout is documented on `Game::write_state` in `core/src/game.rs`.
+- Events: 4 floats each (`type, x, y, value`), used for sound, damage numbers and reaction names.
 
-When the core sets the "choosing" flag the host shows the upgrade cards and answers with `jr_choose(slot)`.
+A run starts with `jr_start(seed)`, `jr_set_loadout(a, b, c)` and `jr_offer_passive()`. When the core sets the "choosing" flag the host shows the offered cards and answers with `jr_choose(slot)`.
 
 ## Build the core
 
@@ -107,6 +109,8 @@ rustup target add wasm32-unknown-unknown
 ./build.sh
 ```
 
+`./build.sh` first runs `node tools/content.mjs`, which checks `content/game.json` and writes the generated tables for Rust, JavaScript and WGSL. Commit them with the content change; `node tools/content.mjs --check` (and `npm test`) fails when they are stale.
+
 Run the simulation tests natively:
 
 ```bash
@@ -115,21 +119,27 @@ cargo test --release --manifest-path core/Cargo.toml
 
 ## Extending
 
-- New enemy: add a row to `KINDS` in `core/src/defs.rs` and a spawn rule in `Game::spawn`.
-- New upgrade: add an id and max level in `defs.rs`, its effect in `Game::weapons` or where the stat is read, and its glyph in `src/data.js`, and its card text as `upgrade.<id>.name` and `upgrade.<id>.desc` in every language in `src/i18n.js`.
+Most content is data in `content/game.json`; run `./build.sh` after changing it.
+
+- New skill: add it to `skills` (timing, damage, stagger, hit area, hyper armor, movement), and its text as `skill.<name>.name` and `.desc` in every language in `src/i18n.js`. A new kind of delivery needs a `SkillKind` in `core/src/skills.rs`.
+- New card: add it to `cards` (what it attaches to, an element, an effect), and its text as `card.<name>.name` and `.desc`.
+- New enemy: add a rig to `rigs`, its moves to `moves` (wind-up at least 0.4 s), a kind to `kinds`, and put it in a room's waves.
+- New boss move: add it to `moves` with its weight, cooldown, phases and special, and list it on the boss's kind. A new special needs code in `core/src/boss.rs` or `core/src/dragon.rs`.
+- New room: add it to `rooms`, before the boss rooms.
 - New text: add a key to every language in `src/i18n.js`, then use `t(key)` in code or a `data-i18n` attribute in `index.html`. Missing keys fall back to English.
 - New language: add its code to `LANGS` and a table to `STRINGS` in `src/i18n.js`, and to start new players in it, set `DEFAULT_LANG`.
-- New part shape: add a part id in `defs.rs`, a `case` in `shape()` in `src/shader.wgsl`, and a name in `PART_IDS` in `src/data.js`.
+- New part shape: add a part to `parts` in `content/game.json` and a `case P_<NAME>` in `shape()` in `src/shader.wgsl`; a part without a case is drawn as an ellipse.
 
-## What is in the backbone
+## What is in the game
 
-- Four enemy kinds (blot, wisp, brute, elite every 90 seconds) with time-scaled health and spawn rate, capped at 500 on screen
-- Four weapons (scythe, talisman, jade beads, spirit pulse) and six passive upgrades, with level-up choices
-- Experience gems, health drops, pickup magnet, knockback, invulnerability frames, camera shake
-- Title, settings, level-up, pause and game-over screens, playable by keyboard or gamepad
-- Saved best time, kills, level, sound and language settings
-- Traditional Chinese (the default) and English text, switchable in settings
+- Aim with the mouse or the right stick, three skills on three buttons, and a roll, with a 120 ms input buffer
+- Eight skills, light to heavy, balanced by timing instead of cooldowns; heavy skills have hyper armor
+- Hit areas with shapes, hit-stop, knockback, stagger and damage numbers, and a setting that turns off shake and hit-stop
+- Four enemy kinds that wind up behind a ground warning, at most 10 at once
+- One card pool: a starting passive, a card after each room, four elements (fire, ice, lightning, celestial) and six reactions between them
+- A run of four rooms of waves, then two bosses: the Glutton, which enrages, and the Two-Element Dragon, which changes stance and has an element check
+- Puppet rigs posed from data, saves with a version and a migration, Traditional Chinese (the default) and English text
 
-Not included yet: touch controls, damage numbers, music, meta progression between runs, and a WebGL fallback for browsers without WebGPU.
+Not included yet: music, meta progression between runs, more characters, touch controls, and a WebGL fallback for browsers without WebGPU. The bosses are flat placeholder shapes until their art is traced.
 
 The ranked plan for what comes next is in [ROADMAP.md](ROADMAP.md).
