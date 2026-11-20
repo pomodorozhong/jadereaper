@@ -1,5 +1,5 @@
 // Paper UI: screens, HUD and menu focus. All DOM work lives here.
-import { SKILLS, SLOT_KEYS, CARDS, ELEMENTS } from './data.js';
+import { SKILLS, SLOT_KEYS, CARDS, ELEMENTS, KINDS } from './data.js';
 import { formatTime } from './save.js';
 import { t, getLang, setText } from './i18n.js';
 
@@ -90,7 +90,17 @@ export function createUI({ onAction }) {
     return chip;
   }
 
-  function hud({ hp, maxHp, room, rooms, wave, waves, boss, time, kills, loadout, elements, owned }) {
+  function hud({ hp, maxHp, room, rooms, wave, waves, boss, time, kills, loadout, elements, owned, bossBar, grabbed }) {
+    $('bossBar').hidden = !bossBar;
+    if (bossBar) {
+      const { kind, health, max, meter, flags } = bossBar;
+      set('bossName', 'text', t(`boss.${KINDS[kind].name}`));
+      $('bossName').classList.toggle('enraged', !!(flags & 1));
+      $('bossBar').classList.toggle('down', !!(flags & 2));
+      set('bossFill', 'width', `${Math.max(0, Math.min(100, (health / max) * 100)).toFixed(1)}%`);
+      set('bossMeter', 'width', `${(flags & 2 ? 100 : meter * 100).toFixed(1)}%`);
+    }
+    $('grabPrompt').hidden = !grabbed;
     const skillSig = getLang() + loadout.join(',') + elements.join(',');
     if (cache.skills !== skillSig) {
       cache.skills = skillSig;

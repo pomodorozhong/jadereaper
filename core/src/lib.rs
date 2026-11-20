@@ -8,6 +8,7 @@
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
+pub mod boss;
 pub mod bot;
 pub mod cards;
 pub mod content;
@@ -51,6 +52,12 @@ pub extern "C" fn jr_start(seed: u32) {
     jr_reset(seed);
     g().running = true;
     g().enter_room(0);
+}
+
+/// Jump to a room of the run, for the ?debug panel and scripted checks.
+#[no_mangle]
+pub extern "C" fn jr_enter_room(room: u32) {
+    g().enter_room((room as usize).min(defs::N_ROOMS - 1));
 }
 
 /// Visible area in world units (full width and height).

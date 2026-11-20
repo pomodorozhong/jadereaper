@@ -355,6 +355,10 @@ async function boot() {
         waves: s[STATE.WAVES], boss: s[STATE.BOSS], time: s[STATE.TIME], kills: s[STATE.KILLS],
         loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0),
         owned: Array.from(s.subarray(STATE.OWNED0, STATE.OWNED0 + CARDS.length)),
+        bossBar: s[STATE.BOSS_KIND] ? {
+          kind: s[STATE.BOSS_KIND] - 1, health: s[STATE.BOSS_HP], max: s[STATE.BOSS_MAX], meter: s[STATE.BOSS_METER], flags: s[STATE.BOSS_FLAGS],
+        } : null,
+        grabbed: s[STATE.ACT] === 5,
       });
       if (s[STATE.OVER]) {
         mode = 'over';

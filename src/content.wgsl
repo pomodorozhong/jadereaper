@@ -24,6 +24,12 @@ const P_WARN_CIRCLE: i32 = 20;
 const P_WARN_ARC: i32 = 21;
 const P_WARN_LINE: i32 = 22;
 const P_WARN_RING: i32 = 23;
+const P_GLUTTON_BODY: i32 = 24;
+const P_GLUTTON_HEAD: i32 = 25;
+const P_GLUTTON_TAIL: i32 = 26;
+const P_DRAGON_BODY: i32 = 27;
+const P_DRAGON_HEAD: i32 = 28;
+const P_DRAGON_WING: i32 = 29;
 
 // Parts drawn as flat ink or wash: no outline, margin or shadow.
 fn isFlat(part: i32) -> bool {

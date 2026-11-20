@@ -209,6 +209,10 @@ pub struct Game {
     pub pick: Pick,
     /// Elements the next offers lean hard towards (element id + 1, 0 for none), such as before the final boss.
     pub want_element: [u8; 2],
+    /// The boss in the room, if any.
+    pub boss: Option<crate::boss::BossState>,
+    /// The Dragon's stance (`Stance::Any` when no stance is in play).
+    pub stance: crate::moves::Stance,
     pub wells: Vec<Well>,
     pub patches: Vec<Patch>,
     /// Turns off camera shake and hit-stop.
@@ -279,6 +283,8 @@ impl Game {
             choice_slots: [NO_SLOT; 3],
             pick: Pick::None,
             want_element: [0; 2],
+            boss: None,
+            stance: crate::moves::Stance::Any,
             wells: Vec::with_capacity(8),
             patches: Vec::with_capacity(40),
             choices: [-1; 3],
@@ -523,12 +529,35 @@ impl Game {
             Pick::Passive => 1.0,
             Pick::Reward => 2.0,
         };
-        for c in 0..N_CARDS.min(STATE_FLOATS - 32) {
+        for c in 0..N_CARDS.min(24) {
             s[32 + c] = self.owned[c] as f32;
         }
         s[23] = ROOMS[self.room].waves.len() as f32;
         s[24] = self.won as u8 as f32;
         s[25] = ROOMS[self.room].boss as f32;
+        // 56 boss health, 57 its maximum, 58 its stagger meter (0..1), 59 flags (1 enraged, 2 down), 60 boss kind + 1.
+        let boss = self.boss.and_then(|b| self.enemies.iter().find(|e| e.id == b.id).map(|e| (b, e)));
+        if let Some((b, e)) = boss {
+            let k = &KINDS[e.kind as usize];
+            s[56] = e.hp.max(0.0);
+            s[57] = k.hp;
+            s[58] = (b.meter / k.poise).min(1.0);
+            s[59] = (b.enraged() as u8 + 2 * (b.down > 0.0) as u8) as f32;
+            s[60] = e.kind as f32 + 1.0;
+        } else {
+            for v in &mut s[56..61] {
+                *v = 0.0;
+            }
+        }
+        // 61 what the player's body is doing: 0 free, 1 rolling, 2 a skill, 3 hurt, 4 down, 5 grabbed.
+        s[61] = match self.player.act {
+            Act::Free => 0.0,
+            Act::Roll { .. } => 1.0,
+            Act::Skill { .. } => 2.0,
+            Act::Hurt { .. } => 3.0,
+            Act::Down { .. } => 4.0,
+            Act::Grabbed { .. } => 5.0,
+        };
         s[26] = self.player.x;
         s[27] = self.player.y;
         for c in 0..3 {

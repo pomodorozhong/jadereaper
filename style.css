@@ -359,6 +359,17 @@ button.card { font-family: var(--hand); }
 .skills .chip b { font-size: 26px; }
 .skills .chip small { font-size: 12px; color: var(--ink-soft); }
 
+/* The boss's name, health and stagger meter, along the bottom. */
+.boss-bar { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); display: grid; gap: 3px; justify-items: center; }
+.boss-name { font-family: var(--title); font-size: 20px; font-weight: 700; text-shadow: 0 0 4px var(--paper); }
+.boss-name.enraged { color: var(--vermilion); }
+.boss-hp { width: 100%; height: 12px; border: 2px solid var(--ink); border-radius: 3px; overflow: hidden; background: var(--paper); }
+.boss-fill { height: 100%; width: 100%; background: var(--ink); transition: width 0.12s ease-out; }
+.boss-meter { width: 70%; height: 5px; border-radius: 2px; overflow: hidden; background: var(--paper-dark); }
+.boss-meter-fill { height: 100%; width: 0; background: var(--jade); }
+.boss-bar.down .boss-meter-fill { background: var(--vermilion); }
+.prompt { position: fixed; left: 50%; top: 38%; transform: translateX(-50%) rotate(-2deg); font-family: var(--title); font-size: 26px; font-weight: 700; color: var(--vermilion); text-shadow: 0 0 4px var(--paper), 0 0 4px var(--paper); animation: fade 0.2s; }
+
 /* Damage numbers float up from where a hit lands. */
 #numbers { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 #numbers span {

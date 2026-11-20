@@ -88,6 +88,15 @@ export function createAudio() {
     [EVENT.WIN]: () => {
       [0, 2, 4, 5, 7].forEach((n, i) => tone({ dur: 0.6, type: 'triangle', f0: PENTATONIC[n], gain: 0.26, delay: i * 0.14 }));
     },
+    [EVENT.ENRAGE]: () => {
+      noise({ dur: 0.6, type: 'lowpass', f0: 900, f1: 120, gain: 0.45 });
+      tone({ dur: 0.6, type: 'sawtooth', f0: 110, f1: 70, gain: 0.12 });
+    },
+    [EVENT.BOSS_DOWN]: () => {
+      noise({ dur: 0.35, type: 'lowpass', f0: 500, f1: 80, gain: 0.5 });
+      [4, 2].forEach((n, i) => tone({ dur: 0.3, type: 'triangle', f0: PENTATONIC[n], gain: 0.2, delay: 0.1 + i * 0.1 }));
+    },
+    [EVENT.GRAB]: () => noise({ dur: 0.2, type: 'lowpass', f0: 700, f1: 200, gain: 0.4 }),
     [EVENT.SLASH]: () => noise({ dur: 0.14, type: 'highpass', f0: 900, f1: 3800, gain: 0.22 }),
     [EVENT.SHOOT]: () => noise({ dur: 0.06, f0: 3200, f1: 1800, q: 3, gain: 0.18 }),
     [EVENT.PULSE]: () => {

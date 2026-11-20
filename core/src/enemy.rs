@@ -19,6 +19,8 @@ fn cell_key(cx: i32, cy: i32) -> usize {
 impl Game {
     /// Damage an enemy: knockback, stagger, a flash, a hit-stop and a damage number.
     pub(crate) fn hurt_enemy(&mut self, i: usize, dmg: f32, stagger: f32, kx: f32, ky: f32) {
+        let dmg = self.boss_hit(i, dmg, stagger);
+        let boss = KINDS[self.enemies[i].kind as usize].boss;
         let e = &mut self.enemies[i];
         let k = &KINDS[e.kind as usize];
         e.hp -= dmg;
@@ -26,8 +28,8 @@ impl Game {
         let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
         e.kx += kx * heavy;
         e.ky += ky * heavy;
-        e.stagger += stagger;
-        if e.stagger >= k.poise {
+        e.stagger += if boss { 0.0 } else { stagger };
+        if !boss && e.stagger >= k.poise {
             e.stagger = 0.0;
             e.stun = STUN_TIME;
         }
@@ -72,6 +74,9 @@ impl Game {
             age: 0.0,
             status: Status::default(),
         });
+        if k.boss {
+            self.boss = Some(crate::boss::BossState::new(id));
+        }
         Some(self.enemies.len() - 1)
     }
 
@@ -83,6 +88,10 @@ impl Game {
             AreaKind::Line => (e.ox, e.oy),
             _ => (e.ox + e.dx * m.dash, e.oy + e.dy * m.dash),
         };
+        if m.special == Special::Sweep {
+            // Warned as the whole arc the line will sweep.
+            return Area::new(e.ox, e.oy, (e.dx, e.dy), Shape::Arc { r: m.reach, half: SWEEP_HALF });
+        }
         let shape = match m.area {
             AreaKind::Circle => Shape::Circle { r: m.reach },
             AreaKind::Arc => Shape::Arc { r: m.reach, half: m.width },
@@ -92,7 +101,18 @@ impl Game {
         Area::new(x, y, (e.dx, e.dy), shape)
     }
 
-    fn start_windup(&mut self, i: usize) {
+    /// Where a striking move hits right now. A lunge or charge along a line hits with the attacker's body as it
+    /// passes, so the warning shows the whole path but a roll timed to its arrival avoids it.
+    pub fn strike_area(&self, e: &Enemy) -> Area {
+        let m = &MOVES[e.mv as usize];
+        if m.area == AreaKind::Line && m.dash > 0.0 && m.special != Special::Sweep {
+            let r = KINDS[e.kind as usize].r + m.width * 0.5;
+            return Area::new(e.x, e.y, (e.dx, e.dy), Shape::Circle { r });
+        }
+        self.move_area(e)
+    }
+
+    pub(crate) fn start_windup(&mut self, i: usize) {
         let (px, py) = (self.player.x, self.player.y);
         let e = &mut self.enemies[i];
         let (dx, dy) = dir_to(e.x, e.y, px, py);
@@ -112,6 +132,10 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         let decay = (-8.0 * dt).exp();
         for i in 0..self.enemies.len() {
+            if KINDS[self.enemies[i].kind as usize].boss {
+                self.move_boss(i, dt);
+                continue;
+            }
             let e = &mut self.enemies[i];
             let k = &KINDS[e.kind as usize];
             e.age += dt;
@@ -219,7 +243,7 @@ impl Game {
                     let done = e.pt >= m.active;
                     let (struck, ex, ey, warned) = (e.struck, e.x, e.y, m.windup + e.pt);
                     if !struck && !matches!(m.after, After::Shot { .. }) {
-                        let a = self.move_area(&self.enemies[i]);
+                        let a = self.strike_area(&self.enemies[i]);
                         if a.hits(px, py, PLAYER_R) {
                             self.enemies[i].struck = true;
                             let boss = KINDS[self.enemies[i].kind as usize].boss;
@@ -252,17 +276,36 @@ impl Game {
     /// a strike under way, or a shot or ring about to arrive. The scripted bot rolls on it.
     pub fn threat(&self, within: f32) -> bool {
         let (px, py) = (self.player.x, self.player.y);
-        for e in &self.enemies {
-            if e.stun > 0.0 || e.status.frozen > 0.0 {
+        for (i, e) in self.enemies.iter().enumerate() {
+            if e.stun > 0.0 || e.status.frozen > 0.0 || self.boss_of(i).map_or(false, |b| b.down > 0.0) {
                 continue;
             }
             let m = &MOVES[e.mv as usize];
+            if matches!(m.special, Special::Summon | Special::Eat) {
+                continue;
+            }
             let soon = match e.phase {
-                Phase::Windup => m.windup - e.pt <= within && !matches!(m.after, After::Shot { .. }),
+                Phase::Windup => self.windup_of(e) - e.pt <= within && !matches!(m.after, After::Shot { .. }),
                 Phase::Active => !e.struck && !matches!(m.after, After::Shot { .. }),
                 _ => false,
             };
-            if soon && self.move_area(e).hits(px, py, PLAYER_R + 6.0) {
+            let area = if m.special == Special::Sweep {
+                // Where the swept line will be.
+                let k = if e.phase == Phase::Active { (e.pt + within) / m.active } else { 0.0 };
+                self.boss_area(i, k)
+            } else if e.phase == Phase::Active {
+                // Where the strike will be, for a body still dashing in.
+                let mut a = self.strike_area(e);
+                if m.dash > 0.0 && e.pt < m.active {
+                    let ahead = (m.dash / m.active) * within.min(m.active - e.pt);
+                    a.x += e.dx * ahead;
+                    a.y += e.dy * ahead;
+                }
+                a
+            } else {
+                self.move_area(e)
+            };
+            if soon && area.hits(px, py, PLAYER_R + 6.0) {
                 return true;
             }
         }
@@ -449,7 +492,17 @@ impl Game {
                 continue;
             }
             let e = self.enemies.swap_remove(i);
+            if e.hp == f32::NEG_INFINITY {
+                // Eaten by a boss.
+                continue;
+            }
             let k = &KINDS[e.kind as usize];
+            if self.boss.map_or(false, |b| b.id == e.id) {
+                self.release_grab();
+                self.boss = None;
+                self.focus = None;
+                self.shake = 1.2;
+            }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
             let n = if e.kind >= K_BRUTE { 9 } else { 4 };

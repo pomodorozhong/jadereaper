@@ -34,7 +34,21 @@ pub enum Act {
     Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool, dist: f32 },
     /// Knocked off balance by a hit.
     Hurt { t: f32 },
+    /// Knocked down by a heavy boss hit; a roll gets up sooner.
+    Down { t: f32 },
+    /// Held by a boss's grab; pressing roll `GRAB_MASH` times breaks free.
+    Grabbed { t: f32, mash: u8 },
 }
+
+/// Lying down this long after a knockdown, unless a roll gets up sooner.
+pub const DOWN_TIME: f32 = 0.9;
+/// A roll can get up from a knockdown after this long.
+pub const DOWN_EARLY: f32 = 0.3;
+/// Roll presses that break a grab, and the longest a grab holds.
+pub const GRAB_MASH: u8 = 5;
+pub const GRAB_MAX: f32 = 3.0;
+/// Damage per second while grabbed.
+pub const GRAB_DPS: f32 = 6.0;
 
 /// How long a hit knocks the player off balance.
 pub const HURT_TIME: f32 = 0.3;
@@ -90,7 +104,9 @@ impl Player {
 
     /// True while hits do no damage: after being hurt, and early in a roll.
     pub fn invulnerable(&self) -> bool {
-        self.iframe > 0.0 || matches!(self.act, Act::Roll { t, .. } if t < ROLL_INVULN)
+        self.iframe > 0.0
+            || matches!(self.act, Act::Roll { t, .. } if t < ROLL_INVULN)
+            || matches!(self.act, Act::Down { .. } | Act::Grabbed { .. })
     }
 
     /// True while a hyper armor skill is in its active window.
@@ -159,6 +175,25 @@ impl Game {
                 let t = t + dt;
                 self.player.act = if t >= HURT_TIME { Act::Free } else { Act::Hurt { t } };
             }
+            Act::Down { t } => {
+                let t = t + dt;
+                self.player.act = if t >= DOWN_TIME { Act::Free } else { Act::Down { t } };
+            }
+            Act::Grabbed { t, mash } => {
+                let t = t + dt;
+                let mash = mash + (pressed & B_ROLL != 0) as u8;
+                self.player.hp -= GRAB_DPS * (1.0 - self.stats.armor) * dt;
+                if self.player.hp <= 0.0 {
+                    self.player.hp = 0.0;
+                    self.over = true;
+                    self.event(EV_DEATH, self.player.x, self.player.y, 0.0);
+                }
+                if mash >= GRAB_MASH || t >= GRAB_MAX {
+                    self.release_grab();
+                } else {
+                    self.player.act = Act::Grabbed { t, mash };
+                }
+            }
         }
 
         let p = &mut self.player;
@@ -195,6 +230,10 @@ impl Game {
                 } else if let Some(slot) = (0..3).find(|&s| p.buffer[s] > 0.0) {
                     self.start_skill(slot, 0);
                 }
+            }
+            Act::Down { t } if p.buffer[3] > 0.0 && t >= DOWN_EARLY => {
+                // Roll out of a knockdown, getting up sooner.
+                self.start_roll(roll_dir);
             }
             Act::Skill { slot, t, step, .. } => {
                 let d = &self.def(slot);

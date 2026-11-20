@@ -85,6 +85,16 @@ impl Game {
         KINDS[self.enemies[i].kind as usize].boss
     }
 
+    /// Extra stagger on a boss's meter.
+    pub(crate) fn add_boss_stagger(&mut self, i: usize, stagger: f32) {
+        let id = self.enemies[i].id;
+        if let Some(b) = self.boss.as_mut().filter(|b| b.id == id) {
+            if b.down <= 0.0 {
+                b.meter += stagger;
+            }
+        }
+    }
+
     /// Apply a hit's element (0 for none, or element id + 1) to enemy `i`, which the hit just damaged.
     pub(crate) fn apply_element(&mut self, i: usize, element: u8, dmg: f32, stagger: f32) {
         if element == 0 || i >= self.enemies.len() {
@@ -105,7 +115,7 @@ impl Game {
                 if s.chill >= CHILLS_TO_FREEZE {
                     s.chill = 0;
                     if boss {
-                        self.enemies[i].stagger += stagger;
+                        self.add_boss_stagger(i, stagger);
                     } else {
                         s.frozen = FREEZE_TIME;
                     }
@@ -129,7 +139,7 @@ impl Game {
             }
             E_CELESTIAL => {
                 if boss {
-                    self.enemies[i].stagger += stagger * CELESTIAL_BOSS_STAGGER;
+                    self.add_boss_stagger(i, stagger * CELESTIAL_BOSS_STAGGER);
                 } else {
                     let s = &mut self.enemies[i].status;
                     s.marks += 1;

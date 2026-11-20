@@ -24,7 +24,13 @@ export const PART_IDS = {
   "warn_circle": 20,
   "warn_arc": 21,
   "warn_line": 22,
-  "warn_ring": 23
+  "warn_ring": 23,
+  "glutton_body": 24,
+  "glutton_head": 25,
+  "glutton_tail": 26,
+  "dragon_body": 27,
+  "dragon_head": 28,
+  "dragon_wing": 29
 };
 
 export const EVENT = {
@@ -41,7 +47,10 @@ export const EVENT = {
   "ELITE": 11,
   "STRIKE": 12,
   "CLEAR": 13,
-  "WIN": 14
+  "WIN": 14,
+  "ENRAGE": 15,
+  "BOSS_DOWN": 16,
+  "GRAB": 17
 };
 
 /** rigs, indexed by id. */
@@ -313,6 +322,82 @@ export const RIGS = [
       "sx": 1,
       "sy": 1
     }
+  },
+  {
+    "id": 5,
+    "name": "glutton",
+    "parts": [
+      {
+        "part": "glutton_tail",
+        "x": -70,
+        "y": -30,
+        "hw": 46,
+        "hh": 18,
+        "rot": 0.3,
+        "color": [
+          0.3,
+          0.22,
+          0.28
+        ],
+        "held": false
+      },
+      {
+        "part": "glutton_body",
+        "x": 0,
+        "y": -56,
+        "hw": 78,
+        "hh": 56,
+        "rot": 0,
+        "color": [
+          0.36,
+          0.26,
+          0.32
+        ],
+        "held": false
+      },
+      {
+        "part": "glutton_head",
+        "x": 62,
+        "y": -78,
+        "hw": 40,
+        "hh": 34,
+        "rot": -0.1,
+        "color": [
+          0.48,
+          0.34,
+          0.38
+        ],
+        "held": false
+      }
+    ],
+    "windup": {
+      "dx": -10,
+      "dy": -6,
+      "tilt": -0.15,
+      "sx": 1.05,
+      "sy": 0.95
+    },
+    "attack": {
+      "dx": 14,
+      "dy": 2,
+      "tilt": 0.18,
+      "sx": 1.1,
+      "sy": 0.92
+    },
+    "hurt": {
+      "dx": -8,
+      "dy": 6,
+      "tilt": -0.25,
+      "sx": 1.15,
+      "sy": 0.8
+    },
+    "roll": {
+      "dx": 0,
+      "dy": 0,
+      "tilt": 0,
+      "sx": 1,
+      "sy": 1
+    }
   }
 ];
 
@@ -377,6 +462,28 @@ export const KINDS = [
     "moves": [
       "elite_bite",
       "elite_stomp"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "glutton",
+    "rig": "glutton",
+    "hp": 2400,
+    "speed": 85,
+    "r": 58,
+    "rate": 2,
+    "tilt": 3,
+    "poise": 260,
+    "boss": true,
+    "moves": [
+      "glutton_bite",
+      "glutton_tail",
+      "glutton_stomp",
+      "glutton_charge",
+      "glutton_breath",
+      "glutton_grab",
+      "glutton_summon",
+      "glutton_eat"
     ]
   }
 ];
@@ -864,10 +971,10 @@ export const ROOMS = [
     "name": "glutton_hall",
     "w": 1200,
     "h": 860,
-    "boss": "elite",
+    "boss": "glutton",
     "waves": [
       [
-        "elite"
+        "glutton"
       ]
     ]
   },
@@ -994,5 +1101,185 @@ export const MOVES = [
       240
     ],
     "chain": 0
+  },
+  {
+    "id": 5,
+    "name": "glutton_bite",
+    "windup": 0.55,
+    "active": 0.16,
+    "recover": 0.7,
+    "area": "arc",
+    "reach": 140,
+    "width": 0.6,
+    "damage": 14,
+    "dash": 70,
+    "after": "none",
+    "range": [
+      0,
+      220
+    ],
+    "chain": 1,
+    "weight": 3
+  },
+  {
+    "id": 6,
+    "name": "glutton_tail",
+    "windup": 0.5,
+    "active": 0.2,
+    "recover": 0.6,
+    "area": "arc",
+    "reach": 190,
+    "width": 1.3,
+    "damage": 12,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      200
+    ],
+    "chain": 0,
+    "weight": 4,
+    "special": "behind"
+  },
+  {
+    "id": 7,
+    "name": "glutton_stomp",
+    "windup": 0.75,
+    "active": 0.1,
+    "recover": 0.9,
+    "area": "circle",
+    "reach": 130,
+    "width": 0,
+    "damage": 18,
+    "dash": 0,
+    "after": {
+      "wave": {
+        "to": 360,
+        "speed": 300,
+        "band": 26
+      }
+    },
+    "range": [
+      0,
+      200
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 4,
+    "big": true,
+    "knockdown": true
+  },
+  {
+    "id": 8,
+    "name": "glutton_charge",
+    "windup": 0.8,
+    "active": 0.5,
+    "recover": 1,
+    "area": "line",
+    "reach": 520,
+    "width": 46,
+    "damage": 20,
+    "dash": 480,
+    "after": "none",
+    "range": [
+      220,
+      800
+    ],
+    "chain": 0,
+    "weight": 3,
+    "cooldown": 3,
+    "big": true,
+    "knockdown": true
+  },
+  {
+    "id": 9,
+    "name": "glutton_breath",
+    "windup": 0.85,
+    "active": 1.1,
+    "recover": 1,
+    "area": "line",
+    "reach": 420,
+    "width": 22,
+    "damage": 16,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      120,
+      500
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 6,
+    "big": true,
+    "phases": [
+      2
+    ],
+    "special": "sweep"
+  },
+  {
+    "id": 10,
+    "name": "glutton_grab",
+    "windup": 0.6,
+    "active": 0.18,
+    "recover": 0.9,
+    "area": "arc",
+    "reach": 110,
+    "width": 0.55,
+    "damage": 6,
+    "dash": 50,
+    "after": "none",
+    "range": [
+      0,
+      170
+    ],
+    "chain": 0,
+    "weight": 2,
+    "cooldown": 7,
+    "phases": [
+      2
+    ],
+    "special": "grab"
+  },
+  {
+    "id": 11,
+    "name": "glutton_summon",
+    "windup": 0.7,
+    "active": 0.1,
+    "recover": 0.6,
+    "area": "circle",
+    "reach": 0,
+    "width": 0,
+    "damage": 0,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      900
+    ],
+    "chain": 0,
+    "weight": 1,
+    "cooldown": 14,
+    "special": "summon"
+  },
+  {
+    "id": 12,
+    "name": "glutton_eat",
+    "windup": 1.1,
+    "active": 0.1,
+    "recover": 0.5,
+    "area": "circle",
+    "reach": 0,
+    "width": 0,
+    "damage": 0,
+    "dash": 0,
+    "after": "none",
+    "range": [
+      0,
+      900
+    ],
+    "chain": 0,
+    "weight": 3,
+    "cooldown": 5,
+    "special": "eat"
   }
 ];

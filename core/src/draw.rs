@@ -80,7 +80,10 @@ impl Game {
                 continue;
             }
             let m = MOVES[e.mv as usize];
-            let prog = (e.pt / m.windup).clamp(0.0, 1.0);
+            if m.reach <= 0.0 {
+                continue;
+            }
+            let prog = (e.pt / self.windup_of(&e)).clamp(0.0, 1.0);
             let color = if e.kind == K_ELITE || KINDS[e.kind as usize].boss { WARN_BOSS } else { WARN };
             let area = self.move_area(&e);
             self.draw_warning(area, prog, color);
@@ -234,20 +237,22 @@ impl Game {
         let e = self.enemies[i];
         let k = &KINDS[e.kind as usize];
         let rig = &RIGS[k.rig];
-        let s = self.draw_scale[1 + (e.kind as usize).min(3)];
+        // Sizes and waddles from the debug panel cover the four small kinds; bosses use their rig as it is.
+        let s = if e.kind < 4 { self.draw_scale[1 + e.kind as usize] } else { 1.0 };
         // Two walk poses, flipped back and forth. That is the whole walk cycle.
-        let (lean, rate) = self.waddle[(e.kind as usize).min(3)];
+        let (lean, rate) = if e.kind < 4 { self.waddle[e.kind as usize] } else { (KINDS[e.kind as usize].tilt.to_radians(), KINDS[e.kind as usize].rate) };
         let step = ((self.anim * rate + e.seed * 7.0).floor() as i32) & 1 == 0;
         let mv = &MOVES[e.mv as usize];
         let mut x = e.x;
-        let doing = if e.stun > 0.0 || e.status.frozen > 0.0 {
+        let boss = self.boss_of(i);
+        let doing = if e.stun > 0.0 || e.status.frozen > 0.0 || boss.map_or(false, |b| b.down > 0.0) {
             Doing::Hurt
         } else {
             match e.phase {
                 Phase::Windup => {
                     // Tremble while winding up.
                     x += ((self.anim * 40.0).floor() * 1.7).sin() * 1.5;
-                    Doing::Windup { k: e.pt / mv.windup }
+                    Doing::Windup { k: e.pt / self.windup_of(&e) }
                 }
                 Phase::Active => Doing::Attack { k: e.pt / mv.active.max(1e-3) },
                 _ => Doing::Walk { step, lean, hop: -3.0 },
@@ -261,6 +266,15 @@ impl Game {
         let shadow = [INK[0], INK[1], INK[2], 0.2];
         self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_GROUND_SHADOW, 0.0, 0.0, shadow);
         self.draw_rig(rig, doing, Look { x, y, face: e.face, scale: s, flash: e.flash, alpha: 1.0, seed: e.seed, swing: None });
+        if boss.map_or(false, |b| b.enraged()) {
+            // Red ink veins once enraged.
+            let h = rig.height() * s;
+            for k in 0..4 {
+                let a = (k as f32 * 1.3 + e.seed * 5.0).sin();
+                let (vx, vy) = (x + a * h * 0.35, y - h * (0.3 + 0.12 * k as f32));
+                self.put(vx, vy, h * 0.18, 3.0, a * 0.8 + 0.4, P_SLASH, 0.0, 0.1 * k as f32, [0.74, 0.12, 0.10, 0.85]);
+            }
+        }
         self.draw_status(&e, rig.height() * s);
     }
 
@@ -298,7 +312,8 @@ impl Game {
         let mut swing = None;
         let doing = match p.act {
             Act::Roll { t, .. } => Doing::Roll { k: t / ROLL_TIME },
-            Act::Hurt { .. } => Doing::Hurt,
+            Act::Hurt { .. } | Act::Grabbed { .. } => Doing::Hurt,
+            Act::Down { .. } => Doing::Down,
             Act::Skill { skill, t, .. } => {
                 // The scythe: wound back during the startup, swept through the active window, held in the recovery.
                 let d = &SKILLS[skill];

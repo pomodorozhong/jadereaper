@@ -26,13 +26,16 @@ const ENUMS = {
   weight: { light: 0, medium: 1, heavy: 2 },
   SkillKind: ['melee', 'shot', 'nova', 'orbit', 'leap'],
   AreaKind: ['circle', 'arc', 'line', 'ring'],
+  Special: ['none', 'behind', 'sweep', 'grab', 'summon', 'eat', 'pools', 'lances', 'field', 'shards', 'dive', 'finisher'],
+  Stance: ['any', 'fire', 'ice'],
   Effect: ['none', 'recovery', 'reach', 'damage', 'stagger', 'max_hp', 'speed', 'regen', 'might', 'armor', 'roll_dist', 'trail'],
 };
 /** A card's target: one of these, or the name of a skill. */
 const TARGETS = { any: 'Target::AnySkill', character: 'Target::Character', roll: 'Target::Roll' };
 
 /**
- * The tables in game.json besides parts and events. `fields` maps each field to its type:
+ * The tables in game.json besides parts and events. `fields` maps each field to its type, or to [type, default]
+ * for a field that may be left out:
  * f32, u8, bool, str (JavaScript only), f32x2, f32x3, part (a part name), ref:<table> or refs:<table> (names in
  * another table), waves:<table> (a list of lists of names), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
  * card's target), after (a move's after-effect), pose (a rig pose) and rigparts (a rig's parts).
@@ -76,6 +79,9 @@ const TABLES = {
     fields: {
       windup: 'f32', active: 'f32', recover: 'f32', area: 'enum:AreaKind', reach: 'f32', width: 'f32', damage: 'f32',
       dash: 'f32', after: 'after', range: 'f32x2', chain: 'u8',
+      // Boss moves only.
+      weight: ['f32', 1], cooldown: ['f32', 0], phases: ['phases', [1, 2]], big: ['bool', false],
+      special: ['enum:Special', 'none'], knockdown: ['bool', false], stance: ['enum:Stance', 'any'],
     },
   },
 };
@@ -122,8 +128,9 @@ export function validate(content) {
     for (const item of content[table]) {
       const where = `${table}: "${item.name}"`;
       for (const k of Object.keys(item)) if (k !== 'name' && !(k in def.fields)) problems.push(`${where} has unknown field "${k}"`);
-      for (const [field, type] of Object.entries(def.fields)) {
-        const v = item[field];
+      for (const [field, spec] of Object.entries(def.fields)) {
+        const [type, fallback] = Array.isArray(spec) ? spec : [spec];
+        const v = item[field] ?? fallback;
         if (v === undefined) { problems.push(`${where} is missing "${field}"`); continue; }
         const bad = (want) => problems.push(`${where}: "${field}" should be ${want}, got ${JSON.stringify(v)}`);
         if (type === 'f32') { if (!isNum(v)) bad('a number'); }
@@ -149,6 +156,8 @@ export function validate(content) {
           const target = type.slice(6);
           if (!Array.isArray(v) || !v.length || !v.every((w) => Array.isArray(w) && w.length)) bad(`a list of waves, each a list of ${target} names`);
           else for (const w of v) for (const r of w) if (!names[target].has(r)) problems.push(`${where}: "${field}" names ${target} "${r}", which is not defined`);
+        } else if (type === 'phases') {
+          if (!Array.isArray(v) || !v.length || !v.every((n) => n === 1 || n === 2)) bad('a list of boss phases, 1 or 2');
         } else if (type === 'pose') {
           const keys = ['dx', 'dy', 'tilt', 'sx', 'sy'];
           if (!v || typeof v !== 'object' || Object.keys(v).length !== keys.length || !keys.every((k) => isNum(v[k]))) bad(`{ ${keys.join(', ')} } numbers`);
@@ -193,6 +202,7 @@ function rustValue(type, v) {
     const prefix = TABLES[type.slice(6)].prefix;
     return `&[${v.map((w) => `&[${w.map((r) => `${prefix}${upper(r)}`).join(', ')}]`).join(', ')}]`;
   }
+  if (type === 'phases') return String(v.reduce((m, n) => m | (1 << (n - 1)), 0));
   if (type === 'pose') return `Pose { dx: ${f32(v.dx)}, dy: ${f32(v.dy)}, tilt: ${f32(v.tilt)}, sx: ${f32(v.sx)}, sy: ${f32(v.sy)} }`;
   if (type === 'rigparts') {
     return `&[${v.map((p) => `RigPart { part: P_${upper(p.part)}, x: ${f32(p.x)}, y: ${f32(p.y)}, hw: ${f32(p.hw)}, hh: ${f32(p.hh)}, rot: ${f32(p.rot)}, color: [${p.color.map(f32).join(', ')}], held: ${p.held} }`).join(', ')}]`;
@@ -215,7 +225,7 @@ export function generate(content) {
   if (problems.length) throw new Error(`${SOURCE} has problems:\n  ${problems.join('\n  ')}`);
 
   // Rust.
-  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', 'use crate::rooms::Room;', 'use crate::rigs::{Pose, Rig, RigPart};', ''];
+  const rs = [HEADER('//!'), '#![allow(clippy::all)]', '', 'use crate::defs::Kind;', 'use crate::moves::{After, Move, Special, Stance};', 'use crate::skills::{AreaKind, SkillDef, SkillKind};', 'use crate::cards::{Card, Effect, Element, Target};', 'use crate::rooms::Room;', 'use crate::rigs::{Pose, Rig, RigPart};', ''];
   rs.push('// Part ids.');
   for (const p of content.parts) rs.push(`pub const P_${upper(p.name)}: f32 = ${f32(p.id)};`);
   rs.push(`/// Every defined part id.`, `pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(', ')}];`);
@@ -228,7 +238,10 @@ export function generate(content) {
     rs.push(`pub const N_${upper(table)}: usize = ${list.length};`);
     rs.push(`pub const ${upper(table)}: [${def.rust}; ${list.length}] = [`);
     for (const item of list) {
-      const fields = Object.entries(def.fields).filter(([, t]) => t !== 'str').map(([f, t]) => `${f}: ${rustValue(t, item[f])}`);
+      const fields = Object.entries(def.fields)
+        .map(([f, spec]) => (Array.isArray(spec) ? [f, spec[0], item[f] ?? spec[1]] : [f, spec, item[f]]))
+        .filter(([, t]) => t !== 'str')
+        .map(([f, t, v]) => `${f}: ${rustValue(t, v)}`);
       rs.push(`    // ${item.name}`, `    ${def.rust} { ${fields.join(', ')} },`);
     }
     rs.push('];');

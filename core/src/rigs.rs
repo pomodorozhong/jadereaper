@@ -65,6 +65,8 @@ pub enum Doing {
     /// Striking, `k` from 0 to 1.
     Attack { k: f32 },
     Hurt,
+    /// Knocked flat.
+    Down,
     /// Rolling, `k` from 0 to 1 through the roll's movement: the puppet tucks and spins once.
     Roll { k: f32 },
 }
@@ -96,6 +98,7 @@ impl Game {
             Doing::Windup { k } => (Pose::REST.mix(&rig.windup, (k * 3.0).min(1.0)), 0.0),
             Doing::Attack { k } => (rig.windup.mix(&rig.attack, (k * 4.0).min(1.0)), 0.0),
             Doing::Hurt => (rig.hurt, 0.0),
+            Doing::Down => (Pose { tilt: -1.35, ..rig.hurt }, 0.0),
             Doing::Roll { k } => {
                 let tuck = (k * core::f32::consts::PI).sin();
                 (Pose::REST.mix(&rig.roll, tuck), k.min(1.0) * TAU)
