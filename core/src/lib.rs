@@ -24,8 +24,10 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
+    let (fps, poses) = (g().boil_fps, g().boil_poses);
     *g() = Game::new(seed);
     g().set_view(w, h);
+    g().set_boil(fps, poses);
 }
 
 /// Start a new run.
@@ -39,6 +41,12 @@ pub extern "C" fn jr_start(seed: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_view(w: f32, h: f32) {
     g().set_view(w * 0.5, h * 0.5);
+}
+
+/// Line boil of the traced characters: poses per second, and poses per part (1 to 8).
+#[no_mangle]
+pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
+    g().set_boil(fps, poses);
 }
 
 /// Movement input, each axis in -1..1.
@@ -116,6 +124,31 @@ mod tests {
         }
         assert!(picks > 5, "expected level ups, got {picks}");
         assert!(game.kills > 50, "expected kills, got {}", game.kills);
+    }
+
+    #[test]
+    fn boil_poses_differ_between_instances_and_stay_in_range() {
+        let mut game = Game::new(5);
+        game.set_view(640.0, 360.0);
+        game.running = true;
+        for _ in 0..(60 * 30) {
+            game.update(1.0 / 60.0);
+            if game.choosing {
+                game.choose(0);
+            }
+        }
+        let poses = |g: &Game| g.inst.iter().map(|i| (i.part / PART_SLOTS).floor() as u32).collect::<Vec<_>>();
+        let now = poses(&game);
+        assert!(now.iter().all(|&p| p < MAX_POSES));
+        let first = now[0];
+        assert!(now.iter().any(|&p| p != first), "every instance shows the same pose");
+        for i in &game.inst {
+            assert!(i.part % PART_SLOTS < 20.0, "part id {} lost its base id", i.part);
+        }
+
+        game.set_boil(4.0, 1);
+        game.update(1.0 / 60.0);
+        assert!(poses(&game).iter().all(|&p| p == 0));
     }
 
     #[test]

@@ -25,7 +25,7 @@ const DEBUG_SLIDERS = [
   ['look', 'shadowY', 'Shadow y', -8, 8, 0.5],
   ['look', 'shadowAlpha', 'Shadow darkness', 0, 1, 0.05],
 ];
-function addDebugPanel(renderer) {
+function addDebugPanel(renderer, core) {
   const sets = { bake: BAKE, look: LOOK };
   const defaults = { bake: { ...BAKE }, look: { ...LOOK } };
   const panel = document.createElement('div');
@@ -54,6 +54,7 @@ function addDebugPanel(renderer) {
   const set = (el, v) => {
     const { set: which, key } = el.dataset;
     sets[which][key] = v; el.value = v; el.nextElementSibling.textContent = v;
+    if (key === 'boilFps' || key === 'poses') core.jr_set_boil(LOOK.boilFps, BAKE.poses);
     if (which === 'bake') rebake();
   };
   const sliders = [...panel.querySelectorAll('input[type=range]')];
@@ -97,7 +98,9 @@ async function boot() {
     return;
   }
 
-  if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer);
+  // The core picks each traced part's line boil pose, so it needs the rate and the number of baked poses.
+  core.jr_set_boil(LOOK.boilFps, BAKE.poses);
+  if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer, core);
 
   const seed = () => (Math.random() * 0xffffffff) >>> 0;
   // Views are rebuilt on every read because wasm memory can grow and detach them.

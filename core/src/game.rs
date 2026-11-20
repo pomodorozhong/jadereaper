@@ -95,6 +95,9 @@ pub struct Game {
     pub time: f32,
     /// Animation clock. Keeps going on the title and upgrade screens.
     pub anim: f32,
+    /// Line boil of the traced characters: poses per second, and how many poses each part has.
+    pub boil_fps: f32,
+    pub boil_poses: u32,
     /// Half extents of the visible area in world units.
     pub view_w: f32,
     pub view_h: f32,
@@ -147,6 +150,8 @@ impl Game {
             over: false,
             time: 0.0,
             anim: 0.0,
+            boil_fps: 4.0,
+            boil_poses: MAX_POSES,
             view_w: 640.0,
             view_h: 360.0,
             input: (0.0, 0.0),
@@ -861,7 +866,26 @@ impl Game {
         if (x - self.cam.0).abs() > self.view_w + m || (y - self.cam.1).abs() > self.view_h + m {
             return;
         }
+        let part = part + PART_SLOTS * self.boil_pose(seed) as f32;
         self.inst.push(Inst { x, y, hw, hh, rot, part, flash, seed, color });
+    }
+
+    /// Set the line boil: poses per second, and poses per part (1 to `MAX_POSES`).
+    pub fn set_boil(&mut self, fps: f32, poses: u32) {
+        self.boil_fps = fps.max(0.0);
+        self.boil_poses = poses.clamp(1, MAX_POSES);
+    }
+
+    /// The line boil pose of one instance. Each instance starts at its own pose and steps at its own moment,
+    /// both taken from its seed, so a crowd does not boil in lockstep.
+    fn boil_pose(&self, seed: f32) -> u32 {
+        if self.boil_poses <= 1 {
+            return 0;
+        }
+        let phase = (seed * 7.31).fract();
+        let start = (seed * 1000.0) as i32;
+        let step = (self.anim * self.boil_fps + phase).floor() as i32;
+        (start + step).rem_euclid(self.boil_poses as i32) as u32
     }
 
     fn build(&mut self) {

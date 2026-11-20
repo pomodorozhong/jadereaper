@@ -6,12 +6,15 @@ import { BAKE, bakeCharacters } from './characters.js';
 const INSTANCE_BYTES = 48;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 640; // world units across the shorter screen side
+// The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.
+const PART_SLOTS = 32;
+const MAX_POSES = 8;
 
 /** Look settings sent to the shader each frame. The ?debug panel changes them at run time. */
 // Tuned by the maintainer in the ?debug panel. The line boil replaces the old outline wobble, which stays off.
 export const LOOK = {
   stopMotionFps: 0,   // how often the old outline wobble steps (off)
-  boilFps: 4,         // how often the traced characters change pose
+  boilFps: 4,         // how often the traced characters change pose; the core picks each instance's pose
   margin: 2.1,        // white cutout margin, world units
   shadowX: 3.5, shadowY: 6,
   shadowAlpha: 0.5,
@@ -20,10 +23,12 @@ export const LOOK = {
 
 /**
  * Pack the part images into one atlas canvas: optional images listed in assets/parts.json, and the hand-traced
- * characters mapped in assets/characters.json, baked in bake.poses poses. Returns one rect table per pose.
+ * characters mapped in assets/characters.json, baked in bake.poses poses. Returns the rect table: row
+ * id + PART_SLOTS * pose holds that pose's image, and a part with one image has it in every pose's row.
  */
 async function loadPartImages(bake) {
-  const posesRects = Array.from({ length: bake.poses }, () => new Float32Array(32 * 4));
+  const rects = new Float32Array(PART_SLOTS * MAX_POSES * 4);
+  const setRect = (id, pose, rect) => rects.set(rect, (id + PART_SLOTS * pose) * 4);
   let manifest = {};
   try {
     const res = await fetch('assets/parts.json', { cache: 'no-cache' });
@@ -44,7 +49,7 @@ async function loadPartImages(bake) {
     })),
     bakeCharacters(PART_IDS, bake),
   ]);
-  if (!images.some(Boolean) && !baked.length) return { posesRects, canvas: null };
+  if (!images.some(Boolean) && !baked.length) return { rects, canvas: null };
 
   // 2048 holds the default bake; sharper or more poses (from the debug panel) need 4096.
   let area = 0;
@@ -70,17 +75,19 @@ async function loadPartImages(bake) {
   };
   for (const img of images) {
     const rect = img && place(img.bmp);
-    if (rect) for (const rects of posesRects) rects.set(rect, img.id * 4);
+    if (rect) for (let k = 0; k < MAX_POSES; k++) setRect(img.id, k, rect);
   }
   // A hidden part points at the atlas's last pixel, which nothing draws on, so it samples as clear.
   const clear = [(SIZE - 1) / SIZE, (SIZE - 1) / SIZE, 0.5 / SIZE, 0.5 / SIZE];
   for (const { id, poses } of baked) {
-    for (let k = 0; k < bake.poses; k++) {
-      const rect = poses ? place(poses[k]) : clear;
-      if (rect) posesRects[k].set(rect, id * 4);
+    const placed = poses ? poses.map(place) : [clear];
+    // Fill every pose row, so a core that has not caught up with a new pose count still finds an image.
+    for (let k = 0; k < MAX_POSES; k++) {
+      const rect = placed[k % placed.length];
+      if (rect) setRect(id, k, rect);
     }
   }
-  return { posesRects, canvas };
+  return { rects, canvas };
 }
 
 export async function createRenderer(canvas) {
@@ -106,9 +113,8 @@ export async function createRenderer(canvas) {
 
   const globals = new Float32Array(16);
   const globalsBuf = device.createBuffer({ size: globals.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const rectsBuf = device.createBuffer({ size: parts.posesRects[0].byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(rectsBuf, 0, parts.posesRects[0]);
-  let pose = 0;
+  const rectsBuf = device.createBuffer({ size: parts.rects.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(rectsBuf, 0, parts.rects);
   const instBuf = device.createBuffer({ size: MAX_INSTANCES * INSTANCE_BYTES, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
 
   let atlas = null;
@@ -212,9 +218,6 @@ export async function createRenderer(canvas) {
     globals.set([view.w, view.h, camX, camY, canvas.width, canvas.height, time, Math.floor(time * LOOK.stopMotionFps), view.px, LOOK.margin,
       0, 0, LOOK.shadowX, LOOK.shadowY, LOOK.shadowAlpha, LOOK.wobble]);
     device.queue.writeBuffer(globalsBuf, 0, globals);
-    // Step the traced characters' line boil: every part shows the same pose, so only the rect table changes.
-    const nextPose = Math.floor(time * LOOK.boilFps) % parts.posesRects.length;
-    if (nextPose !== pose) { pose = nextPose; device.queue.writeBuffer(rectsBuf, 0, parts.posesRects[pose]); }
     const n = Math.min(count, MAX_INSTANCES);
     if (n > 0) device.queue.writeBuffer(instBuf, 0, memory, ptr, n * INSTANCE_BYTES);
 
@@ -244,8 +247,7 @@ export async function createRenderer(canvas) {
     const next = await loadPartImages(bake);
     if (uploadAtlas(next.canvas)) bindGroup = makeBindGroup();
     parts = next;
-    pose = 0;
-    device.queue.writeBuffer(rectsBuf, 0, parts.posesRects[0]);
+    device.queue.writeBuffer(rectsBuf, 0, parts.rects);
   }
 
   return { resize, draw, device, rebake };

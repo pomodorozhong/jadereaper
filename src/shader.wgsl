@@ -20,8 +20,13 @@ struct Globals {
   wobble: f32,   // outline wobble on cutout parts, world units
 };
 
+// The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
+// line boil pose. Parts without poses have the same rect in every pose slot.
+const PART_SLOTS = 32;
+const RECTS = 256;      // PART_SLOTS * MAX_POSES
+
 struct PartRects {
-  uv: array<vec4f, 32>,   // atlas rect per part id (x, y, w, h); w = 0 means no image
+  uv: array<vec4f, RECTS>,   // atlas rect per part id and pose (x, y, w, h); w = 0 means no image
 };
 
 @group(0) @binding(0) var<uniform> G: Globals;
@@ -240,7 +245,8 @@ fn img(rect: vec4f, q: vec2f) -> vec4f {
 
 @fragment
 fn fs(i: VOut) -> @location(0) vec4f {
-  let part = i32(i.misc.y + 0.5);
+  let slot = i32(i.misc.y + 0.5);
+  let part = slot % PART_SLOTS;
   let seed = i.misc.w;
   let flash = i.misc.z;
   let h = i.half;
@@ -259,7 +265,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
   var shadow = 0.0;
   var col = i.color.rgb;
 
-  let rect = P.uv[clamp(part, 0, 31)];
+  let rect = P.uv[clamp(slot, 0, RECTS - 1)];
   if (rect.z > 0.0) {
     // Image override from the atlas.
     let q = p / h * 0.5 + 0.5;
