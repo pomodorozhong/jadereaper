@@ -1,160 +1,181 @@
 # Roadmap
 
-This is the plan for growing the Jade Reaper backbone into a full game. Steps are ranked by impact for the cost, highest first. Each step lists why it matters, what it involves, what "done" looks like, and the risks.
+This is the plan for turning the Jade Reaper prototype into a room-based action game, in the spirit of Hades, Wizard of Legend and Hyper Light Drifter. The direction, and the design pillars this plan builds on, are in decision [0005](docs/decisions/0005-room-based-action-game.md). The ideas came from the Idea hub, #41.
+
+Step 1 is one large PR, by the maintainer's choice, built as ordered commits so it can be reviewed piece by piece. The later steps are each their own PR.
 
 ## Current state
 
-The backbone is about 3,000 lines: a Rust simulation compiled to WebAssembly (`core/`), a WebGPU renderer that draws everything as paper cutouts (`src/renderer.js`, `src/shader.wgsl`), and a paper-style HTML UI over the canvas. It plays end to end: title, combat, level-up, pause, game over, saved records, keyboard and gamepad, synthesized sound.
+The prototype is a survivor game of about 3,000 lines: a Rust simulation compiled to WebAssembly (`core/`), a WebGPU renderer that draws everything as paper cutouts (`src/renderer.js`, `src/shader.wgsl`), and a paper-style HTML UI over the canvas. Hand-traced characters are drawn with a per-stroke line boil ([0003](docs/decisions/0003-character-art-pipeline.md)). CI runs the smoke test and deploys `main` to GitHub Pages.
 
-Known weaknesses, which the steps below address:
+What has to change for the new direction:
 
-- **Content is hardcoded.** All four weapons live in one `Game::weapons` function in `core/src/game.rs`, each with its own timer field on `Game`. Adding a weapon means editing the struct, that function, the draw code and `src/data.js`.
-- **Ids are mirrored by hand.** Part ids and upgrade ids are repeated in `core/src/defs.rs`, `src/data.js` and `src/shader.wgsl`. Nothing checks they agree, so a mismatch fails silently as a wrong shape or wrong card.
-- **Puppets are posed in code.** `draw_player` and `draw_enemy` hardcode part offsets, tilts and sizes. A custom image can replace a part's picture but not how a character is assembled or how it moves.
-- **The time step is variable.** `jr_update(dt)` advances by the real frame time, so the same seed and inputs do not replay the same run. This blocks replays and makes balance testing noisy.
-- **Weapon hits are brute force.** The spatial grid is only used for enemy separation; every weapon loops over every enemy. Fine at the 500-enemy cap, not beyond.
-- **Nothing is automated.** The checked-in `wasm/jadereaper_core.wasm` can drift from the Rust source, there are no JavaScript tests, and nothing deploys the game.
-- **A run has no shape.** One endless arena, no win condition, the elite is just a big brute with no attacks, and nothing carries over between runs.
-- **Balance is untested by people.** Numbers were tuned only against a bot that walks in circles, which survived about 2 minutes 20 seconds.
+- **Weapons fire on their own.** The scythe, talisman, beads and pulse run on timers in `Game::weapons` in `core/src/game.rs`. The player only moves, and the aim is the last direction moved.
+- **Input is one movement vector.** `jr_input(mx, my)` has no aim and no buttons.
+- **Enemies have no attacks.** Up to 500 walk straight at the player and hurt on contact. The elite is a big brute.
+- **Upgrades come from experience gems** and level-ups, in one endless arena with no win condition.
+- **The time step is variable,** so the same seed and inputs do not replay the same run.
+- **Content is hardcoded and ids are mirrored by hand** in `core/src/defs.rs`, `src/data.js` and `src/shader.wgsl`.
+
+The paper look, the traced characters, the UI, saves and sound stay.
 
 ## Summary
 
-| Rank | Step | Impact | Cost | Depends on |
-| --- | --- | --- | --- | --- |
-| 1 | Data-driven content and puppet rigs | Very high | Medium to high | Nothing |
-| 2 | Game feel pass | High | Low to medium | Nothing (easier after 1) |
-| 3 | Fixed time step, replays and a headless balance tool | High | Low to medium | Nothing |
-| 4 | Run structure and meta progression | High | Medium | 1, ideally 3 |
-| 5 | CI and one-command deploy | Medium | Low | A GitHub remote |
-| 6 | Touch controls and a WebGL2 fallback | Medium to high for reach | Medium to high | Nothing |
-| 7 | Scale to thousands of enemies | Low to medium for now | Medium | 1 |
+| Step | What | Size |
+| --- | --- | --- |
+| 1 | The action-game rebuild: controls, combat, enemies, skills and cards, rooms, two bosses | One large PR |
+| 2 | Music and the low-health state | Small |
+| 3 | Meta progression | Medium |
+| 4 | More characters and stages | Medium, per character or stage |
+| 5 | Touch controls | Medium to high |
+| 6 | WebGL2 fallback | Medium to high |
 
-Suggested order: 1, then 2 and 3 in parallel (they touch different files), then 4. Slot 5 in whenever a remote exists. Leave 6 and 7 until the target devices and horde size are decided.
+Land #39 (CI builds the wasm and checks the core) before step 1, so a stale committed wasm cannot slip into a change this large.
 
-## 1. Data-driven content and puppet rigs
+## 1. The action-game rebuild
 
-**Why.** Every later content step (new weapons, enemies, characters, bosses) is cheaper once content is data instead of code. It also removes the three-way id mirroring, which is the most likely source of silent bugs, and it lets art replace how a character is built and animated, not only what one part looks like.
+### Controls
 
-**What it involves.**
+- **Aim** with the mouse or the right stick. The core gets `jr_input(mx, my, aim_x, aim_y, buttons)`, with a bit per button.
+- **Three active skills on three buttons,** plus a **roll**. Keyboard and mouse: left button, right button and Q for the skills, Space to roll. Gamepad: X, Y and RB for the skills, A or B to roll.
+- **An input buffer** of about 120 ms, so a press just before an action can start still counts.
+- **The roll** is every character's one fixed move: a short dodge with about 0.25 s of invulnerability, a short recovery so it cannot be chained, and no cooldown. It also breaks a grab and gets the player up faster after a knockdown. It replaces a dash; dashing is what some skills do.
 
-- One content file, for example `content/game.toml` or `content/game.json`, that defines:
-  - Parts: name, id, whether it is a flat mark or a cutout.
-  - Enemies: health, speed, radius, damage, experience, rig, colour, spawn rules (start time, weight, cap).
-  - Weapons as a small set of behaviours with parameters: `arc` (scythe), `projectile` (talisman), `orbit` (beads), `nova` (pulse). Each has a per-level table for damage, cooldown, count, reach, pierce and knockback.
-  - Passive upgrades as stat modifiers (`move_speed +8%`, `damage +12%`, `cooldown -8%`, `regen +0.4/s`, `pickup_range +30%`, `max_hp +20`).
-  - Puppet rigs: a list of parts with pivot, offset, size, draw order and which pose channels move them; and named poses (`idle`, `walk_a`, `walk_b`, `attack`, `hurt`) as small per-part deltas of offset, tilt and squash.
-- A generator script (Node, no dependencies) run by `build.sh` that writes `core/src/generated.rs`, `src/generated.js` and the part id constants at the top of `src/shader.wgsl`. Generated files are committed so the game still runs without the build step.
-- Core changes: replace the per-weapon timer fields with a `Vec<WeaponState>` (behaviour, level, timer); replace `weapons()` with one function per behaviour that reads its parameters from the generated table; replace `draw_player` and `draw_enemy` with one rig-posing function that blends between poses on a stepped clock.
-- Let `assets/parts.json` map a part to several images (for example `blot` and `blot_hurt`) so a pose can swap a part's picture, still without frame-by-frame animation.
-- Update `assets/parts/README.md` and the README's "Extending" section.
+### Combat
 
-**Done when.** Adding a new enemy or a new weapon of an existing behaviour is a content-file edit plus `./build.sh`, with no Rust or JavaScript changes. The existing four weapons, four enemies and six passives play the same as today (checked with step 3's tool if it exists, or by side-by-side play). A test fails the build if any id is duplicated or referenced but undefined.
+- **Skills have no cooldowns.** Each one is balanced by its timing: startup, active window and recovery. Light skills come out and recover fast; heavy skills are slow on both. The player may pick any three, including three heavy skills.
+- **Cancel point.** A roll can cut a skill's recovery short only after its cancel point, which is early for light skills and late for heavy ones.
+- **Hyper armor.** Heavy skills are not interrupted by normal enemies during their active window (the damage still lands). Boss hits always interrupt.
+- **Hitboxes** have a shape (circle, arc, line, ring) and a timed active window, and hit each target once per use.
+- **Hit feel:** hit-stop, knockback, stagger and damage numbers.
+- **No contact damage.** Damage comes from attacks, except charges.
 
-**Risks.** Over-designing the behaviour system. Keep it to the four existing behaviours plus whatever step 4 needs; add more only when a real weapon needs it. Rig blending adds per-instance work in the core; measure at the 500-enemy cap.
+Starting skills (placeholder names), each defined in data by startup, active window, recovery, cancel point, damage, stagger, knockback, reach, hyper armor and movement:
 
-## 2. Game feel pass
+| Skill | Weight | Feel |
+| --- | --- | --- |
+| Scythe combo | Light | A 3-hit sweep |
+| Talisman throw | Light | An aimed shot |
+| Lunge cut | Medium | Dashes about 140 units forward, cutting along a line |
+| Spirit pulse | Medium | A nova around the player |
+| Bead flail | Medium | Flings the beads into an orbit for about 2 s |
+| Reaping charge | Heavy | A long wind-up, then a charge across the room with high stagger |
+| Grave cleave | Heavy | A large overhead arc with high stagger |
+| Crescent leap | Heavy | Leaps to the aim point and slams down |
 
-**Why.** The biggest visible improvement per hour. Right now hits, kills and pickups have sound but little visual weight, enemies pop in at the screen edge, and there is no music.
+Dash skills give no invulnerability; the roll is the only defence.
 
-**What it involves.**
+### Camera
 
-- Damage numbers as small paper tags that pop up, drift and fade. Draw them in the instance stream with a digit part (an atlas of brush-style digits, or SDF digits in the shader) so they stay in the paper style and cost no DOM work.
-- Hit-stop: freeze the simulation for 30 to 60 ms on big hits and kills of brutes and elites.
-- Enemy death: the cutout tears into two or three paper pieces that fall with spin, on top of the existing ink splat.
-- Spawn warning: an ink dot that grows for half a second where an enemy is about to enter, so spawns at the edge do not feel unfair.
-- Pickup feel: gems arc towards the player instead of moving in a straight line, with a small squash when collected; the experience bar flashes on level-up.
-- Low-health state: the vignette tints vermilion and the heartbeat sound plays below 25% health.
-- Music: a generative pentatonic loop with WebAudio (guqin-like plucks and a low drone), with its own volume setting, ducked during level-up cards.
-- A screen-shake setting (off, low, normal) for players who dislike it.
+A closer view (about 420 to 480 world units across the short side, from 640), a look-ahead of about 15% towards the aim, clamped to the room, widened in boss fights to keep the player and the boss in view. Shake stays, and a "reduce motion" setting turns off shake and hit-stop.
 
-**Done when.** Each item above is in, a "reduce motion" preference turns off shake and hit-stop, and frame time at the enemy cap is no worse than today (about 8.3 ms median measured in the browser pane).
+### Enemies
 
-**Risks.** Hit-stop and shake can make the game feel sluggish if overused; keep values small and tunable in one place.
+- At most about **10 enemies at once.** No hordes.
+- Every enemy runs approach, wind-up with a warning, strike, recover. The recovery is the player's opening.
+- **Warnings** are ink washes that grow on the ground in the shape of the coming hit. Every attack is warned at least about 0.4 s ahead, and big boss moves about 0.6 s.
+- The current kinds get roles: the blot lunges, the wisp keeps its distance and fires slow ink shots, the brute slams the ground with a shock ring, and the elite is a mini-boss using some boss moves.
 
-## 3. Fixed time step, replays and a headless balance tool
+### Skills, cards and elements
 
-**Why.** Balance is the main thing that makes a survivor game good, and today it has only been checked by a bot walking in circles. A deterministic core lets thousands of runs be simulated natively in seconds and turns tuning into reading numbers. It also makes bug reports reproducible.
+- **One card pool.** The starting passive, the pick after each room and the skill upgrades are all cards from the same pool. Each card names what it attaches to: one skill, any skill, or the character. Most cards add an element to a skill.
+- **Start of a run:** pick any 3 skills, then 1 passive from three character cards.
+- **After each room:** pick one of three cards, weighted towards the skills and elements already in use.
+- **One element per skill.** A new element card on that skill replaces the old one, after a confirm. Other upgrade cards, such as faster recovery or more reach, stack. Cards can also change the roll, for example a fire trail.
+- **Elements:**
+  - Fire: burn damage over time.
+  - Ice: slows, then freezes.
+  - Lightning: chains to the nearest enemy.
+  - Celestial, which plays with gravity and stars: hits leave a star mark; at 3 marks a gravity well pulls nearby enemies together and a star falls on the spot. Bosses are never pulled; celestial hits add stagger to them instead.
+- **Reactions** come last in this step: element hits leave tags on enemies that react with each other and are used up, for example gravity and fire making a collapsing-star blast.
 
-**What it involves.**
+This is #29's two axes in the new shape: a skill is the martial art, a card the element.
 
-- Change the core to step at a fixed 60 Hz with an accumulator in `jr_update`; render the last state (interpolation is optional, the paper style already steps visually).
-- Make the run depend only on the seed and the input stream. Use the core's own RNG for everything (it already does) and avoid any float operation whose result differs between native and wasm builds (`powf`, `sin`, `cos` and `exp` are the ones to check; replace with fixed approximations if native and wasm results diverge).
-- Record inputs as a compact list of (tick, move x, move y, choice) and export them with the seed as a replay string. Add "copy replay" to the game-over screen and a `?replay=` URL parameter to play one back.
-- A native binary in `core/` (`cargo run --release --bin sim`) that runs N seeds with scripted bots (circle, kite away from the nearest enemy, stand still) and upgrade-pick strategies (random, weapon-first, a fixed build), and prints survival time, level reached, kills and damage taken per minute as a table or CSV.
-- A determinism test: the same replay run natively and in wasm (via Node) ends in the same state hash.
+### Rooms and runs
 
-**Done when.** The same seed and inputs always produce the same run on native and wasm, replays play back exactly, and the sim tool prints a balance table for at least three bots and three pick strategies in under a minute.
+A run is 4 to 6 fixed arena rooms of 2 to 3 waves each, a card pick after each clear, then a boss. No generated maps yet. Experience gems are removed. A run is won by beating the last boss. The save gets a version field and a migration.
 
-**Risks.** Float differences between native and wasm. Catch them early with the hash test rather than by debugging replays.
+### Bosses
 
-## 4. Run structure and meta progression
+Both are original designs that borrow move ideas from Monster Hunter: World's Deviljho and Alatreon, as #41 asks. Their names are placeholders.
 
-**Why.** Today a run is an endless arena with no goal and nothing to come back for. A win condition, bosses and unlocks are what make people play a second and tenth run.
+Shared framework: a state machine of stalk, choose move, wind-up with warning, active, recover and staggered. Moves are data (warning shape, timings, range, weight, phases, cooldown) and picked by distance and weight. Hits fill a stagger meter; when it is full the boss falls for about 2 s and takes extra damage.
 
-**What it involves.**
+**The Glutton (Taotie 饕餮), first boss.** Relentless, combo-heavy, and more dangerous as it gets angry.
 
-- Stage structure: a 15-minute run in phases. Each phase has its own enemy mix and spawn curve (all defined in the step 1 content file), with a boss at minutes 5, 10 and 15. Surviving the last boss wins the run.
-- Boss behaviours, kept to a few reusable patterns: charge (telegraph then dash), ring of ink shots, summon a pack. Ink shots are a new enemy projectile type that hurts the player.
-- Chests from elites that open a paper "fortune slip" with a weapon level or a rare upgrade.
-- Weapon evolutions: a maxed weapon plus a specific passive becomes an evolved weapon (for example scythe plus haste becomes a double sweep that leaves an ink trail).
-- Meta progression: jade earned per run, spent in a paper "shrine" screen on small permanent bonuses (starting health, pickup range, one reroll per level-up). Stored in the existing save in `src/save.js`, with a save version bump and migration.
-- Character select: two or three reapers with different starting weapons and stats, each a puppet rig from step 1.
-- More stages with different paper backgrounds (rice paper, indigo dyed paper, burnt edges) driven by the background shader's colours.
+| Phase | When | Moves |
+| --- | --- | --- |
+| 1 | 100% to 60% health | Bite combo (2 to 3 lunging cones), tail sweep (an arc, used when the player is behind it), stomp (a circle and a shock ring), charge (a line; runs through and turns) |
+| 2, enraged | Below 60% health, or after heavy damage in a short time; it stays enraged | Red ink veins, about 20% shorter wind-ups, moves chained 2 to 3 in a row. Adds ink breath, a long line swept across a wide arc, and a grab that pins the player until they press roll repeatedly |
 
-**Done when.** A run can be won, at least one boss uses each of the three patterns, the shrine screen spends and saves jade, and there are at least two characters to pick.
+It can summon blots and eat one nearby to heal or to enrage sooner; hitting it interrupts the eating.
 
-**Risks.** Scope. Ship the stage timer, one boss and the shrine first; evolutions, more characters and more stages can each follow on their own.
+**The Two-Element Dragon (Zhulong 燭龍), final boss.** It switches between fire and ice, and the right element is what keeps the player alive.
 
-## 5. CI and one-command deploy
+- **Stances** change at health thresholds or after about 45 s. Fire: dive-bombs, lingering fire pools, a spreading flame line. Ice: lines of ice lances, a freezing field that slows, falling shards.
+- **Element check.** Each stance shows its weakness, the opposite element. Enough weak-element damage knocks it down. At the end of each stance a screen-wide finisher builds for about 3 s, and its damage drops with the weak-element damage dealt in that stance, down to a floor. The roll does not avoid it, and it never kills from full health on the first attempt.
+- Left out for now: flight and a third stance.
 
-**Why.** Cheap insurance. It catches a stale `wasm/` build or a broken test before it lands, and gives a shareable link for playtesting.
+The card offers make sure fire or ice cards appear before the final boss.
 
-**What it involves.**
+### Content and art
 
-- Create a GitHub repository and push (needs your go-ahead; there is no remote today).
-- A GitHub Actions workflow that installs Rust with the wasm target, runs `cargo test`, runs `./build.sh`, and fails if the built wasm differs from the committed one (or switches to building the wasm only in CI and stops committing it).
-- Lint and format checks: `cargo fmt --check`, `cargo clippy`, and a small JavaScript check (for example `node --check` on each module, or Biome with no config).
-- Deploy `index.html`, `style.css`, `src/`, `wasm/` and `assets/` to GitHub Pages on each push to `main`.
-- A smoke test with a headless browser that loads the page and checks there are no console errors. Headless Chrome in CI may not have WebGPU; if not, the test checks that the "Cannot start" screen appears cleanly instead.
+- One content file (skills with their timing, cards, enemies, boss moves) and a Node generator, run by `./build.sh`, that writes the ids for Rust, JavaScript and WGSL, so nothing is mirrored by hand.
+- Puppet rigs posed from data: wind-up, attack, hurt and roll poses (the roll tucks and spins the cutout).
+- The bosses ship as flat placeholder parts; traced art follows through the Lightbox ([0003](docs/decisions/0003-character-art-pipeline.md)).
 
-**Done when.** Every push runs the checks, `main` is always deployed to a public URL, and a stale wasm build fails CI.
+### Commits
 
-**Risks.** Few. WebGPU availability in CI browsers limits how much rendering can be tested automatically.
+1. `refactor(core)`: fixed 60 Hz step with an accumulator in `jr_update`.
+2. `feat`: aim, buttons, input buffer and the roll.
+3. `feat(core)`: timing-based combat, hitboxes and hit feel; the auto weapons go.
+4. `feat`: camera.
+5. `feat(core)`: enemy behaviours, warnings and ink shots.
+6. `build`: content file and generator.
+7. `feat`: the eight skills and the skill pick.
+8. `feat`: card pool, the four elements and the starting passive.
+9. `feat`: rooms, waves, winning a run and the save migration.
+10. `feat(core)`: puppet rigs.
+11. `feat`: the Glutton.
+12. `feat`: the Two-Element Dragon.
+13. `feat(core)`: element tags and reactions.
 
-## 6. Touch controls and a WebGL2 fallback
+After commit 5 the branch goes up as a draft PR for the maintainer to play, before the content is built on top.
 
-**Why.** Opens the game to phones, tablets and browsers without WebGPU (notably older Safari and Firefox on some platforms). Survivor games suit phones well.
+### Done when
 
-**What it involves.**
+- The standard checks pass: `cargo test --release --manifest-path core/Cargo.toml`, `./build.sh`, then `npm run smoke`.
+- The same seed and inputs give the same state hash twice.
+- Tests cover: the roll's invulnerability window, recovery and cancel point; rolling through every attack except the finisher takes no damage; each skill's timing matches its data; hyper armor holds against normal enemies and breaks against bosses; dash skills move the set distance; each hitbox hits a target once; every attack is warned at least the minimum time ahead; each element effect and reaction; bosses are never pulled; the Glutton's phase change and enrage; the Dragon's finisher drops with weak-element damage and its knockdown triggers; the generator rejects duplicate or undefined ids; an old save migrates.
+- A scripted bot that rolls clears a full run to the boss room, once with three light skills and once with three heavy skills.
+- Frame time in a room is no worse than today's (about 8.3 ms median measured in the browser pane).
 
-- Touch: a floating virtual joystick (appears where the thumb lands, drawn as a paper disc), tap to choose cards, a pause button on the HUD. Layout already adapts to narrow screens; the HUD would need a pass for notches and safe areas.
-- Performance on phones: cap the device pixel ratio lower on small screens and add a "low quality" setting that turns off line boil and the per-pixel shadow sample.
-- WebGL2 fallback: port `src/shader.wgsl` to GLSL ES 3.0 and add a second renderer behind the same `resize` and `draw` interface. The instance format and atlas stay the same. Detect WebGPU first and fall back automatically.
+### Risks
 
-**Done when.** The game is playable start to finish on a phone with touch only, and in a browser with WebGPU turned off, with the same look.
+Size. One PR touches nearly all of `core/` and much of `src/`. The ordered commits, the tests that come with each one and the draft PR after commit 5 are what keep it reviewable. Feel is the other risk: timing numbers start as placeholders and get tuned in play.
 
-**Risks.** Two shaders to maintain. Keeping the shape functions small and generating both from one source would help but is extra work; decide when you start.
+## 2. Music and the low-health state
 
-## 7. Scale to thousands of enemies
+A generative pentatonic loop in WebAudio (guqin-like plucks and a low drone) with its own volume setting, ducked during card picks. Below 25% health the vignette tints vermilion and a heartbeat plays.
 
-**Why.** Only matters if the design wants much bigger hordes than the current cap of 500. Worth doing once step 4's stages show what the late game needs.
+## 3. Meta progression
 
-**What it involves.**
+Jade earned per run, spent in a paper "shrine" screen on small permanent bonuses (starting health, one reroll per card pick), stored in the save from `src/save.js` with a version bump.
 
-- Reuse the spatial grid built in `Game::separate` for weapon hit queries and player contact, instead of looping over every enemy.
-- Raise `MAX_ENEMIES` and `MAX_INST` (currently 500 and 4096), and grow the GPU instance buffer to match.
-- Shader cost: the cutout shader evaluates each shape twice (shape plus shadow) and samples noise several times per pixel. Options are a cheaper path for small or distant instances, or pre-rendering each part to a texture once and drawing the texture with the margin and shadow baked in.
-- Move enemy movement and separation to a compute shader only if the CPU becomes the bottleneck after the grid change; that is a large step and probably unnecessary.
+## 4. More characters and stages
 
-**Done when.** 2,000 enemies on screen hold 60 frames per second on a mid-range laptop, measured with a fixed replay from step 3.
+More reapers, each with a different starting set of skills and its own rig, and stages with different paper backgrounds (rice paper, indigo dyed paper, burnt edges) through the background shader's colours. Each one is its own PR.
 
-**Risks.** Overdraw from large overlapping cutouts dominates before the CPU does; measure before optimizing.
+## 5. Touch controls
+
+Aim plus three skills and a roll on a phone is a design question of its own; settle it before building. The HUD would also need a pass for notches and safe areas.
+
+## 6. WebGL2 fallback
+
+Port `src/shader.wgsl` to GLSL ES 3.0 and add a second renderer behind the same `resize` and `draw` interface, so browsers without WebGPU can play. Detect WebGPU first and fall back automatically.
 
 ## Smaller items
 
-These are too small to be steps but worth doing along the way:
-
-- Add a version field and a migration path to the save in `src/save.js` before step 4 changes its shape.
 - Pause when the gamepad disconnects mid-run.
 - Show which gamepad is connected on the settings screen (`src/input.js` already tracks its name).
-- Add a favicon and a social preview image once there is a deploy URL.
+- Add a favicon and a social preview image.
