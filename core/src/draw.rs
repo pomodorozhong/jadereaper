@@ -1,9 +1,14 @@
 //! Building the instance list the renderer draws: ground, characters, projectiles and effects.
 
 use crate::defs::*;
-use crate::game::{Act, Game};
+use crate::game::{Act, Game, Phase};
+use crate::geom::{Area, Shape};
+use crate::moves::{After, MOVES};
 use crate::skills::SKILLS;
 use core::f32::consts::TAU;
+
+const WARN: [f32; 4] = [0.17, 0.15, 0.13, 0.55];
+const WARN_BOSS: [f32; 4] = [0.62, 0.16, 0.12, 0.6];
 
 impl Game {
     // ---------------------------------------------------------------- draw
@@ -80,6 +85,32 @@ impl Game {
             }
         }
 
+        // Warnings for attacks that are winding up.
+        for i in 0..self.enemies.len() {
+            let e = self.enemies[i];
+            if e.phase != Phase::Windup || e.stun > 0.0 {
+                continue;
+            }
+            let m = MOVES[e.mv as usize];
+            let prog = (e.pt / m.windup).clamp(0.0, 1.0);
+            let color = if e.kind == K_ELITE { WARN_BOSS } else { WARN };
+            let area = self.move_area(&e);
+            self.draw_warning(area, prog, color);
+            if let After::Wave { to, .. } = m.after {
+                // The shock ring that will follow: its whole reach, faint.
+                let ring = Area { shape: Shape::Ring { inner: m.reach, outer: to }, ..area };
+                self.draw_warning(ring, 0.0, [color[0], color[1], color[2], color[3] * 0.5]);
+            }
+        }
+        for i in 0..self.hazards.len() {
+            let h = self.hazards[i];
+            if h.band > 0.0 {
+                let outer = h.r + h.band * 0.5;
+                let inner = (h.r - h.band * 0.5).max(0.0);
+                self.put(h.x, h.y, outer, outer, 0.0, P_WARN_RING, 1.0, inner / outer, [INK[0], INK[1], INK[2], 0.75]);
+            }
+        }
+
         // Characters, sorted by depth.
         self.order.clear();
         for (i, e) in self.enemies.iter().enumerate() {
@@ -97,6 +128,13 @@ impl Game {
         }
 
         // Things in the air.
+        for i in 0..self.hazards.len() {
+            let h = self.hazards[i];
+            if h.band == 0.0 {
+                let wob = (self.anim * 9.0 + h.x * 0.05).sin() * 0.15;
+                self.put(h.x, h.y - 22.0, h.r * 1.3, h.r * 1.1, wob, P_BLOT, 0.0, 0.77, [0.20, 0.18, 0.22, 1.0]);
+            }
+        }
         for i in 0..self.shots.len() {
             let s = &self.shots[i];
             let (x, y, rot) = (s.x, s.y, s.vy.atan2(s.vx) + TAU * 0.25);
@@ -106,6 +144,20 @@ impl Game {
             if self.fx[i].top {
                 self.draw_fx(i);
             }
+        }
+    }
+
+    /// An attack's warning: an ink wash in the shape of the coming hit, filling in as the wind-up runs.
+    fn draw_warning(&mut self, a: Area, prog: f32, color: [f32; 4]) {
+        let rot = a.dy.atan2(a.dx);
+        match a.shape {
+            Shape::Circle { r } => self.put(a.x, a.y, r, r, 0.0, P_WARN_CIRCLE, prog, 0.0, color),
+            Shape::Arc { r, half } => self.put(a.x, a.y, r, r, rot, P_WARN_ARC, prog, half / core::f32::consts::PI, color),
+            Shape::Line { len, half_w } => {
+                let (cx, cy) = (a.x + a.dx * len * 0.5, a.y + a.dy * len * 0.5);
+                self.put(cx, cy, len * 0.5, half_w, rot, P_WARN_LINE, prog, 0.0, color)
+            }
+            Shape::Ring { inner, outer } => self.put(a.x, a.y, outer, outer, 0.0, P_WARN_RING, prog, inner / outer, color),
         }
     }
 
@@ -152,7 +204,19 @@ impl Game {
         // Two poses, flipped back and forth. That is the whole walk cycle.
         let (lean, rate) = self.waddle[e.kind as usize];
         let pose = ((self.anim * rate + e.seed * 7.0).floor() as i32) & 1;
-        let (tilt, hop) = if pose == 0 { (lean, 0.0) } else { (-lean, -3.0) };
+        let (mut tilt, mut hop) = if pose == 0 { (lean, 0.0) } else { (-lean, -3.0) };
+        let mut ex = e.x;
+        match e.phase {
+            // Rear back and tremble while winding up, lean in while striking.
+            Phase::Windup => {
+                tilt = -0.25 * e.face;
+                hop = -4.0;
+                ex += ((self.anim * 40.0).floor() * 1.7).sin() * 1.5;
+            }
+            Phase::Active => tilt = 0.3 * e.face,
+            _ => {}
+        }
+        let e = crate::game::Enemy { x: ex, ..e };
         let c = [k.color[0], k.color[1], k.color[2], 1.0];
         let shadow = [INK[0], INK[1], INK[2], 0.2];
         let s = self.draw_scale[1 + e.kind as usize];

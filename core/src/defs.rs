@@ -53,6 +53,13 @@ pub const P_SCRAP: f32 = 16.0;
 pub const P_SHADOW: f32 = 18.0;
 /// The elite is a big brute, with its own part so a traced drawing keeps its line width at that size.
 pub const P_ELITE: f32 = 19.0;
+/// Ground warnings for enemy attacks, one per hit area shape. Drawn as a flat ink wash whose fill grows with the
+/// instance's `flash` (0 at the start of the wind-up, 1 when it strikes). An arc's half angle over pi, or a ring's
+/// inner radius over its outer one, travels in `seed`.
+pub const P_WARN_CIRCLE: f32 = 20.0;
+pub const P_WARN_ARC: f32 = 21.0;
+pub const P_WARN_LINE: f32 = 22.0;
+pub const P_WARN_RING: f32 = 23.0;
 
 // Upgrade ids.
 pub const U_VITALITY: usize = 0;
@@ -75,6 +82,8 @@ pub const EV_PULSE: f32 = 8.0;
 pub const EV_DEATH: f32 = 9.0;
 pub const EV_HEAL: f32 = 10.0;
 pub const EV_ELITE: f32 = 11.0;
+/// An enemy attack strikes; the value is the enemy kind.
+pub const EV_STRIKE: f32 = 12.0;
 
 pub const STATE_FLOATS: usize = 32;
 

@@ -41,6 +41,8 @@ pub const HURT_TIME: f32 = 0.3;
 /// Invulnerable for this long after taking a hit.
 pub const HURT_IFRAME: f32 = 0.5;
 pub const WALK_SPEED: f32 = 190.0;
+/// The player's hurt radius.
+pub const PLAYER_R: f32 = 14.0;
 
 pub struct Player {
     pub x: f32,
@@ -342,11 +344,13 @@ impl Game {
     }
 
     /// Hurt the player. A boss hit always interrupts; a normal hit does not interrupt a hyper armor skill in its
-    /// active window, but its damage still lands. Returns true if the hit landed.
-    pub fn hurt_player(&mut self, dmg: f32, boss: bool, from: (f32, f32)) -> bool {
+    /// active window, but its damage still lands. `warned` is how long ago the attack's warning appeared.
+    /// Returns true if the hit landed.
+    pub fn hurt_player(&mut self, dmg: f32, boss: bool, from: (f32, f32), warned: f32) -> bool {
         if self.player.invulnerable() || self.over {
             return false;
         }
+        self.min_warned = self.min_warned.min(warned);
         let (px, py) = (self.player.x, self.player.y);
         let (kx, ky) = dir_to(from.0, from.1, px, py);
         let armored = self.player.armored() && !boss;

@@ -58,7 +58,7 @@ fn reduce_motion_turns_off_shake_and_hit_stop() {
         assert_eq!(g.hitstop, 0.0);
         g.input.buttons = 0;
     }
-    g.hurt_player(5.0, false, (50.0, 0.0));
+    g.hurt_player(5.0, false, (50.0, 0.0), 1.0);
     let before = g.player.y - 30.0;
     g.update(STEP);
     assert!((g.cam.1 - before).abs() < 5.0);

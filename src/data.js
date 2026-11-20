@@ -21,6 +21,10 @@ export const PART_IDS = {
   scrap: 16,
   ground_shadow: 18,
   elite: 19,
+  warn_circle: 20,
+  warn_arc: 21,
+  warn_line: 22,
+  warn_ring: 23,
 };
 
 /** Upgrades, indexed by id. `glyph` is the brush mark shown on cards and HUD chips.
@@ -45,7 +49,7 @@ export const SLOT_KEYS = ['LMB', 'RMB', 'Q'];
 
 export const EVENT = {
   HIT: 1, KILL: 2, PICKUP: 3, LEVELUP: 4, HURT: 5, SLASH: 6,
-  SHOOT: 7, PULSE: 8, DEATH: 9, HEAL: 10, ELITE: 11,
+  SHOOT: 7, PULSE: 8, DEATH: 9, HEAL: 10, ELITE: 11, STRIKE: 12,
 };
 
 /** Button bits sent to jr_input. Match B_* in core/src/defs.rs. */

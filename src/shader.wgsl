@@ -197,6 +197,34 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
   return s;
 }
 
+// Ground warning for an enemy attack (parts 20 to 23: circle, arc, line, ring), as an ink wash: a rough outline
+// of the whole hit area, a faint tint inside, and a darker fill growing from the attacker as `prog` goes 0 to 1.
+// `seed` holds an arc's half angle over pi, or a ring's inner radius over its outer one.
+fn warnAlpha(part: i32, p: vec2f, h: vec2f, seed: f32, prog: f32) -> f32 {
+  let r = length(p);
+  var d = 1e3;      // signed distance to the area's edge, world units
+  var grown = 0.0;  // 1 inside the part already filled
+  if (part == 20) {
+    d = r - h.x;
+    grown = step(r, prog * h.x);
+  } else if (part == 21) {
+    let half = seed * 3.14159265;
+    let ang = abs(atan2(p.y, p.x));
+    d = max(r - h.x, (ang - half) * max(r, 1.0));
+    grown = step(r, prog * h.x);
+  } else if (part == 22) {
+    d = sdBox(p, h);
+    grown = step(p.x, -h.x + 2.0 * h.x * prog);
+  } else {
+    let inner = seed * h.x;
+    d = max(r - h.x, inner - r);
+    grown = step(r, inner + (h.x - inner) * prog);
+  }
+  let inside = smoothstep(1.0, -1.0, d);
+  let edge = smoothstep(2.2, 0.6, abs(d + 1.2));
+  return max(edge * 0.9, inside * (0.16 + 0.5 * grown));
+}
+
 // Parts drawn as flat ink or wash: no outline, margin or shadow.
 fn isFlat(part: i32) -> bool {
   return part == 8 || part == 11 || part == 12 || part == 13 || part == 15 || part == 16 || part == 18;
@@ -251,6 +279,13 @@ fn fs(i: VOut) -> @location(0) vec4f {
   let flash = i.misc.z;
   let h = i.half;
   let aa = G.px;
+  if (part >= 20 && part <= 23) {
+    let wobble = vec2f(vnoise(i.p * 0.06 + seed * 4.0), vnoise(i.p * 0.06 + 17.0)) - 0.5;
+    let a = warnAlpha(part, i.p + wobble * 3.0, h, seed, flash) * i.color.a;
+    if (a < 0.004) { discard; }
+    let grain = vnoise(i.p * 0.4 + 3.0);
+    return vec4f(i.color.rgb, a * (0.8 + 0.2 * grain));
+  }
   let flat_part = isFlat(part);
 
   // Line boil: nudge the shape a little, changing only on stepped frames.

@@ -9,7 +9,8 @@
 use crate::defs::*;
 pub use crate::player::{Act, Input, Player};
 
-pub(crate) const MAX_ENEMIES: usize = 500;
+/// Enemies at once. Fights are about reading a few attackers, not hordes.
+pub const MAX_ENEMIES: usize = 10;
 pub(crate) const MAX_GEMS: usize = 700;
 pub(crate) const MAX_FX: usize = 500;
 pub(crate) const MAX_SHOTS: usize = 200;
@@ -41,6 +42,55 @@ pub struct Enemy {
     pub stagger: f32,
     /// Time left interrupted.
     pub stun: f32,
+    pub phase: Phase,
+    /// Time in the current phase.
+    pub pt: f32,
+    /// The move being used (an index into `MOVES`).
+    pub mv: u8,
+    /// The move's direction, set when its wind-up starts.
+    pub dx: f32,
+    pub dy: f32,
+    /// Where the move's hit area starts.
+    pub ox: f32,
+    pub oy: f32,
+    /// Combo repeats left.
+    pub chain: u8,
+    /// The current strike has already hit the player.
+    pub struck: bool,
+    /// Time before it may start another move.
+    pub think: f32,
+    /// Time since it appeared.
+    pub age: f32,
+}
+
+/// An enemy's attack cycle.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Phase {
+    Approach,
+    Windup,
+    Active,
+    Recover,
+}
+
+/// Something an enemy attack leaves behind that can still hit: an ink shot or a spreading shock ring.
+#[derive(Clone, Copy, Debug)]
+pub struct Hazard {
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
+    /// Shot radius, or the ring's current radius.
+    pub r: f32,
+    /// Ring: band width (0 for a shot).
+    pub band: f32,
+    /// Ring: final radius and growth speed.
+    pub to: f32,
+    pub grow: f32,
+    pub life: f32,
+    pub dmg: f32,
+    pub boss: bool,
+    /// Time since the warning for the attack that made it started.
+    pub warned: f32,
 }
 
 /// A projectile thrown by the player.
@@ -119,6 +169,9 @@ pub struct Game {
     pub loadout: [usize; 3],
     pub enemies: Vec<Enemy>,
     pub shots: Vec<Shot>,
+    pub hazards: Vec<Hazard>,
+    /// The shortest warning any hit on the player has had, for tests.
+    pub min_warned: f32,
     pub gems: Vec<Gem>,
     pub fx: Vec<Fx>,
     pub up: [u8; N_UPGRADES],
@@ -190,6 +243,8 @@ impl Game {
             loadout: [crate::skills::SK_SCYTHE, crate::skills::SK_TALISMAN, crate::skills::SK_PULSE],
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
+            hazards: Vec::with_capacity(64),
+            min_warned: f32::INFINITY,
             gems: Vec::with_capacity(MAX_GEMS),
             fx: Vec::with_capacity(MAX_FX),
             up: [0; N_UPGRADES],
@@ -322,6 +377,7 @@ impl Game {
         self.spawn(dt);
         self.move_enemies(dt);
         self.separate();
+        self.move_hazards(dt);
         self.move_shots(dt);
         self.reap();
         self.move_gems(dt);
