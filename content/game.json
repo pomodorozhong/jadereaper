@@ -1,0 +1,58 @@
+{
+  "parts": [
+    { "name": "ellipse", "id": 0 },
+    { "name": "player_body", "id": 1 },
+    { "name": "player_head", "id": 2 },
+    { "name": "scythe", "id": 3 },
+    { "name": "blot", "id": 4 },
+    { "name": "wisp", "id": 5 },
+    { "name": "brute", "id": 6 },
+    { "name": "gem", "id": 7 },
+    { "name": "slash", "id": 8, "flat": true },
+    { "name": "talisman", "id": 9 },
+    { "name": "bead", "id": 10 },
+    { "name": "splat", "id": 11, "flat": true },
+    { "name": "grass", "id": 12, "flat": true },
+    { "name": "stone", "id": 13, "flat": true },
+    { "name": "heart", "id": 14 },
+    { "name": "ring", "id": 15, "flat": true },
+    { "name": "scrap", "id": 16, "flat": true },
+    { "name": "ground_shadow", "id": 18, "flat": true },
+    { "name": "elite", "id": 19 },
+    { "name": "warn_circle", "id": 20, "flat": true },
+    { "name": "warn_arc", "id": 21, "flat": true },
+    { "name": "warn_line", "id": 22, "flat": true },
+    { "name": "warn_ring", "id": 23, "flat": true }
+  ],
+
+  "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike"],
+
+  "kinds": [
+    { "name": "blot", "part": "blot", "hp": 30, "speed": 70, "r": 16, "xp": 1, "color": [0.33, 0.31, 0.30], "hw": 24, "hh": 24, "rate": 2, "tilt": 2.25, "poise": 8, "moves": ["blot_lunge"] },
+    { "name": "wisp", "part": "wisp", "hp": 18, "speed": 110, "r": 12, "xp": 1, "color": [0.36, 0.40, 0.56], "hw": 25, "hh": 21, "rate": 9, "tilt": 3.75, "poise": 5, "moves": ["wisp_shot"] },
+    { "name": "brute", "part": "brute", "hp": 110, "speed": 48, "r": 26, "xp": 5, "color": [0.58, 0.31, 0.24], "hw": 30, "hh": 30, "rate": 3, "tilt": 7.5, "poise": 40, "moves": ["brute_slam"] },
+    { "name": "elite", "part": "elite", "hp": 700, "speed": 60, "r": 44, "xp": 40, "color": [0.74, 0.25, 0.18], "hw": 52, "hh": 52, "rate": 2.5, "tilt": 7.5, "poise": 120, "moves": ["elite_bite", "elite_stomp"] }
+  ],
+
+  "skills": [
+    { "name": "scythe", "glyph": "鐮", "weight": "light", "kind": "melee", "startup": 0.07, "active": 0.08, "recovery": 0.22, "cancel": 0.06,
+      "damage": 10, "stagger": 10, "knockback": 160, "area": "arc", "reach": 95, "width": 1.1, "hyper": false, "dash": 12, "combo": 3, "walk": 0.4 },
+    { "name": "talisman", "glyph": "符", "weight": "light", "kind": "shot", "startup": 0.10, "active": 0.05, "recovery": 0.20, "cancel": 0.05,
+      "damage": 9, "stagger": 6, "knockback": 80, "area": "circle", "reach": 520, "width": 10, "hyper": false, "dash": 0, "combo": 1, "walk": 0.7 },
+    { "name": "pulse", "glyph": "波", "weight": "medium", "kind": "nova", "startup": 0.25, "active": 0.10, "recovery": 0.35, "cancel": 0.20,
+      "damage": 16, "stagger": 25, "knockback": 420, "area": "circle", "reach": 140, "width": 0, "hyper": false, "dash": 0, "combo": 1, "walk": 0 }
+  ],
+
+  "moves": [
+    { "name": "blot_lunge", "windup": 0.55, "active": 0.18, "recover": 0.75, "area": "line", "reach": 120, "width": 18, "damage": 8,
+      "dash": 110, "after": "none", "range": [0, 130], "chain": 0 },
+    { "name": "wisp_shot", "windup": 0.6, "active": 0.05, "recover": 0.9, "area": "line", "reach": 360, "width": 10, "damage": 7,
+      "dash": 0, "after": { "shot": { "speed": 200, "r": 9 } }, "range": [0, 380], "chain": 0 },
+    { "name": "brute_slam", "windup": 0.75, "active": 0.1, "recover": 1.0, "area": "circle", "reach": 80, "width": 0, "damage": 14,
+      "dash": 0, "after": { "wave": { "to": 230, "speed": 260, "band": 22 } }, "range": [0, 120], "chain": 0 },
+    { "name": "elite_bite", "windup": 0.5, "active": 0.15, "recover": 0.8, "area": "arc", "reach": 120, "width": 0.65, "damage": 16,
+      "dash": 60, "after": "none", "range": [0, 160], "chain": 1 },
+    { "name": "elite_stomp", "windup": 0.65, "active": 0.1, "recover": 0.9, "area": "circle", "reach": 100, "width": 0, "damage": 18,
+      "dash": 0, "after": { "wave": { "to": 300, "speed": 280, "band": 24 } }, "range": [0, 240], "chain": 0 }
+  ]
+}

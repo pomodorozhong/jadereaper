@@ -8,6 +8,7 @@
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
+pub mod content;
 pub mod defs;
 pub mod draw;
 pub mod enemy;
@@ -183,7 +184,7 @@ mod tests {
         let first = now[0];
         assert!(now.iter().any(|&p| p != first), "every instance shows the same pose");
         for i in &game.inst {
-            assert!(i.part % PART_SLOTS < 20.0, "part id {} lost its base id", i.part);
+            assert!(PARTS.contains(&(i.part % PART_SLOTS)), "part id {} lost its base id", i.part);
         }
 
         game.set_boil(4.0, 1);
@@ -193,7 +194,7 @@ mod tests {
 
     #[test]
     fn draw_scale_changes_only_the_drawing() {
-        let robe = |g: &Game| *g.inst.iter().find(|i| i.part % PART_SLOTS == P_ROBE).unwrap();
+        let robe = |g: &Game| *g.inst.iter().find(|i| i.part % PART_SLOTS == P_PLAYER_BODY).unwrap();
         let mut game = Game::new(9);
         game.set_view(640.0, 360.0);
         game.update(1.0 / 60.0);

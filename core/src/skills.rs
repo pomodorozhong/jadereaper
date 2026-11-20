@@ -1,5 +1,6 @@
 //! Skill definitions. A skill has no cooldown: it is balanced by its timing, a startup before it hits, an active
 //! window while it hits, and a recovery after. A roll can cut the recovery short after the cancel point.
+//! The skills themselves are in `content/game.json`.
 
 /// How a skill delivers its hit.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -61,31 +62,7 @@ impl SkillDef {
     }
 }
 
-pub const SK_SCYTHE: usize = 0;
-pub const SK_TALISMAN: usize = 1;
-pub const SK_PULSE: usize = 2;
-pub const N_SKILLS: usize = 3;
-
-pub const SKILLS: [SkillDef; N_SKILLS] = [
-    // Scythe combo: a fast 3-hit sweep.
-    SkillDef {
-        weight: 0, kind: SkillKind::Melee, startup: 0.07, active: 0.08, recovery: 0.22, cancel: 0.06,
-        damage: 10.0, stagger: 10.0, knockback: 160.0, area: AreaKind::Arc, reach: 95.0, width: 1.1,
-        hyper: false, dash: 12.0, combo: 3, walk: 0.4,
-    },
-    // Talisman throw: an aimed shot.
-    SkillDef {
-        weight: 0, kind: SkillKind::Shot, startup: 0.10, active: 0.05, recovery: 0.20, cancel: 0.05,
-        damage: 9.0, stagger: 6.0, knockback: 80.0, area: AreaKind::Circle, reach: 520.0, width: 10.0,
-        hyper: false, dash: 0.0, combo: 1, walk: 0.7,
-    },
-    // Spirit pulse: a nova around the player.
-    SkillDef {
-        weight: 1, kind: SkillKind::Nova, startup: 0.25, active: 0.10, recovery: 0.35, cancel: 0.20,
-        damage: 16.0, stagger: 25.0, knockback: 420.0, area: AreaKind::Circle, reach: 140.0, width: 0.0,
-        hyper: false, dash: 0.0, combo: 1, walk: 0.0,
-    },
-];
+pub use crate::content::*;
 
 /// The third hit of a combo hits harder and reaches further.
 pub const COMBO_FINISH_DAMAGE: f32 = 1.6;

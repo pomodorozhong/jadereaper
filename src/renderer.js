@@ -101,10 +101,13 @@ export async function createRenderer(canvas) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   ctx.configure({ device, format, alphaMode: 'opaque' });
 
-  let [code, parts] = await Promise.all([
+  // src/content.wgsl (generated from content/game.json) holds the part ids the shader uses, so it goes first.
+  let [ids, code, parts] = await Promise.all([
+    fetch('src/content.wgsl', { cache: 'no-cache' }).then((r) => r.text()),
     fetch('src/shader.wgsl', { cache: 'no-cache' }).then((r) => r.text()),
     loadPartImages(BAKE),
   ]);
+  code = `${ids}\n${code}`;
   const module = device.createShaderModule({ code });
   const info = await module.getCompilationInfo();
   const errors = info.messages.filter((m) => m.type === 'error');

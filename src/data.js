@@ -1,31 +1,6 @@
-// Tables shared with the Rust core. Ids must match core/src/defs.rs.
-
-/** Part names you can override with an image in assets/parts.json. */
-export const PART_IDS = {
-  ellipse: 0,
-  player_body: 1,
-  player_head: 2,
-  scythe: 3,
-  blot: 4,
-  wisp: 5,
-  brute: 6,
-  gem: 7,
-  slash: 8,
-  talisman: 9,
-  bead: 10,
-  splat: 11,
-  grass: 12,
-  stone: 13,
-  heart: 14,
-  ring: 15,
-  scrap: 16,
-  ground_shadow: 18,
-  elite: 19,
-  warn_circle: 20,
-  warn_arc: 21,
-  warn_line: 22,
-  warn_ring: 23,
-};
+// Tables shared with the Rust core. Part ids, events, enemy kinds, skills and moves are generated from
+// content/game.json into src/content.js; the rest here must match core/src/defs.rs and core/src/game.rs by hand.
+export { PART_IDS, EVENT, SKILLS, KINDS, MOVES } from './content.js';
 
 /** Upgrades, indexed by id. `glyph` is the brush mark shown on cards and HUD chips.
  * Names and descriptions are in src/i18n.js as upgrade.<id>.name and .desc. */
@@ -37,20 +12,8 @@ export const UPGRADES = [
   { glyph: '癒', max: 5 },
 ];
 
-/** Skills, indexed by id (core/src/skills.rs). Names and descriptions are skill.<id>.name and .desc in src/i18n.js. */
-export const SKILLS = [
-  { glyph: '鐮' },
-  { glyph: '符' },
-  { glyph: '波' },
-];
-
 /** Which input reaches each skill slot, for the HUD. */
 export const SLOT_KEYS = ['LMB', 'RMB', 'Q'];
-
-export const EVENT = {
-  HIT: 1, KILL: 2, PICKUP: 3, LEVELUP: 4, HURT: 5, SLASH: 6,
-  SHOOT: 7, PULSE: 8, DEATH: 9, HEAL: 10, ELITE: 11, STRIKE: 12,
-};
 
 /** Button bits sent to jr_input. Match B_* in core/src/defs.rs. */
 export const BUTTON = { SKILL1: 1, SKILL2: 2, SKILL3: 4, ROLL: 8 };

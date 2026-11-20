@@ -196,7 +196,7 @@ impl Game {
             match e.phase {
                 Phase::Approach => {
                     e.think -= dt;
-                    let moves = KIND_MOVES[e.kind as usize];
+                    let moves = KINDS[e.kind as usize].moves;
                     // Wisps keep their distance; the rest close in to striking range.
                     let (near, far) = if e.kind == K_WISP { (200.0, 300.0) } else { (0.0, MOVES[moves[0]].range.1 * 0.7) };
                     let dir = if d > far {

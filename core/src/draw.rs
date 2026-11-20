@@ -220,7 +220,7 @@ impl Game {
         let c = [k.color[0], k.color[1], k.color[2], 1.0];
         let shadow = [INK[0], INK[1], INK[2], 0.2];
         let s = self.draw_scale[1 + e.kind as usize];
-        self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
+        self.put(e.x, e.y, k.r * 0.95 * s, k.r * 0.36 * s, 0.0, P_GROUND_SHADOW, 0.0, 0.0, shadow);
         if e.kind == K_WISP {
             // Wisps hover and flap by squeezing their width.
             let hw = if pose == 0 { k.hw } else { k.hw * 0.7 };
@@ -264,7 +264,7 @@ impl Game {
         let s = self.draw_scale[0];
 
         let shadow = [INK[0], INK[1], INK[2], 0.22];
-        self.put(px, py, 20.0 * s, 7.0 * s, 0.0, P_SHADOW, 0.0, 0.0, shadow);
+        self.put(px, py, 20.0 * s, 7.0 * s, 0.0, P_GROUND_SHADOW, 0.0, 0.0, shadow);
 
         let scythe = [0.36, 0.66, 0.52, a];
         if swing.is_none() {
@@ -273,8 +273,8 @@ impl Game {
         }
         let top_x = px + 26.0 * s * tilt.sin();
         // The traced player is one square drawing, so the robe's box is square and stands on the shadow.
-        self.put(px, py - 40.0 * s + bob, 40.0 * s * f, 40.0 * s, tilt, P_ROBE, flash, 0.37, [0.20, 0.42, 0.36, a]);
-        self.put(top_x + f * 2.0 * s, py - 60.0 * s + bob * 1.5, 15.0 * s * f, 15.0 * s, -tilt * 0.6, P_HOOD, flash, 0.53, [0.15, 0.33, 0.29, a]);
+        self.put(px, py - 40.0 * s + bob, 40.0 * s * f, 40.0 * s, tilt, P_PLAYER_BODY, flash, 0.37, [0.20, 0.42, 0.36, a]);
+        self.put(top_x + f * 2.0 * s, py - 60.0 * s + bob * 1.5, 15.0 * s * f, 15.0 * s, -tilt * 0.6, P_PLAYER_HEAD, flash, 0.53, [0.15, 0.33, 0.29, a]);
         if let Some(a) = swing {
             let ang = a * f;
             self.put(px + f * 12.0 * s, py - 42.0 * s + bob, 20.0 * s * f, 34.0 * s, ang, P_SCYTHE, flash, 0.21, scythe);
