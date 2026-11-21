@@ -20,7 +20,7 @@ What the maintainer found when they played it:
 | Step | What | Size |
 | --- | --- | --- |
 | 1 | The action-game rebuild: controls, combat, enemies, skills and cards, rooms, two bosses (#43) | One large PR |
-| 2 | Paper puppets in 3D: the new art direction, for charge, recovery and hit animations | Large |
+| 2 | Paper puppets in 3D: the new art direction, for charge, recovery and hit animations (four PRs, [0008](docs/decisions/0008-paper-puppet-art-plan.md)) | Large |
 | 3 | Music and the low-health state | Small |
 | 4 | Meta progression | Medium |
 | 5 | More characters and stages | Medium, per character or stage |
@@ -156,21 +156,83 @@ Size. One PR touches nearly all of `core/` and much of `src/`. The ordered commi
 
 ## 2. Paper puppets in 3D
 
-The new art direction ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). The game keeps its paper feel: characters stay flat paper cutouts with a white margin. But they move in 3D, the way a paper puppet held in the hand can turn, lean, lift and flip. Those movements carry the action game's timing, so the player can read it from the body:
+The new art direction ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). The game keeps its paper feel: characters stay flat paper cutouts with a white margin. But they move in 3D, the way a paper puppet held in the hand can turn, lean, lift and flip, and those movements carry the action game's timing so the player reads it from the body.
 
-- **Charging:** the cutout turns and leans back towards the skill's direction as the startup runs, so the direction and the time left both show on the character, not only on the ground wash.
-- **Recovery:** the cutout sags or settles back out of the strike, and visibly comes back upright at the cancel point.
-- **Getting hit:** the cutout snaps away from the hit's direction, bending or flipping with the hit's strength, so a landed hit is felt at the moment the collision happens.
-- **The same for enemies and bosses,** whose wind-ups already have ground warnings.
+**Status: agreed with the maintainer, to be confirmed on #45.** The choices that shape later work are recorded in [0008](docs/decisions/0008-paper-puppet-art-plan.md); this section adds the detail for building it.
 
-Built from the animation state the core exports in step 1, so the core keeps every timing and the replays stay exact. To settle in this step, with the maintainer:
+### The look
 
-- What the art looks like beyond "paper that moves in 3D": references, palette, line style.
-- Whether the traced line art, the line boil, the shader's old outline wobble and the Lightbox stay, change or go.
-- Where 3D poses are computed: in the core, as today's 2D poses are, or on the drawing side from the exported state.
-- The renderer changes: a camera with perspective or a tilted orthographic view, a depth order for parts, and an instance format that carries a 3D rotation.
-- Real art for the two bosses.
-- A hit-feedback pass: impact marks at the point of contact, hurt poses aimed by the hit, and hit-stop tuned to the new animations.
+- **Stays:** the traced pencil line art, the per-stroke line boil at 4 fps, the white cutout margin, the cast shadow, and today's palette (ink `#2b2621`, paper `#f6f0df`, the muted part colours in `content/game.json`). Nothing changes on a character standing still.
+- **Each part is a sheet of paper in 3D.** A part keeps its image, but it can turn about its vertical axis, lean towards or away from the camera, lift off the ground and bend a little. Turned edge-on it thins to a line, as a real card does.
+- **The back of a sheet** is plain paper with the front's ink showing through faintly, mirrored. A turn or a flip then shows paper, not a mirrored drawing that pops.
+- **Light:** one fixed light from the upper left. A sheet turned away from it is a little darker. The shadow stays on the ground, so a lifted sheet's shadow falls behind it and shows the height.
+- **References** (for the maintainer to confirm or replace): Chinese shadow puppetry (皮影戲) for jointed flat figures moved on rods; paper theatre and pop-up books for sheets standing at different depths; stop-motion paper animation for the stepped boil. For hit feel, the action games 0005 names (Hades, Hyper Light Drifter): short hit-stop, a snap away from the hit, and a mark at the point of contact.
+
+### What each animation does
+
+Poses are built from the animation record the core exports (`core/src/anim.rs`): phase, progress, length, cancel point, direction and the last hit.
+
+| Phase | Pose |
+| --- | --- |
+| Idle, walk | Upright, a small bob, a slight sway about the vertical axis |
+| Startup (charging) | The sheet turns to face the skill's direction on the ground, in any direction rather than only left or right, and leans back as the startup runs. Over the last fifth it holds still and trembles, so "about to fire" reads |
+| Active | Snaps forward, past upright, in a few frames |
+| Recovery | Sags forward and a little crumpled. At the cancel point it pops upright with a small overshoot, so the moment a roll can cut in is seen on the body |
+| Hurt | Snaps away from the hit's direction, leaning and bending by the hit's damage, then springs back over the hurt time |
+| Down | Falls flat onto the ground, face up, and stands back up |
+| Grabbed | Pinned flat and shaking |
+| Roll | Spins once about its vertical axis while tucking low, instead of turning in the screen plane |
+| Stunned | Wobbles on its edge |
+
+Turning to face left or right becomes a quick turn through edge-on instead of an instant mirror. It is drawing only and never delays an action.
+
+### Where poses are computed: in the core
+
+The core already builds every instance and holds the rigs and today's 2D poses. The 3D pose becomes one function of a rig and an animation record, `pose(rig, anim) -> Pose3`, in `core/src/rigs.rs`, with each rig's 3D poses as data in `content/game.json`. Reasons: the draw list stays built in one place and one language; the pose code is tested where the timings are; and posing from the exported record means a test can feed it a made-up record. Drawing state, such as the eased facing turn, is kept out of `state_hash`, so replays stay exact. The ?debug panel gets pose sliders through a core setter, as the waddle has now, so tuning needs no wasm rebuild.
+
+Set aside: posing on the drawing side in JavaScript from the exported record. It would iterate faster, but the instance list would then be built half in Rust and half in JavaScript, and the draw order and culling would have to be merged across the two.
+
+### Renderer changes
+
+- **Camera:** stays as today, an orthographic view of the ground, with the same framing, look-ahead and zoom. Only the sheets are 3D: each part is a quad oriented in 3D around its own anchor and projected orthographically. No perspective camera, so the gameplay view does not change.
+- **Instance format:** from 12 to 16 floats (48 to 64 bytes): turn, lean, lift and bend join the existing in-plane rotation. `INST_FLOATS`, `INSTANCE_BYTES` and the vertex layout change together.
+- **Depth order:** characters stay sorted by ground position as today. Within a puppet, the core orders the parts by their depth after the turn, so an arm behind the body goes behind it when the puppet turns. No depth buffer, because the margins and shadows are blended.
+- **Bend:** the quad is split into a few strips in the vertex shader (more vertices per instance, no new buffers), so a sheet can curve.
+- **The old outline wobble goes:** `stopMotionFps` and `wobble` in `LOOK`, `qtime` and `wobble` in the shader's globals, and the boil nudge on cutout parts. The line boil replaced it, and the 3D motion gives the placeholder art its life until the bosses are drawn.
+- Everything stays plain WGSL with no compute passes, so the WebGL2 fallback (step 7) can still port it.
+
+### Boss art
+
+The Glutton and the Two-Element Dragon are drawn on paper by the artist and traced in the Lightbox, like the other characters ([0003](docs/decisions/0003-character-art-pipeline.md)). Unlike the small kinds, a boss is a jointed puppet: head, jaw, body, tail, legs and, for the Dragon, wings, each a sheet at its own depth, with a parent part and a pivot, moved per boss move (the jaw opens for a bite, the tail swings for the sweep). That needs a parent field per part in the character JSON and the Lightbox, and per-part poses in the rigs. Until the drawings exist, the bosses keep their placeholder parts and still get the 3D poses.
+
+### Hit feedback
+
+Once the poses are in: a torn-paper mark and a few paper scraps at the point of contact, flying away from the hit; a short push of the camera in the hit's direction (off with "reduce motion"); and hit-stop retuned against the new hurt snap. Damage numbers stay.
+
+### PRs
+
+Each PR is its own issue, as `CONTRIBUTING.md` asks, and each depends on the one before it. #39 (CI builds the wasm and checks the core) landed first, in #44.
+
+| PR | What | Depends on | Size |
+| --- | --- | --- | --- |
+| A, #46 | Renderer: 16-float instances with turn, lean, lift and bend; the back of a sheet; the light; ordering parts by depth; the old outline wobble removed. The core sends zeros for the new fields, so the game looks as it does now, except for a ?debug toggle that spins every puppet to show the new fields work | #39 | Medium |
+| B, #47 | Core: 3D poses from the animation record for the player and the four small kinds, the facing turn, pose data in `content/game.json`, pose sliders in ?debug, tests | A | Large |
+| C, #48 | Hit feedback: paper marks and scraps, the camera push, hit-stop retuned | B | Small to medium |
+| D, #49 | Boss art: jointed parts in the character JSON and the Lightbox, the traced Glutton and Dragon, per-part move poses | B, and the artist's drawings | Large |
+
+A docs PR first, with the agreed version of this section and record 0008 (#45).
+
+### Done when
+
+- The standard checks pass: `cargo test --release --manifest-path core/Cargo.toml`, `./build.sh`, then `npm run smoke`.
+- The same seed and inputs give the same state hash twice, and the hash does not change when only the drawing changes.
+- Tests cover: the startup pose faces the skill's direction; the recovery pose changes at the cancel point; the hurt pose leans away from the hit and more for more damage; the down pose lies flat; a roll turns once; parts reorder when a puppet turns.
+- The maintainer plays a run and can tell, from the characters alone, which way a skill points, how long until it fires, when a roll can cut its recovery, and when a hit landed.
+- Frame time in a room is no worse than today's (about 8.3 ms median in the browser pane).
+
+### Risks
+
+The feel is the risk again: pose numbers start as placeholders and are tuned in play, which is why the ?debug sliders come in B. Boss art waits on the artist, so D may land well after the rest. Turning a traced part edge-on may show that some parts need fill behind them; the Lightbox's fill brush is the fix.
 
 ## 3. Music and the low-health state
 
