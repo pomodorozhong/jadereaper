@@ -61,6 +61,7 @@ const DEBUG_SLIDERS = [
 	["look", "depthFade", "Depth fade", 0, 1, 0.05],
 	["look", "depthDist", "Depth distance", 0.1, 2, 0.05],
 	["look", "depthTone", "Depth tone (ground→shade)", 0, 1, 0.05],
+	["look", "depthCurve", "Depth curve (power)", 0.2, 5, 0.05],
 	["Size (drawn only; re-draws the characters)"],
 	["size", "player", "Player", 0.5, 2, 0.05],
 	["size", "blot", "Blot", 0.5, 2, 0.05],

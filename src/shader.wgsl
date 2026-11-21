@@ -24,7 +24,7 @@ struct Globals {
   fade: f32,       // how far paper shifts towards the depth tone at fade_dist away from the camera
   fade_dist: f32,  // puppet heights away from the camera, from its ground point, for the full shift
   fade_tone: f32,  // what far paper shifts towards: 0 the ground, 1 shade
-  pad2: f32,
+  fade_curve: f32, // the ramp's shape: the shift grows as (distance / fade_dist) to this power
 };
 
 // The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
@@ -485,7 +485,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
   // Paper further from the camera than its puppet's ground point shifts towards the depth tone, so a sheet lying back
   // or leaning away reads as going into the distance, not as squashed. At rest every part is at depth zero.
   let far = mix(GROUND, DEPTH_SHADE, G.fade_tone);
-  rgb = mix(rgb, far, G.fade * smoothstep(0.0, 1.0, -i.depth / G.fade_dist));
+  rgb = mix(rgb, far, G.fade * pow(clamp(-i.depth / G.fade_dist, 0.0, 1.0), G.fade_curve));
   if (margin < 0.004) { discard; }
   return vec4f(rgb, margin * i.color.a);
 }

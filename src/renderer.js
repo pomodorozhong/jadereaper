@@ -25,6 +25,7 @@ export const LOOK = {
 	depthFade: 0.85, // how far paper shifts towards the depth tone at depthDist away from the camera (0 off)
 	depthDist: 0.7, // puppet heights away from the camera, from its ground point, for the full shift
 	depthTone: 0.7, // what far paper shifts towards: 0 fades into the ground, 1 sinks into shade
+	depthCurve: 1.5, // the ramp's shape: the shift grows as (distance / depthDist) to this power (1 straight)
 };
 
 /**
@@ -280,7 +281,7 @@ export async function createRenderer(canvas) {
 	 */
 	function draw(memory, ptr, count, camX, camY) {
 		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding, depth fade,
-		// distance and tone, padding.
+		// distance, tone and curve.
 		globals.set([
 			view.w,
 			view.h,
@@ -297,7 +298,7 @@ export async function createRenderer(canvas) {
 			LOOK.depthFade,
 			Math.max(0.05, LOOK.depthDist),
 			LOOK.depthTone,
-			0,
+			Math.max(0.05, LOOK.depthCurve),
 		]);
 		device.queue.writeBuffer(globalsBuf, 0, globals);
 		const n = Math.min(count, MAX_INSTANCES);
