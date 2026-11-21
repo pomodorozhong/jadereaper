@@ -6,8 +6,8 @@ import { BAKE, bakeCharacters } from "./characters.js";
 // 18 floats per paper part (Inst in core/src/defs.rs): x, y, half width, half height | rot, part, flash, seed |
 // r, g, b, a | turn, lean, lift, bend | depth, reach.
 const INSTANCE_BYTES = 72;
-// Vertices per instance: the ground shadow, then the sheet, each cut into 4 strips of 2 triangles (src/shader.wgsl).
-const INSTANCE_VERTS = 48;
+// Vertices per instance: the ground shadow, then the sheet, each cut into 8 strips of 2 triangles (src/shader.wgsl).
+const INSTANCE_VERTS = 96;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 460; // world units across the shorter screen side, before the core's zoom
 // The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.

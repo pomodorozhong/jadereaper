@@ -97,6 +97,8 @@ export const SHEET_KEYS = [
 	"wobble_rate",
 	"bob",
 	"sway",
+	"flex",
+	"walk_curl",
 ];
 
 const TABLES = {

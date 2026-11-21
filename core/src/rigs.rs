@@ -6,7 +6,7 @@
 //! are then drawn back to front by their depth after the turn, not by a depth buffer.
 
 use crate::anim::*;
-use crate::defs::{orient, Sheet, ROLL_TIME};
+use crate::defs::{orient, Sheet, ROLL_TIME, SHEET_PAD};
 use crate::game::Game;
 
 /// One paper part of a rig, placed relative to the ground point with the character facing right.
@@ -90,6 +90,11 @@ pub struct SheetPose {
     /// Walking: how high it bobs each step, and how far it sways (turns) each way.
     pub bob: f32,
     pub sway: f32,
+    /// How much of every lean bends the paper instead of tipping it, 0..1: at 1 the puppet bows from its planted
+    /// feet with its top reaching the same height as the rigid lean would (lying down and being pinned stay rigid).
+    pub flex: f32,
+    /// Walking: how far it bows back and forth with each step, in radians at its top.
+    pub walk_curl: f32,
 }
 
 impl SheetPose {
@@ -114,6 +119,8 @@ impl SheetPose {
             "wobble_rate" => &mut self.wobble_rate,
             "bob" => &mut self.bob,
             "sway" => &mut self.sway,
+            "flex" => &mut self.flex,
+            "walk_curl" => &mut self.walk_curl,
             _ => return None,
         })
     }
@@ -144,6 +151,9 @@ pub struct Pose3 {
     pub sheet: Sheet,
     /// A spin in the puppet's own plane about its middle, in radians (the roll), on top of the flat pose's tilt.
     pub spin: f32,
+    /// How far the whole puppet bows as one sheet of paper: the angle its top reaches, in radians, with the
+    /// curve growing evenly from the feet (positive bows back, away from the camera). On top of `sheet.lean`.
+    pub curl: f32,
 }
 
 /// The walk cycle and a clock, which the animation record does not carry: they come from the drawing side.
@@ -197,6 +207,7 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
     let aim = aim_turn(a.face, a.dx, a.dy, n.aim);
     let mut sheet = Sheet::FLAT;
     let mut spin = 0.0;
+    let mut curl = 0.0;
     let off_step = (g.steps.floor() as i32) & 1 == 1;
     let walk = Pose {
         tilt: if off_step { -g.lean } else { g.lean },
@@ -208,6 +219,7 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
             let s = (g.steps * PI).sin();
             sheet.lift = n.bob * s.abs();
             sheet.turn = n.sway * s;
+            curl = n.walk_curl * (g.steps * PI * 0.5).sin();
             walk
         }
         A_STARTUP => {
@@ -293,7 +305,19 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
         flat.tilt += a.hit_dx * a.face * lean;
         sheet.bend += bend;
     }
-    Pose3 { flat, sheet, spin }
+    // Bend the paper: turn part of the lean into a bow from the feet. A bow whose top reaches angle C ends about
+    // as high as a rigid lean of C / 2, so the lean's share is doubled. Lying down and being pinned stay rigid.
+    if a.phase != A_DOWN && a.phase != A_GRABBED {
+        let f = n.flex.clamp(0.0, 1.0);
+        curl += 2.0 * f * sheet.lean;
+        sheet.lean *= 1.0 - f;
+    }
+    Pose3 {
+        flat,
+        sheet,
+        spin,
+        curl,
+    }
 }
 
 /// How a puppet is drawn this frame.
@@ -326,6 +350,9 @@ const MAX_RIG_PARTS: usize = 16;
 #[derive(Clone, Copy, Default)]
 struct Placed {
     depth: f32,
+    /// Extra lean and bend from the puppet's bow at this part.
+    lean: f32,
+    bend: f32,
     /// Towards the camera from the ground point, without the layer: what the shader fades by.
     z: f32,
     x: f32,
@@ -395,6 +422,8 @@ impl Game {
                     let (ox, oy) = (f * 12.0 * s + pose.dx * f, -42.0 * s + pose.dy);
                     held = Some(Placed {
                         depth: 0.0,
+                        lean: 0.0,
+                        bend: 0.0,
                         z: 0.0,
                         x: ox,
                         y: oy,
@@ -412,6 +441,8 @@ impl Game {
             let (rx, ry) = (ox * c - oy * sn, ox * sn + oy * c);
             placed[n] = Placed {
                 depth: k as f32,
+                lean: 0.0,
+                bend: 0.0,
                 z: 0.0,
                 x: rx + pose.dx * f,
                 y: ry - pivot + pose.dy,
@@ -433,12 +464,31 @@ impl Game {
                 n += 1;
             }
         }
-        // Turn the puppet about its ground point. A part's layer only counts towards its depth, so a puppet at
-        // rest is drawn exactly where and in the order it always was.
+        // Bow the puppet as one sheet: each part moves onto an arc rising from the feet, leans as far as the arc
+        // has turned at its height, and bends with the arc's curvature. Then turn the puppet about its ground point.
+        // A part's layer only counts towards its depth, so a puppet at rest is drawn exactly where and in the order
+        // it always was.
+        let height = (rig.height() * s).max(1.0);
+        let curl = if self.debug_spin { 0.0 } else { p3.curl };
+        let kappa = curl / height;
         for q in placed[..n].iter_mut() {
-            let (x, y, z) = orient([q.x, q.y, 0.0], sheet.turn, sheet.lean);
+            let h = (-q.y).max(0.0);
+            let (y0, z0) = if kappa.abs() > 1e-6 {
+                (
+                    -(kappa * h).sin() / kappa,
+                    -(1.0 - (kappa * h).cos()) / kappa,
+                )
+            } else {
+                (q.y, 0.0)
+            };
+            let (y0, z0) = if q.y > 0.0 { (q.y, 0.0) } else { (y0, z0) };
+            q.lean = kappa * h;
+            // The shader bends a sheet by the angle from its middle to its quad's edge (half height plus its pad);
+            // bowing back curves both edges away from the camera.
+            q.bend = -kappa * (q.hh.abs() + SHEET_PAD);
+            let (x, y, z) = orient([q.x, y0, z0], sheet.turn, sheet.lean);
             q.z = z;
-            q.depth = orient([q.x, q.y, q.depth * LAYER], sheet.turn, sheet.lean).2;
+            q.depth = orient([q.x, y0, z0 + q.depth * LAYER], sheet.turn, sheet.lean).2;
             q.x = x;
             q.y = y;
         }
@@ -462,7 +512,11 @@ impl Game {
                 look.flash,
                 q.seed,
                 q.color,
-                sheet,
+                Sheet {
+                    lean: sheet.lean + q.lean,
+                    bend: sheet.bend + q.bend,
+                    ..sheet
+                },
                 (q.z, reach),
             );
         }
@@ -495,6 +549,7 @@ mod tests {
         flat: Pose::REST,
         sheet: Sheet::FLAT,
         spin: 0.0,
+        curl: 0.0,
     };
 
     fn drawn_pose(p3: Pose3, sheet: Sheet) -> Vec<Inst> {
@@ -540,6 +595,12 @@ mod tests {
             hit_dmg: 0.0,
             hit_age: 1e6,
         }
+    }
+
+    /// How far a pose tips the puppet's top back: its rigid lean, plus its bow, which reaches about as high as a
+    /// rigid lean of half its angle.
+    fn tip(p: Pose3) -> f32 {
+        p.sheet.lean + 0.5 * p.curl
     }
 
     fn posed(a: &Anim) -> Pose3 {
@@ -655,11 +716,11 @@ mod tests {
         };
         assert!((posed(&down).sheet.turn + most).abs() < 1e-5);
         // It leans back as it charges.
-        let lean = |k| posed(&rec(A_STARTUP, k, 0.4)).sheet.lean;
+        let lean = |k| tip(posed(&rec(A_STARTUP, k, 0.4)));
         assert!(lean(0.0) < lean(0.4) && lean(0.4) < lean(0.79));
         assert!(lean(0.79) > 0.0);
         // And snaps forward on the strike.
-        assert!(posed(&rec(A_ACTIVE, 0.5, 0.1)).sheet.lean < 0.0);
+        assert!(tip(posed(&rec(A_ACTIVE, 0.5, 0.1))) < 0.0);
     }
 
     #[test]
@@ -672,9 +733,12 @@ mod tests {
         };
         let (before, after) = (at(0.49), at(0.51));
         let sag = RIGS[RG_PLAYER].sheet.sag;
-        assert!((before.sheet.lean - sag).abs() < 1e-3);
+        assert!((tip(before) - sag).abs() < 1e-3);
         assert!(before.sheet.bend > 0.0);
-        assert_eq!((after.sheet.lean, after.sheet.bend), (0.0, 0.0));
+        assert_eq!(
+            (after.sheet.lean, after.sheet.bend, after.curl),
+            (0.0, 0.0, 0.0)
+        );
         assert_eq!(after.flat, Pose::REST);
         // It pops: a small hop just after the cancel point.
         assert!(after.sheet.lift > 0.0);
@@ -694,8 +758,8 @@ mod tests {
         };
         let rest = posed(&rec(A_HURT, 0.2, 0.3));
         // Pushed up the screen (hit from the camera's side) it leans back; pushed down the screen, forward.
-        assert!(hit(0.0, -1.0, 20.0).sheet.lean > 0.0);
-        assert!(hit(0.0, 1.0, 20.0).sheet.lean < 0.0);
+        assert!(tip(hit(0.0, -1.0, 20.0)) > 0.0);
+        assert!(tip(hit(0.0, 1.0, 20.0)) < 0.0);
         // Pushed right, its top goes right, facing either way.
         assert!(hit(1.0, 0.0, 20.0).flat.tilt > rest.flat.tilt);
         let left = posed(&Anim {
@@ -709,7 +773,7 @@ mod tests {
         assert!(-left.flat.tilt > -rest.flat.tilt);
         // More damage leans and bends it more.
         let (small, big) = (hit(0.0, -1.0, 10.0), hit(0.0, -1.0, 30.0));
-        assert!(big.sheet.lean > small.sheet.lean);
+        assert!(tip(big) > tip(small));
         assert!(big.sheet.bend > small.sheet.bend);
         // And it settles back.
         let late = posed(&Anim {
@@ -718,7 +782,50 @@ mod tests {
             hit_age: 0.5,
             ..rec(A_HURT, 0.2, 0.3)
         });
-        assert_eq!(late.sheet.lean, 0.0);
+        assert_eq!(tip(late), 0.0);
+    }
+
+    #[test]
+    fn flex_bows_the_paper_instead_of_tipping_it() {
+        // Charging, part of the lean becomes a bow; lying down stays a rigid lean.
+        let charge = posed(&rec(A_STARTUP, 0.8, 0.4));
+        let f = RIGS[RG_PLAYER].sheet.flex;
+        assert!(charge.curl > 0.0 && f > 0.0);
+        assert!((tip(charge) - RIGS[RG_PLAYER].sheet.charge).abs() < 1e-3);
+        assert_eq!(posed(&rec(A_DOWN, 0.5, 0.9)).curl, 0.0);
+        // Drawn, the bow leans the head further back than the body and curves both away from the camera.
+        let bowed = drawn_pose(Pose3 { curl: 0.8, ..REST }, Sheet::FLAT);
+        let body = *bowed
+            .iter()
+            .find(|i| i.part % PART_SLOTS == P_PLAYER_BODY)
+            .unwrap();
+        assert!(head(&bowed).lean > body.lean && body.lean > 0.0);
+        assert!(head(&bowed).bend < 0.0 && body.bend < 0.0);
+        // The head goes back, so it is further from the camera and lower on the screen than standing.
+        assert!(head(&bowed).depth < 0.0);
+        // Bowing forward does the opposite.
+        let forward = drawn_pose(Pose3 { curl: -0.8, ..REST }, Sheet::FLAT);
+        assert!(
+            head(&forward).lean < 0.0 && head(&forward).bend > 0.0 && head(&forward).depth > 0.0
+        );
+    }
+
+    #[test]
+    fn walking_bows_back_and_forth() {
+        let at = |steps| {
+            let rig = &RIGS[RG_BLOT];
+            pose(
+                rig,
+                &rig.sheet,
+                &rec(A_WALK, 0.0, 0.0),
+                Gait {
+                    steps,
+                    ..Gait::default()
+                },
+            )
+            .curl
+        };
+        assert!(at(1.0) > 0.0 && at(3.0) < 0.0);
     }
 
     #[test]

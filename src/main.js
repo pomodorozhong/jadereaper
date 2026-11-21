@@ -86,10 +86,10 @@ const POSE_SLIDERS = {
 	tremble: [0, 0.3, 0.01],
 	strike: [-0.8, 0.4, 0.01],
 	sag: [-0.8, 0.4, 0.01],
-	sag_bend: [-0.8, 0.8, 0.01],
+	sag_bend: [-1.2, 1.2, 0.01],
 	pop: [0, 20, 0.5],
 	hit: [0, 0.05, 0.001],
-	hit_bend: [0, 0.05, 0.001],
+	hit_bend: [0, 0.08, 0.001],
 	hit_max: [0, 1.2, 0.05],
 	down: [0, 1.6, 0.01],
 	grab: [0, 1.6, 0.01],
@@ -99,6 +99,8 @@ const POSE_SLIDERS = {
 	wobble_rate: [0, 8, 0.1],
 	bob: [0, 12, 0.5],
 	sway: [0, 0.6, 0.01],
+	flex: [0, 1, 0.05],
+	walk_curl: [0, 0.6, 0.01],
 };
 /** The rigs with 3D poses: the player and the four small enemy kinds. */
 const POSE_RIGS = RIGS.filter((r) => r.sheet);
