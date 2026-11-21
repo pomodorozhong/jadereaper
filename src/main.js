@@ -58,6 +58,7 @@ const DEBUG_SLIDERS = [
 	["look", "shadowX", "Shadow x", -8, 8, 0.5],
 	["look", "shadowY", "Shadow y", -8, 8, 0.5],
 	["look", "shadowAlpha", "Shadow darkness", 0, 1, 0.05],
+	["look", "thickness", "Paper thickness", 0, 8, 0.25],
 	["look", "depthFade", "Depth fade", 0, 1, 0.05],
 	["look", "depthDist", "Depth distance", 0.1, 2, 0.05],
 	["look", "depthTone", "Depth tone (ground→shade)", 0, 1, 0.05],

@@ -20,7 +20,7 @@ struct Globals {
   px: f32,       // world units per device pixel
   margin: f32,   // white cutout margin, world units
   shadow_a: f32, // drop shadow darkness
-  pad: f32,
+  thick: f32,     // paper thickness, world units: the edge drawn behind each sheet (0 for none)
   fade: f32,       // how far paper shifts towards the depth tone at fade_dist away from the camera
   fade_dist: f32,  // puppet heights away from the camera, from its ground point, for the full shift
   fade_tone: f32,  // what far paper shifts towards: 0 the ground, 1 shade
@@ -52,6 +52,10 @@ const PITCH = 0.5;
 // Each sheet is cut into this many strips across its height, so it can bend.
 const STRIPS = 8u;
 const SHEET_VERTS = 48u;   // STRIPS * 6
+// Paper thickness is drawn as copies of the sheet's outline stacked behind it, this many, between the shadow and the
+// sheet. Where the sheet is turned, leaned or bent, they show as its edge.
+const EDGE_LAYERS = 2u;
+const EDGE = vec3f(0.74, 0.69, 0.6);   // the colour of the paper's cut edge
 // Towards the camera, and towards the light (upper left, in front). x right, y down, z towards the camera.
 const VIEW_DIR = vec3f(0.0, -0.4472136, 0.8944272);   // normalize(0, -PITCH, 1)
 const LIGHT_DIR = vec3f(-0.5773503, -0.5773503, 0.5773503);
@@ -294,8 +298,8 @@ fn sheetNormal(l: vec2f, top: f32, bend: f32, rot: f32, t: f32, lean: f32) -> ve
   return orient(vec3f(-n.y * sn, n.y * cs, n.z), t, lean);
 }
 
-// Each instance draws its ground shadow (the first SHEET_VERTS vertices), then the sheet, cut into STRIPS strips
-// across its height. a: x, y, half width (negative mirrors), half height. b: rot, part, flash, seed.
+// Each instance draws its ground shadow (the first SHEET_VERTS vertices), then EDGE_LAYERS copies of the sheet set
+// back by the paper's thickness, then the sheet, each cut into STRIPS strips across its height. a: x, y, half width (negative mirrors), half height. b: rot, part, flash, seed.
 // c: colour. d: turn, lean, lift, bend. e: the part's centre towards the camera from its puppet's ground point,
 // and the puppet's height, both in world units.
 @vertex
@@ -308,7 +312,9 @@ fn vs(@builtin(vertex_index) vi: u32,
   var corners = array<vec2f, 6>(
     vec2f(-1.0, 0.0), vec2f(1.0, 0.0), vec2f(-1.0, 1.0),
     vec2f(-1.0, 1.0), vec2f(1.0, 0.0), vec2f(1.0, 1.0));
-  let is_shadow = vi < SHEET_VERTS;
+  let layer = vi / SHEET_VERTS;
+  let is_shadow = layer == 0u;
+  let is_edge = layer >= 1u && layer <= EDGE_LAYERS;
   let k = vi % SHEET_VERTS;
   let corner = corners[k % 6u];
   let strip = f32(k / 6u);
@@ -320,10 +326,14 @@ fn vs(@builtin(vertex_index) vi: u32,
   let lean = d.y;
   let lift = d.z;
   let bend = d.w;
-  let w3 = sheetPoint(l, ext.y, bend, b.x, turn, lean);
-  var w = a.xy + project(w3);
+  var w3 = sheetPoint(l, ext.y, bend, b.x, turn, lean);
   let n = sheetNormal(l, ext.y, bend, b.x, turn, lean);
   let facing = dot(n, VIEW_DIR);
+  if (is_edge) {
+    // Set back from the camera along the sheet's normal, a share of the thickness per layer.
+    w3 -= n * sign(facing + 1e-6) * G.thick * f32(layer) / f32(EDGE_LAYERS);
+  }
+  var w = a.xy + project(w3);
   // Brightness from the light, measured against a sheet standing flat to the camera, which keeps today's look.
   let lit = dot(n * sign(facing + 1e-6), LIGHT_DIR) / LIGHT_DIR.z;
   let shade = 1.0 - SHADE * clamp(1.0 - lit, 0.0, 1.0);
@@ -351,11 +361,13 @@ fn vs(@builtin(vertex_index) vi: u32,
     if (isFlat(i32(b.y + 0.5) % PART_SLOTS)) { w = vec2f(1e6); }   // flat parts cast no shadow
   } else {
     w.y -= lift;
+    // Flat ink has no thickness, and a thickness of zero draws no edge.
+    if (is_edge && (G.thick <= 0.0 || isFlat(i32(b.y + 0.5) % PART_SLOTS))) { w = vec2f(1e6); }
   }
   let ndc = (w - G.cam) / (G.view * 0.5);
   o.pos = vec4f(ndc.x, -ndc.y, 0.0, 1.0);
   o.half = half;
-  o.misc = vec4f(select(0.0, 1.0, is_shadow), b.yzw);
+  o.misc = vec4f(select(select(0.0, 2.0, is_edge), 1.0, is_shadow), b.yzw);
   o.color = c;
   o.side = vec2f(facing, shade);
   // Depth in puppet heights; a part outside any puppet (reach 0) stays at zero and never fades.
@@ -396,6 +408,15 @@ fn fs(i: VOut) -> @location(0) vec4f {
   let h = i.half;
   let aa = G.px;
   let rect = P.uv[clamp(slot, 0, RECTS - 1)];
+
+  if (i.misc.x > 1.5) {
+    // The paper's edge: the sheet's outline, in the cut edge's colour, shaded and faded like the sheet.
+    let cover = paperCover(slot, part, i.p, h, seed) * i.color.a;
+    if (cover < 0.004) { discard; }
+    var e = EDGE * i.side.y;
+    e = mix(e, mix(GROUND, DEPTH_SHADE, G.fade_tone), G.fade * pow(clamp(-i.depth / G.fade_dist, 0.0, 1.0), G.fade_curve));
+    return vec4f(e, cover);
+  }
 
   if (i.misc.x > 0.5) {
     // The ground shadow, drawn before the sheet. The sheet covers it where it is opaque; where the sheet is
