@@ -103,7 +103,7 @@ The scripts need Node 26 (see `.node-version`) and the dev dependencies that `np
 
 Each frame the host calls `jr_input(mx, my, aim_x, aim_y, buttons)`, then `jr_update(dt)`, and reads three buffers out of wasm memory. The core simulates in fixed 60 Hz steps and keeps the rest of `dt` for the next frame, so a seed and its inputs replay the same run (`jr_state_hash` checks it).
 
-- Instances: 12 floats per paper part (`x, y, half width, half height, rotation, part id, flash, seed, r, g, b, a`). These bytes go to the GPU unchanged.
+- Instances: 16 floats per paper part (`x, y, half width, half height, rotation, part id, flash, seed, r, g, b, a, turn, lean, lift, bend`). These bytes go to the GPU unchanged. The last four hold the part as a sheet of paper in 3D, and are zero until the core poses puppets in 3D.
 - State: 64 floats for the HUD (health, room and wave, offered cards, the boss's health and stance, and so on). Indices are in `src/data.js` under `STATE`, and the layout is documented on `Game::write_state` in `core/src/game.rs`.
 - Events: 4 floats each (`type, x, y, value`), used for sound, damage numbers and reaction names.
 - Animation state: 16 floats per character, player first (`jr_anims_ptr`, `jr_anim_count`): what its body is doing (startup, active, recovery, roll, hurt and so on), how far through it, the cancel point, the action's direction, and the last hit's direction, damage and age. The layout is documented in `core/src/anim.rs` and mirrored in `src/data.js` under `ANIM`. Nothing draws from it yet; it is where the drawing side will pose characters in 3D ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). `jadereaper.anims()` reads it in the console.

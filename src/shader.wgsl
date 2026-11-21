@@ -3,21 +3,24 @@
 // Every instance is one paper part: a quad whose shape is either a signed
 // distance function drawn here, or an image from the atlas when the part has
 // an override in assets/parts.json. Cutout parts get an ink outline, a white
-// paper margin and a drop shadow. The outline "boils" on a stepped clock so
-// it looks hand cut and re-shot frame by frame.
+// paper margin and a drop shadow.
+//
+// Each part is a sheet of paper in 3D: it turns, leans, lifts and bends around
+// its centre (the instance's last four floats), and is projected with a fixed
+// parallel camera that leaves a flat sheet exactly where it always was. Its
+// back is plain paper with the front's ink showing through, one fixed light at
+// the upper left darkens it as it turns away, and its shadow stays on the
+// ground. Plain WGSL with no compute, so a WebGL2 port can follow it.
 
 struct Globals {
   view: vec2f,   // visible area in world units
   cam: vec2f,    // world position at the centre of the screen
   res: vec2f,    // canvas size in device pixels
-  time: f32,
-  qtime: f32,    // time stepped to the stop-motion frame rate
+  shadow: vec2f, // drop shadow offset, world units
   px: f32,       // world units per device pixel
   margin: f32,   // white cutout margin, world units
-  pad: vec2f,
-  shadow: vec2f, // drop shadow offset, world units
   shadow_a: f32, // drop shadow darkness
-  wobble: f32,   // outline wobble on cutout parts, world units
+  pad: f32,
 };
 
 // The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
@@ -37,7 +40,19 @@ struct PartRects {
 const INK = vec3f(0.17, 0.15, 0.13);
 const PAPER = vec3f(0.965, 0.94, 0.875);
 const PAD = 10.0;        // extra quad size for margin and shadow, world units
-// The cutout margin, shadow offset and darkness, and wobble come from G, so the ?debug panel can tune them.
+// The cutout margin and the shadow's offset and darkness come from G, so the ?debug panel can tune them.
+
+// The camera looks down at the ground: a point one world unit further from it shows this much higher on
+// screen, so a sheet lying on its back shows at this fraction of its height. PITCH in core/src/defs.rs matches.
+const PITCH = 0.5;
+// Each sheet is cut into this many strips across its height, so it can bend.
+const STRIPS = 4u;
+const SHEET_VERTS = 24u;   // STRIPS * 6
+// Towards the camera, and towards the light (upper left, in front). x right, y down, z towards the camera.
+const VIEW_DIR = vec3f(0.0, -0.4472136, 0.8944272);   // normalize(0, -PITCH, 1)
+const LIGHT_DIR = vec3f(-0.5773503, -0.5773503, 0.5773503);
+const SHADE = 0.2;         // how much darker a sheet gets turned fully away from the light
+const SHOW_THROUGH = 0.22; // how strongly the front's ink shows on the back
 
 fn hash21(p: vec2f) -> f32 {
   var q = fract(p * vec2f(123.34, 456.21));
@@ -124,7 +139,7 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
     }
     case P_BLOT { // ink blot spirit
       let ang = atan2(q.y, q.x);
-      let r = 0.82 + 0.07 * sin(ang * 5.0 + seed * 40.0) + 0.05 * sin(ang * 3.0 - G.qtime * 2.0);
+      let r = 0.82 + 0.07 * sin(ang * 5.0 + seed * 40.0) + 0.05 * sin(ang * 3.0);
       s.d = (length(q) - r) * m;
       s.light = dab(min(length(q - vec2f(-0.2, -0.12)), length(q - vec2f(0.38, -0.12))) - 0.2);
       s.ink = dab(min(length(q - vec2f(-0.13, -0.1)), length(q - vec2f(0.45, -0.1))) - 0.09);
@@ -228,36 +243,110 @@ fn warnAlpha(part: i32, p: vec2f, h: vec2f, seed: f32, prog: f32) -> f32 {
 
 struct VOut {
   @builtin(position) pos: vec4f,
-  @location(0) p: vec2f,
+  @location(0) p: vec2f,                         // part space (x right, y down), mirrored by facing
   @location(1) @interpolate(flat) half: vec2f,
-  @location(2) @interpolate(flat) misc: vec4f,   // rot, part, flash, seed
+  @location(2) @interpolate(flat) misc: vec4f,   // shadow (1) or sheet (0), part, flash, seed
   @location(3) @interpolate(flat) color: vec4f,
-  @location(4) @interpolate(flat) soff: vec2f,   // shadow offset in part space
+  @location(4) side: vec2f,                      // facing (> 0 the front shows), brightness from the light
+  @location(5) under: vec2f,                     // for a shadow: the sheet's own part-space point over this pixel
 };
 
+// Turn by `t` about the vertical axis, then lean by `l` about the horizontal one. core/src/defs.rs `orient`
+// does the same for placing parts.
+fn orient(v: vec3f, t: f32, l: f32) -> vec3f {
+  let ct = cos(t);
+  let st = sin(t);
+  let a = vec3f(v.x * ct + v.z * st, v.y, -v.x * st + v.z * ct);
+  let cl = cos(l);
+  let sl = sin(l);
+  return vec3f(a.x, a.y * cl - a.z * sl, a.y * sl + a.z * cl);
+}
+
+fn project(v: vec3f) -> vec2f { return vec2f(v.x, v.y + v.z * PITCH); }
+
+// A point of the sheet, from its flat local position: bent along its height by `bend` (radians from the middle
+// to the top and bottom edges of the quad), then turned in its plane by `rot`, then oriented in 3D.
+fn sheetPoint(l: vec2f, top: f32, bend: f32, rot: f32, t: f32, lean: f32) -> vec3f {
+  var b = vec3f(l, 0.0);
+  if (abs(bend) > 1e-4) {
+    let th = bend * l.y / top;
+    b = vec3f(l.x, sin(th) / bend * top, (1.0 - cos(th)) / bend * top);
+  }
+  let cs = cos(rot);
+  let sn = sin(rot);
+  return orient(vec3f(b.x * cs - b.y * sn, b.x * sn + b.y * cs, b.z), t, lean);
+}
+
+fn sheetNormal(l: vec2f, top: f32, bend: f32, rot: f32, t: f32, lean: f32) -> vec3f {
+  let th = bend * l.y / top;
+  let n = vec3f(0.0, -sin(th), cos(th));
+  let cs = cos(rot);
+  let sn = sin(rot);
+  return orient(vec3f(-n.y * sn, n.y * cs, n.z), t, lean);
+}
+
+// Each instance draws its ground shadow (the first SHEET_VERTS vertices), then the sheet, cut into STRIPS strips
+// across its height. a: x, y, half width (negative mirrors), half height. b: rot, part, flash, seed.
+// c: colour. d: turn, lean, lift, bend.
 @vertex
 fn vs(@builtin(vertex_index) vi: u32,
       @location(0) a: vec4f,
       @location(1) b: vec4f,
-      @location(2) c: vec4f) -> VOut {
+      @location(2) c: vec4f,
+      @location(3) d: vec4f) -> VOut {
   var corners = array<vec2f, 6>(
-    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
-    vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0));
+    vec2f(-1.0, 0.0), vec2f(1.0, 0.0), vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0), vec2f(1.0, 0.0), vec2f(1.0, 1.0));
+  let is_shadow = vi < SHEET_VERTS;
+  let k = vi % SHEET_VERTS;
+  let corner = corners[k % 6u];
+  let strip = f32(k / 6u);
   let half = abs(a.zw);
   let flip = select(1.0, -1.0, a.z < 0.0);
-  let l = corners[vi] * (half + vec2f(PAD));
-  let cs = cos(b.x);
-  let sn = sin(b.x);
-  let w = a.xy + vec2f(l.x * cs - l.y * sn, l.x * sn + l.y * cs);
-  let ndc = (w - G.cam) / (G.view * 0.5);
+  let ext = half + vec2f(PAD);
+  let l = vec2f(corner.x, -1.0 + 2.0 * (strip + corner.y) / f32(STRIPS)) * ext;
+  let turn = d.x;
+  let lean = d.y;
+  let lift = d.z;
+  let bend = d.w;
+  let w3 = sheetPoint(l, ext.y, bend, b.x, turn, lean);
+  var w = a.xy + project(w3);
+  let n = sheetNormal(l, ext.y, bend, b.x, turn, lean);
+  let facing = dot(n, VIEW_DIR);
+  // Brightness from the light, measured against a sheet standing flat to the camera, which keeps today's look.
+  let lit = dot(n * sign(facing + 1e-6), LIGHT_DIR) / LIGHT_DIR.z;
+  let shade = 1.0 - SHADE * clamp(1.0 - lit, 0.0, 1.0);
+
   var o: VOut;
-  o.pos = vec4f(ndc.x, -ndc.y, 0.0, 1.0);
   o.p = vec2f(l.x * flip, l.y);
+  o.under = vec2f(1e4);
+  if (is_shadow) {
+    // The shadow is the sheet's outline moved to the ground and over by the shadow offset. It also carries the
+    // part-space point of the sheet above each pixel, so a see-through sheet does not show its own shadow.
+    let delta = G.shadow + vec2f(0.0, lift);
+    w += G.shadow;
+    // The strip is flat, so local to screen is linear across it: invert it to find the point under the sheet.
+    let top = ext.y;
+    let y0 = -1.0 + 2.0 * strip / f32(STRIPS);
+    let y1 = y0 + 2.0 / f32(STRIPS);
+    let e0 = project(sheetPoint(vec2f(0.0, y0 * top), top, bend, b.x, turn, lean));
+    let ex = project(sheetPoint(vec2f(1.0, y0 * top), top, bend, b.x, turn, lean)) - e0;
+    let ey = (project(sheetPoint(vec2f(0.0, y1 * top), top, bend, b.x, turn, lean)) - e0) / ((y1 - y0) * top);
+    let det = ex.x * ey.y - ex.y * ey.x;
+    if (abs(det) > 1e-4) {
+      let dl = vec2f(delta.x * ey.y - delta.y * ey.x, ex.x * delta.y - ex.y * delta.x) / det;
+      o.under = vec2f((l.x + dl.x) * flip, l.y + dl.y);
+    }
+    if (isFlat(i32(b.y + 0.5) % PART_SLOTS)) { w = vec2f(1e6); }   // flat parts cast no shadow
+  } else {
+    w.y -= lift;
+  }
+  let ndc = (w - G.cam) / (G.view * 0.5);
+  o.pos = vec4f(ndc.x, -ndc.y, 0.0, 1.0);
   o.half = half;
-  o.misc = b;
+  o.misc = vec4f(select(0.0, 1.0, is_shadow), b.yzw);
   o.color = c;
-  let so = vec2f(G.shadow.x * cs + G.shadow.y * sn, -G.shadow.x * sn + G.shadow.y * cs);
-  o.soff = vec2f(so.x * flip, so.y);
+  o.side = vec2f(facing, shade);
   return o;
 }
 
@@ -267,6 +356,24 @@ fn img(rect: vec4f, q: vec2f) -> vec4f {
   return t * inside;
 }
 
+// How much of a cutout part's paper, its shape and white margin, covers part-space point p.
+fn paperCover(slot: i32, part: i32, p: vec2f, h: vec2f, seed: f32) -> f32 {
+  let rect = P.uv[clamp(slot, 0, RECTS - 1)];
+  if (rect.z > 0.0) {
+    let q = p / h * 0.5 + 0.5;
+    let r = G.margin / (2.0 * h);
+    var mx = img(rect, q).a;
+    for (var k = 0; k < 8; k++) {
+      let ang = f32(k) * 0.7853982;
+      mx = max(mx, img(rect, q + vec2f(cos(ang), sin(ang)) * r).a);
+    }
+    return mx;
+  }
+  return smoothstep(G.px, -G.px, shape(part, p, h, seed).d - G.margin);
+}
+
+fn luma(c: vec3f) -> f32 { return dot(c, vec3f(0.299, 0.587, 0.114)); }
+
 @fragment
 fn fs(i: VOut) -> @location(0) vec4f {
   let slot = i32(i.misc.y + 0.5);
@@ -275,43 +382,56 @@ fn fs(i: VOut) -> @location(0) vec4f {
   let flash = i.misc.z;
   let h = i.half;
   let aa = G.px;
+  let rect = P.uv[clamp(slot, 0, RECTS - 1)];
+
+  if (i.misc.x > 0.5) {
+    // The ground shadow, drawn before the sheet. The sheet covers it where it is opaque; where the sheet is
+    // see-through (a flickering player), take out the part the sheet's paper would have covered.
+    var sh = 0.0;
+    if (rect.z > 0.0) {
+      sh = img(rect, i.p / h * 0.5 + 0.5).a;
+    } else {
+      sh = smoothstep(3.0, -3.0, shape(part, i.p, h, seed).d - G.margin);
+    }
+    sh *= G.shadow_a;
+    if (i.color.a < 0.999 && sh > 0.004) {
+      sh *= 1.0 - paperCover(slot, part, i.under, h, seed);
+    }
+    let a = sh * i.color.a;
+    if (a < 0.004) { discard; }
+    return vec4f(INK, a);
+  }
+
   if (part >= P_WARN_CIRCLE && part <= P_WARN_RING) {
-    let wobble = vec2f(vnoise(i.p * 0.06 + seed * 4.0), vnoise(i.p * 0.06 + 17.0)) - 0.5;
-    let a = warnAlpha(part, i.p + wobble * 3.0, h, seed, flash) * i.color.a;
+    let rough = vec2f(vnoise(i.p * 0.06 + seed * 4.0), vnoise(i.p * 0.06 + 17.0)) - 0.5;
+    let a = warnAlpha(part, i.p + rough * 3.0, h, seed, flash) * i.color.a;
     if (a < 0.004) { discard; }
     let grain = vnoise(i.p * 0.4 + 3.0);
     return vec4f(i.color.rgb, a * (0.8 + 0.2 * grain));
   }
   let flat_part = isFlat(part);
 
-  // Line boil: nudge the shape a little, changing only on stepped frames.
-  let bo = vec2f(seed * 17.0 + G.qtime * 3.1, seed * 5.0 - G.qtime * 1.7);
-  let boil = vec2f(vnoise(i.p * 0.09 + bo), vnoise(i.p * 0.09 + bo + 31.7)) - 0.5;
-  let amp = select(G.wobble, 1.0, flat_part);
-  let p = i.p + boil * amp;
+  // Flat ink and washes get a fixed rough edge from their seed.
+  var p = i.p;
+  if (flat_part) {
+    let bo = vec2f(seed * 17.0, seed * 5.0);
+    p += vec2f(vnoise(i.p * 0.09 + bo), vnoise(i.p * 0.09 + bo + 31.7)) - 0.5;
+  }
   let grain = vnoise(i.p * 1.3 + seed * 9.0) * 0.6 + vnoise(i.p * 0.35 + seed * 3.0) * 0.4;
 
   var fill = 0.0;     // coverage of the coloured shape
   var margin = 0.0;   // coverage including the white margin
-  var shadow = 0.0;
+  var ink = 0.0;      // how much of the front is ink, for the back to show through
   var col = i.color.rgb;
 
-  let rect = P.uv[clamp(slot, 0, RECTS - 1)];
   if (rect.z > 0.0) {
     // Image override from the atlas.
-    let q = p / h * 0.5 + 0.5;
-    let t = img(rect, q);
+    let t = img(rect, p / h * 0.5 + 0.5);
     fill = t.a;
     col = t.rgb;
     if (!flat_part) {
-      let r = G.margin / (2.0 * h);
-      var mx = t.a;
-      for (var k = 0; k < 8; k++) {
-        let ang = f32(k) * 0.7853982;
-        mx = max(mx, img(rect, q + vec2f(cos(ang), sin(ang)) * r).a);
-      }
-      margin = mx;
-      shadow = img(rect, q - i.soff / (2.0 * h)).a * G.shadow_a;
+      margin = paperCover(slot, part, p, h, seed);
+      ink = smoothstep(0.3, 0.12, luma(t.rgb)) * t.a;
     }
   } else {
     let s = shape(part, p, h, seed);
@@ -322,32 +442,35 @@ fn fs(i: VOut) -> @location(0) vec4f {
     }
     if (!flat_part) {
       margin = smoothstep(aa, -aa, s.d - G.margin);
-      let sd = shape(part, p - i.soff, h, seed).d;
-      shadow = smoothstep(3.0, -3.0, sd - G.margin) * G.shadow_a;
+      let outline = smoothstep(-3.2, -1.2, s.d) * 0.7;
       col = col * (0.9 + 0.2 * grain);
-      col = mix(col, INK, smoothstep(-3.2, -1.2, s.d) * 0.7);   // ink outline
+      col = mix(col, INK, outline);   // ink outline
       col = mix(col, PAPER, s.light);
       col = mix(col, INK, s.ink);
+      ink = max(outline, s.ink) * fill;
     } else {
       col = col * (0.92 + 0.16 * grain);
     }
   }
 
-  col = mix(col, vec3f(1.0), flash * 0.85);
-
   if (flat_part) {
+    col = mix(col, vec3f(1.0), flash * 0.85);
     let a = fill * i.color.a * (0.8 + 0.2 * grain);
     if (a < 0.004) { discard; }
     return vec4f(col, a);
   }
 
   let paper = PAPER * (0.95 + 0.07 * grain);
-  let rgb = mix(paper, col, fill);
-  let under = shadow * (1.0 - margin);
-  let a = margin + under;
-  if (a < 0.004) { discard; }
-  let outc = (rgb * margin + INK * under) / a;
-  return vec4f(outc, a * i.color.a);
+  var rgb = mix(paper, mix(col, vec3f(1.0), flash * 0.85), fill);
+  if (i.side.x < 0.0) {
+    // The back: plain paper, with the front's ink showing through. The sheet is seen from behind, so it shows
+    // mirrored without flipping anything here.
+    rgb = mix(paper, INK, SHOW_THROUGH * ink);
+    rgb = mix(rgb, vec3f(1.0), flash * 0.85 * fill);
+  }
+  rgb *= i.side.y;
+  if (margin < 0.004) { discard; }
+  return vec4f(rgb, margin * i.color.a);
 }
 
 // ---------------------------------------------------------------- background

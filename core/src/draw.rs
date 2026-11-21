@@ -29,11 +29,29 @@ impl Game {
         seed: f32,
         color: [f32; 4],
     ) {
+        self.put_sheet(x, y, hw, hh, rot, part, flash, seed, color, Sheet::FLAT);
+    }
+
+    /// `put` for a part held in 3D (see `Sheet`).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn put_sheet(
+        &mut self,
+        x: f32,
+        y: f32,
+        hw: f32,
+        hh: f32,
+        rot: f32,
+        part: f32,
+        flash: f32,
+        seed: f32,
+        color: [f32; 4],
+        sheet: Sheet,
+    ) {
         if self.inst.len() >= MAX_INST {
             return;
         }
         // Cull what the camera cannot see.
-        let m = hw.abs().max(hh) + 24.0;
+        let m = hw.abs().max(hh) + 24.0 + sheet.lift.abs();
         if (x - self.cam.0).abs() > self.view_w + m || (y - self.cam.1).abs() > self.view_h + m {
             return;
         }
@@ -48,7 +66,16 @@ impl Game {
             flash,
             seed,
             color,
+            turn: sheet.turn,
+            lean: sheet.lean,
+            lift: sheet.lift,
+            bend: sheet.bend,
         });
+    }
+
+    /// Spin every puppet in 3D (the ?debug toggle), to show the sheets turn, lean, lift and bend.
+    pub fn set_debug_spin(&mut self, on: bool) {
+        self.debug_spin = on;
     }
 
     /// Set the line boil: poses per second, and poses per part (1 to `MAX_POSES`).
@@ -659,6 +686,7 @@ impl Game {
                 seed: e.seed,
                 swing: None,
                 tint,
+                sheet: Sheet::FLAT,
             },
         );
         if boss.is_some_and(|b| b.enraged()) {
@@ -828,6 +856,7 @@ impl Game {
                 seed: 0.37,
                 swing,
                 tint: None,
+                sheet: Sheet::FLAT,
             },
         );
     }
