@@ -1,0 +1,51 @@
+name: Checks
+
+# Checks the Rust core and the JavaScript on every PR and push to main. Rust is
+# the current stable release, not a pinned version (decision 0007), so a new
+# release can bring clippy warnings that fail this with no code change; fix
+# them when that happens.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Generated content is up to date
+        run: node tools/content.mjs --check
+      - name: cargo fmt
+        run: cargo fmt --check --manifest-path core/Cargo.toml
+      - name: cargo clippy
+        run: cargo clippy --release --all-targets --manifest-path core/Cargo.toml -- -D warnings
+      - name: cargo test
+        run: cargo test --release --manifest-path core/Cargo.toml
+      - name: Build the wasm
+        run: ./build.sh
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Biome
+        run: npm run lint
+      - name: Tool tests
+        run: npm test
