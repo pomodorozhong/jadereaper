@@ -67,7 +67,8 @@ export function addGallery(core, canvas) {
 	const row = (key, label, min, max, step) =>
 		`<div style="display:grid;grid-template-columns:6.5em 9em 3em;gap:6px;align-items:center"><label for="gal_${key}">${label}</label><input id="gal_${key}" data-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${view[key]}"><output>${view[key]}</output></div>`;
 	box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><b>Pose gallery</b>
-	  <label title="Loop every pose from start to end"><input type="checkbox" id="galPlay" checked> Play</label></div>
+	  <label title="Loop every pose from start to end"><input type="checkbox" id="galPlay" checked> Loop</label>
+	  <button type="button" id="galGame" title="Leave the gallery for the game, keeping the tuned values" style="all:unset;cursor:pointer;padding:0 6px;border:1px solid #b9ae95;border-radius:4px">Play the game</button></div>
 	  ${row("progress", "Progress", 0, 1, 0.01)}
 	  ${row("damage", "Hit damage", 0, 80, 1)}
 	  ${row("angle", "Direction°", -180, 180, 5)}
@@ -92,9 +93,21 @@ export function addGallery(core, canvas) {
 	box.querySelector("#galPlay").onchange = (e) => {
 		view.play = e.target.checked;
 	};
+	// Leave the gallery for the game in this page: the tuned values stay, and the title screen shows again.
+	let on = true;
+	box.querySelector("#galGame").onclick = () => {
+		on = false;
+		core.jr_set_gallery(0, 0, 0, 0);
+		style.remove();
+		box.remove();
+		for (const l of labels) l.el.remove();
+		removeEventListener("resize", place);
+		history.replaceState(null, "", "?debug");
+	};
 
 	/** Call every frame before the core's update. */
 	return function tick(dt) {
+		if (!on) return;
 		if (view.play) {
 			view.progress = (view.progress + dt / PLAY_TIME) % 1;
 			progress.value = view.progress;

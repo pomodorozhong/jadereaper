@@ -104,7 +104,30 @@ const POSE_SLIDERS = {
 };
 /** The rigs with 3D poses: the player and the four small enemy kinds. */
 const POSE_RIGS = RIGS.filter((r) => r.sheet);
-function addPoseSliders(panel, core) {
+
+/** Where the ?debug and ?gallery panels keep tuned values in this browser, so they carry across reloads and
+ * between the gallery and the game. "Reset all" clears it; "Copy values" is how values become the defaults. */
+const DEBUG_STORE = "jadereaper.debug";
+function loadDebugValues() {
+	try {
+		const v = JSON.parse(localStorage.getItem(DEBUG_STORE) ?? "null");
+		return v && typeof v === "object" ? v : {};
+	} catch {
+		return {};
+	}
+}
+function saveDebugValues(values) {
+	try {
+		localStorage.setItem(DEBUG_STORE, JSON.stringify(values));
+	} catch {}
+}
+function clearDebugValues() {
+	try {
+		localStorage.removeItem(DEBUG_STORE);
+	} catch {}
+}
+
+function addPoseSliders(panel, core, saved, changed) {
 	const pose = Object.fromEntries(
 		POSE_RIGS.map((r) => [r.name, { ...r.sheet }]),
 	);
@@ -139,12 +162,20 @@ function addPoseSliders(panel, core) {
 		el.oninput = () => {
 			set(rig(), el.dataset.pose, +el.value);
 			show();
+			changed();
 		};
 		el.parentElement.querySelector("[data-pose-reset]").onclick = () => {
 			set(rig(), el.dataset.pose, rig().sheet[el.dataset.pose]);
 			show();
+			changed();
 		};
 	}
+	// Values saved in this browser from an earlier visit.
+	for (const r of POSE_RIGS)
+		for (const key of SHEET_KEYS) {
+			const v = saved?.[r.name]?.[key];
+			if (Number.isFinite(v) && v !== pose[r.name][key]) set(r, key, v);
+		}
 	pick.onchange = show;
 	show();
 	return {
@@ -182,14 +213,26 @@ function addDebugPanel(renderer, core) {
     <output style="font-variant-numeric:tabular-nums">${sets[set][key]}</output><button type="button" data-reset="${key}" title="Reset to ${defaults[set][key]}" style="${btn}">↺</button></div>`;
 	panel.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><b>Debug</b><span>
     <label title="Spin every puppet in 3D: turn, lean, lift and bend, to check the paper sheets"><input type="checkbox" id="dbgSpin"> Spin puppets</label>
+    <button type="button" id="dbgGallery" title="Open the pose gallery; tuned values carry over" style="${btn}">Gallery</button>
     <button type="button" id="dbgCopy" title="Copy the current values as JSON" style="${btn}">Copy values</button>
-    <button type="button" id="dbgResetAll" style="${btn}">Reset all</button>
+    <button type="button" id="dbgResetAll" title="Back to the defaults, and forget the values saved in this browser" style="${btn}">Reset all</button>
     <button type="button" id="dbgFold" style="${btn}">Hide</button></span></div>
     <div id="dbgBody" style="display:flex;flex-direction:column;gap:3px">${DEBUG_SLIDERS.map((r) => (r.length === 1 ? `<div style="margin-top:4px;color:#7a6f5c">${r[0]}</div>` : row(...r))).join("")}</div>`;
 	// Keep game keys (WASD, Esc) from firing while a slider has focus.
 	panel.addEventListener("keydown", (e) => e.stopPropagation());
 	document.body.append(panel);
-	const poses = addPoseSliders(panel, core);
+	const saved = loadDebugValues();
+	// Tuned values are saved in this browser after every change, and loaded again on the next visit.
+	let poses = null;
+	const store = () =>
+		saveDebugValues({
+			bake: BAKE,
+			look: LOOK,
+			size: SIZE,
+			waddle: WADDLE,
+			pose: poses?.values,
+		});
+	poses = addPoseSliders(panel, core, saved.pose, store);
 
 	// Re-bakes run one at a time; while one runs, only the latest wanted settings are kept.
 	let baking = false,
@@ -227,13 +270,26 @@ function addDebugPanel(renderer, core) {
 	};
 	const sliders = [...panel.querySelectorAll("input[data-set]")];
 	for (const el of sliders) {
-		el.oninput = () => set(el, +el.value);
-		el.parentElement.querySelector("[data-reset]").onclick = () =>
+		el.oninput = () => {
+			set(el, +el.value);
+			store();
+		};
+		el.parentElement.querySelector("[data-reset]").onclick = () => {
 			set(el, defaults[el.dataset.set][el.dataset.key]);
+			store();
+		};
+		// A value saved in this browser from an earlier visit.
+		const v = saved[el.dataset.set]?.[el.dataset.key];
+		if (Number.isFinite(v) && v !== sets[el.dataset.set][el.dataset.key])
+			set(el, v);
 	}
 	panel.querySelector("#dbgResetAll").onclick = () => {
 		for (const el of sliders) set(el, defaults[el.dataset.set][el.dataset.key]);
 		poses.resetAll();
+		clearDebugValues();
+	};
+	panel.querySelector("#dbgGallery").onclick = () => {
+		location.search = "?gallery";
 	};
 	panel.querySelector("#dbgSpin").onchange = (e) =>
 		core.jr_set_debug_spin(e.target.checked ? 1 : 0);
