@@ -6,8 +6,9 @@ import { BAKE, bakeCharacters } from "./characters.js";
 // 18 floats per paper part (Inst in core/src/defs.rs): x, y, half width, half height | rot, part, flash, seed |
 // r, g, b, a | turn, lean, lift, bend | depth, reach.
 const INSTANCE_BYTES = 72;
-// Vertices per instance: the ground shadow, then the sheet, each cut into 8 strips of 2 triangles (src/shader.wgsl).
-const INSTANCE_VERTS = 96;
+// Vertices per instance: the ground shadow, 2 layers of paper edge, then the sheet, each cut into 8 strips of 2
+// triangles (STRIPS and EDGE_LAYERS in src/shader.wgsl).
+const INSTANCE_VERTS = 192;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 460; // world units across the shorter screen side, before the core's zoom
 // The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.
@@ -22,6 +23,7 @@ export const LOOK = {
 	shadowX: 3.5,
 	shadowY: 6,
 	shadowAlpha: 0.5,
+	thickness: 1.5, // paper thickness in world units: the edge that shows when a sheet turns, leans or bends
 	depthFade: 0.85, // how far paper shifts towards the depth tone at depthDist away from the camera (0 off)
 	depthDist: 0.7, // puppet heights away from the camera, from its ground point, for the full shift
 	depthTone: 0.7, // what far paper shifts towards: 0 fades into the ground, 1 sinks into shade
@@ -280,7 +282,7 @@ export async function createRenderer(canvas) {
 	 * @param {number} count number of instances
 	 */
 	function draw(memory, ptr, count, camX, camY) {
-		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding, depth fade,
+		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, thickness, depth fade,
 		// distance, tone and curve.
 		globals.set([
 			view.w,
@@ -294,7 +296,7 @@ export async function createRenderer(canvas) {
 			view.px,
 			LOOK.margin,
 			LOOK.shadowAlpha,
-			0,
+			Math.max(0, LOOK.thickness),
 			LOOK.depthFade,
 			Math.max(0.05, LOOK.depthDist),
 			LOOK.depthTone,
