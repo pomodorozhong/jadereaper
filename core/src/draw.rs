@@ -1,15 +1,18 @@
 //! Building the instance list the renderer draws: ground, characters, projectiles and effects.
 
+use crate::anim::Anim;
 use crate::defs::*;
 use crate::elements::{element_color, STAR_RADIUS, TRAIL_TIME, WELL_RANGE, WELL_TIME};
 use crate::game::{Act, Game, Phase};
 use crate::geom::{Area, Shape};
 use crate::moves::{After, Special, Stance, MOVES};
 use crate::player::HURT_IFRAME;
-use crate::rigs::{Doing, Look};
+use crate::rigs::{pose, Gait, Look};
 use crate::skills::{AreaKind, SkillKind, SKILLS};
 use core::f32::consts::TAU;
 
+/// How long a puppet takes to turn round through edge-on, in seconds.
+const FLIP_TIME: f32 = 0.12;
 const WARN: [f32; 4] = [0.17, 0.15, 0.13, 0.55];
 const WARN_BOSS: [f32; 4] = [0.62, 0.16, 0.12, 0.6];
 
@@ -98,6 +101,50 @@ impl Game {
         }
     }
 
+    /// Set one of a rig's 3D pose numbers (the ?debug sliders): `field` indexes `SHEET_KEYS`. Drawing only.
+    pub fn set_pose(&mut self, rig: usize, field: usize, value: f32) {
+        if let (Some(r), Some(name)) = (self.sheet_pose.get_mut(rig), SHEET_KEYS.get(field)) {
+            if let Some(v) = r.field_mut(name) {
+                *v = if value.is_finite() { value } else { 0.0 };
+            }
+        }
+    }
+
+    /// Move each character's drawn facing towards its real one. Turning round is a quick turn through edge-on
+    /// (`FLIP_TIME`), drawn from the old facing to edge-on and then from edge-on to the new one. It is drawing only
+    /// and never delays an action; the facing the simulation uses changes at once.
+    pub(crate) fn turn_round(&mut self) {
+        let dt = (self.anim - self.flip_clock).clamp(0.0, 0.25);
+        self.flip_clock = self.anim;
+        let rate = 2.0 * dt / FLIP_TIME;
+        let old = core::mem::take(&mut self.flips);
+        let mut keep = Vec::with_capacity(self.anims.len());
+        for a in &self.anims {
+            let key = (a.who, a.id);
+            let w = match old.iter().find(|f| f.0 == key) {
+                Some(f) => {
+                    let d = a.face - f.1;
+                    f.1 + d.clamp(-rate, rate)
+                }
+                None => a.face,
+            };
+            keep.push((key, w));
+        }
+        self.flips = keep;
+    }
+
+    /// How a character's drawn facing stands mid-turn: the facing to draw and the extra turn about the vertical
+    /// axis (edge-on at a quarter turn).
+    pub(crate) fn facing(&self, a: &Anim) -> (f32, f32) {
+        let w = self
+            .flips
+            .iter()
+            .find(|f| f.0 == (a.who, a.id))
+            .map_or(a.face, |f| f.1);
+        let face = if w < 0.0 { -1.0 } else { 1.0 };
+        (face, face * (1.0 - w.abs()) * core::f32::consts::FRAC_PI_2)
+    }
+
     /// The line boil pose of one instance. Each instance starts at its own pose and steps at its own moment,
     /// both taken from its seed, so a crowd does not boil in lockstep.
     fn boil_pose(&self, seed: f32) -> u32 {
@@ -112,6 +159,7 @@ impl Game {
 
     pub(crate) fn build(&mut self) {
         self.inst.clear();
+        self.turn_round();
         self.draw_ground();
         self.draw_walls();
 
@@ -622,31 +670,27 @@ impl Game {
                 KINDS[e.kind as usize].rate,
             )
         };
-        let step = ((self.anim * rate + e.seed * 7.0).floor() as i32) & 1 == 0;
         let mv = &MOVES[e.mv as usize];
         let mut x = e.x;
         let boss = self.boss_of(i);
-        let doing = if e.stun > 0.0 || e.status.frozen > 0.0 || boss.is_some_and(|b| b.down > 0.0) {
-            Doing::Hurt
-        } else {
-            match e.phase {
-                Phase::Windup => {
-                    // Tremble while winding up.
-                    x += ((self.anim * 40.0).floor() * 1.7).sin() * 1.5;
-                    Doing::Windup {
-                        k: e.pt / self.windup_of(&e),
-                    }
-                }
-                Phase::Active => Doing::Attack {
-                    k: e.pt / mv.active.max(1e-3),
-                },
-                _ => Doing::Walk {
-                    step,
-                    lean,
-                    hop: -3.0,
-                },
-            }
-        };
+        if e.phase == Phase::Windup && e.stun <= 0.0 && e.status.frozen <= 0.0 {
+            // Tremble while winding up.
+            x += ((self.anim * 40.0).floor() * 1.7).sin() * 1.5;
+        }
+        let mut a = self.anims[1 + i];
+        let (face, flip) = self.facing(&a);
+        a.face = face;
+        let p3 = pose(
+            rig,
+            &self.sheet_pose[k.rig],
+            &a,
+            Gait {
+                clock: self.anim + e.seed * 7.0,
+                steps: self.anim * rate + e.seed * 7.0,
+                lean,
+                hop: -3.0,
+            },
+        );
         let mut y = e.y;
         if e.kind == K_DRAGON && e.phase == Phase::Windup && mv.special == Special::Dive {
             // Up into the air before the dive.
@@ -675,18 +719,21 @@ impl Game {
         };
         self.draw_rig(
             rig,
-            doing,
+            p3,
             Look {
                 x,
                 y,
-                face: e.face,
+                face,
                 scale: s,
                 flash: e.flash,
                 alpha: 1.0,
                 seed: e.seed,
                 swing: None,
                 tint,
-                sheet: Sheet::FLAT,
+                sheet: Sheet {
+                    turn: flip,
+                    ..Sheet::FLAT
+                },
             },
         );
         if boss.is_some_and(|b| b.enraged()) {
@@ -788,7 +835,7 @@ impl Game {
 
     fn draw_player(&mut self) {
         let p = &self.player;
-        let (px, py, f) = (p.x, p.y, p.face);
+        let (px, py) = (p.x, p.y);
         // Blink while invulnerable after a hit.
         let alpha = if p.iframe > 0.0 && ((p.iframe * 20.0) as i32) & 1 == 1 {
             0.4
@@ -800,36 +847,38 @@ impl Game {
         } else {
             0.0
         };
-        let mut swing = None;
-        let doing = match p.act {
-            Act::Roll { t, .. } => Doing::Roll { k: t / ROLL_TIME },
-            Act::Hurt { .. } | Act::Grabbed { .. } => Doing::Hurt,
-            Act::Down { .. } => Doing::Down,
+        // The scythe: wound back during the startup, swept through the active window, held in the recovery.
+        let swing = match p.act {
             Act::Skill { skill, t, .. } => {
-                // The scythe: wound back during the startup, swept through the active window, held in the recovery.
                 let d = &SKILLS[skill];
-                if t < d.startup {
-                    swing = Some(-1.5 - 0.3 * t / d.startup.max(1e-3));
-                    Doing::Windup {
-                        k: t / d.startup.max(1e-3),
-                    }
+                Some(if t < d.startup {
+                    -1.5 - 0.3 * t / d.startup.max(1e-3)
                 } else {
                     let k = ((t - d.startup) / d.active.max(1e-3)).min(1.0);
-                    swing = Some(-1.8 + 3.1 * k * k * (3.0 - 2.0 * k));
-                    Doing::Attack { k }
-                }
+                    -1.8 + 3.1 * k * k * (3.0 - 2.0 * k)
+                })
             }
-            Act::Free if p.moving => Doing::Walk {
-                step: ((p.walk * 9.0).floor() as i32) & 1 == 0,
-                lean: 0.10,
-                hop: -3.0,
-            },
-            Act::Free => Doing::Walk {
-                step: ((self.anim * 2.0).floor() as i32) & 1 == 0,
-                lean: 0.0,
-                hop: -1.5,
-            },
+            _ => None,
         };
+        let (steps, lean, hop) = if p.moving {
+            (p.walk * 9.0, 0.10, -3.0)
+        } else {
+            (self.anim * 2.0, 0.0, -1.5)
+        };
+        let mut a = self.anims[0];
+        let (face, flip) = self.facing(&a);
+        a.face = face;
+        let p3 = pose(
+            &RIGS[RG_PLAYER],
+            &self.sheet_pose[RG_PLAYER],
+            &a,
+            Gait {
+                clock: self.anim,
+                steps,
+                lean,
+                hop,
+            },
+        );
         let s = self.draw_scale[0];
         let shadow = [INK[0], INK[1], INK[2], 0.22];
         self.put(
@@ -845,18 +894,21 @@ impl Game {
         );
         self.draw_rig(
             &RIGS[RG_PLAYER],
-            doing,
+            p3,
             Look {
                 x: px,
                 y: py,
-                face: f,
+                face,
                 scale: s,
                 flash,
                 alpha,
                 seed: 0.37,
                 swing,
                 tint: None,
-                sheet: Sheet::FLAT,
+                sheet: Sheet {
+                    turn: flip,
+                    ..Sheet::FLAT
+                },
             },
         );
     }

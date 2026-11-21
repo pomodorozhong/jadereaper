@@ -42,13 +42,14 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle, calm, spin) = (
+    let (fps, poses, scale, waddle, calm, spin, sheet) = (
         g().boil_fps,
         g().boil_poses,
         g().draw_scale,
         g().waddle,
         g().reduce_motion,
         g().debug_spin,
+        g().sheet_pose,
     );
     *g() = Game::new(seed);
     g().set_view(w, h);
@@ -57,6 +58,7 @@ pub extern "C" fn jr_reset(seed: u32) {
     g().waddle = waddle;
     g().reduce_motion = calm;
     g().debug_spin = spin;
+    g().sheet_pose = sheet;
 }
 
 /// Start a new run.
@@ -96,6 +98,12 @@ pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_debug_spin(on: u32) {
     g().set_debug_spin(on != 0);
+}
+
+/// The ?debug pose sliders: set one of a rig's 3D pose numbers, `field` indexing `SHEET_KEYS`. Drawing only.
+#[no_mangle]
+pub extern "C" fn jr_set_pose(rig: u32, field: u32, value: f32) {
+    g().set_pose(rig as usize, field as usize, value);
 }
 
 /// How big a character is drawn: 0 is the player, 1 + kind an enemy kind (blot, wisp, brute, elite).

@@ -72,8 +72,33 @@ const TARGETS = {
  * for a field that may be left out:
  * f32, u8, bool, str (JavaScript only), f32x2, f32x3, part (a part name), ref:<table> or refs:<table> (names in
  * another table), waves:<table> (a list of lists of names), opt:<table> ("none" or a name in another table; 0 or id + 1 in Rust), enum:<name>, target (a
- * card's target), after (a move's after-effect), pose (a rig pose) and rigparts (a rig's parts).
+ * card's target), after (a move's after-effect), pose (a rig pose), rigparts (a rig's parts) and sheet (a rig's 3D pose numbers, `SHEET_KEYS`; left out, all zero).
  */
+/**
+ * A rig's 3D pose numbers (`SheetPose` in core/src/rigs.rs), in the order the ?debug panel's setter numbers them.
+ * Angles are in radians, lifts in world units. A rig without them (the bosses, for now) stays flat.
+ */
+export const SHEET_KEYS = [
+	"aim",
+	"charge",
+	"tremble",
+	"strike",
+	"sag",
+	"sag_bend",
+	"pop",
+	"hit",
+	"hit_bend",
+	"hit_max",
+	"down",
+	"grab",
+	"shake",
+	"roll",
+	"wobble",
+	"wobble_rate",
+	"bob",
+	"sway",
+];
+
 const TABLES = {
 	rigs: {
 		rust: "Rig",
@@ -85,6 +110,7 @@ const TABLES = {
 			attack: "pose",
 			hurt: "pose",
 			roll: "pose",
+			sheet: ["sheet", null],
 		},
 	},
 	kinds: {
@@ -321,6 +347,15 @@ export function validate(content) {
 						!keys.every((k) => isNum(v[k]))
 					)
 						bad(`{ ${keys.join(", ")} } numbers`);
+				} else if (type === "sheet") {
+					if (
+						v !== null &&
+						(!v ||
+							typeof v !== "object" ||
+							Object.keys(v).length !== SHEET_KEYS.length ||
+							!SHEET_KEYS.every((k) => isNum(v[k])))
+					)
+						bad(`{ ${SHEET_KEYS.join(", ")} } numbers`);
 				} else if (type === "rigparts") {
 					const keys = {
 						part: "part",
@@ -410,6 +445,8 @@ function rustValue(type, v) {
 		return String(v.reduce((m, n) => m | (1 << (n - 1)), 0));
 	if (type === "pose")
 		return `Pose { dx: ${f32(v.dx)}, dy: ${f32(v.dy)}, tilt: ${f32(v.tilt)}, sx: ${f32(v.sx)}, sy: ${f32(v.sy)} }`;
+	if (type === "sheet")
+		return `SheetPose { ${SHEET_KEYS.map((k) => `${k}: ${f32(v ? v[k] : 0)}`).join(", ")} }`;
 	if (type === "rigparts") {
 		return `&[${v.map((p) => `RigPart { part: P_${upper(p.part)}, x: ${f32(p.x)}, y: ${f32(p.y)}, hw: ${f32(p.hw)}, hh: ${f32(p.hh)}, rot: ${f32(p.rot)}, color: [${p.color.map(f32).join(", ")}], held: ${p.held} }`).join(", ")}]`;
 	}
@@ -446,7 +483,7 @@ export function generate(content) {
 		"use crate::skills::{AreaKind, SkillDef, SkillKind};",
 		"use crate::cards::{Card, Effect, Element, Target};",
 		"use crate::rooms::Room;",
-		"use crate::rigs::{Pose, Rig, RigPart};",
+		"use crate::rigs::{Pose, Rig, RigPart, SheetPose};",
 		"",
 	];
 	rs.push("// Part ids.");
@@ -455,6 +492,11 @@ export function generate(content) {
 	rs.push(
 		`/// Every defined part id.`,
 		`pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(", ")}];`,
+	);
+	rs.push(
+		"",
+		"/// A rig's 3D pose numbers by name, in the order `jr_set_pose` numbers them.",
+		`pub const SHEET_KEYS: [&str; ${SHEET_KEYS.length}] = [${SHEET_KEYS.map((k) => JSON.stringify(k)).join(", ")}];`,
 	);
 	rs.push("", "// Event types, read by the host for sound and damage numbers.");
 	content.events.forEach((e, i) => {
@@ -496,6 +538,11 @@ export function generate(content) {
 	);
 	js.push(
 		`export const EVENT = ${JSON.stringify(Object.fromEntries(content.events.map((e, i) => [upper(e), i + 1])), null, 2)};`,
+	);
+	js.push(
+		"",
+		"/** A rig's 3D pose numbers by name, in the order jr_set_pose numbers them. */",
+		`export const SHEET_KEYS = ${JSON.stringify(SHEET_KEYS)};`,
 	);
 	for (const table of Object.keys(TABLES)) {
 		js.push(

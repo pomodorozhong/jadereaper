@@ -17,6 +17,7 @@ import {
 } from "./data.js";
 import { pickLang, setLang, getLang, nextLang } from "./i18n.js";
 import { BAKE, SIZE, SIZE_ORDER } from "./characters.js";
+import { RIGS, SHEET_KEYS } from "./content.js";
 
 /** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
  * Tuned by the maintainer. Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends
@@ -72,6 +73,83 @@ const DEBUG_SLIDERS = [
 	["waddle", "eliteTilt", "Elite tilt", 0, 30, 0.25],
 	["waddle", "eliteRate", "Elite rate", 0, 15, 0.5],
 ];
+/** ?debug pose sliders: each rig's 3D pose numbers (`sheet` in content/game.json), sent with jr_set_pose. Each
+ * slider is [min, max, step]; angles are in radians, lifts in world units. */
+const POSE_SLIDERS = {
+	aim: [0, 1.5, 0.05],
+	charge: [-0.6, 0.8, 0.01],
+	tremble: [0, 0.3, 0.01],
+	strike: [-0.8, 0.4, 0.01],
+	sag: [-0.8, 0.4, 0.01],
+	sag_bend: [-0.8, 0.8, 0.01],
+	pop: [0, 20, 0.5],
+	hit: [0, 0.05, 0.001],
+	hit_bend: [0, 0.05, 0.001],
+	hit_max: [0, 1.2, 0.05],
+	down: [0, 1.6, 0.01],
+	grab: [0, 1.6, 0.01],
+	shake: [0, 0.5, 0.01],
+	roll: [0, 3, 1],
+	wobble: [0, 1.5, 0.05],
+	wobble_rate: [0, 8, 0.1],
+	bob: [0, 12, 0.5],
+	sway: [0, 0.6, 0.01],
+};
+/** The rigs with 3D poses: the player and the four small enemy kinds. */
+const POSE_RIGS = RIGS.filter((r) => r.sheet);
+function addPoseSliders(panel, core) {
+	const pose = Object.fromEntries(
+		POSE_RIGS.map((r) => [r.name, { ...r.sheet }]),
+	);
+	const btn =
+		"all:unset;cursor:pointer;padding:0 6px;border:1px solid #b9ae95;border-radius:4px";
+	const box = document.createElement("div");
+	box.innerHTML = `<div style="margin-top:4px;color:#7a6f5c">Pose (live): <select id="dbgPoseRig">${POSE_RIGS.map((r) => `<option>${r.name}</option>`).join("")}</select></div>
+    ${SHEET_KEYS.map((key) => {
+			const [min, max, step] = POSE_SLIDERS[key];
+			return `<div style="display:grid;grid-template-columns:9.5em 8em 2.6em auto;gap:6px;align-items:center">
+    <label for="dbg_pose_${key}">${key.replace("_", " ")}</label><input id="dbg_pose_${key}" data-pose="${key}" type="range" min="${min}" max="${max}" step="${step}">
+    <output style="font-variant-numeric:tabular-nums"></output><button type="button" data-pose-reset="${key}" style="${btn}">↺</button></div>`;
+		}).join("")}`;
+	panel.querySelector("#dbgBody").append(box);
+	const pick = box.querySelector("#dbgPoseRig");
+	const rig = () => POSE_RIGS[pick.selectedIndex];
+	const sliders = [...box.querySelectorAll("[data-pose]")];
+	const show = () => {
+		for (const el of sliders) {
+			const v = pose[rig().name][el.dataset.pose];
+			el.value = v;
+			el.nextElementSibling.textContent = v;
+			el.parentElement.querySelector("[data-pose-reset]").title =
+				`Reset to ${rig().sheet[el.dataset.pose]}`;
+		}
+	};
+	const set = (r, key, v) => {
+		pose[r.name][key] = v;
+		core.jr_set_pose(r.id, SHEET_KEYS.indexOf(key), v);
+	};
+	for (const el of sliders) {
+		el.oninput = () => {
+			set(rig(), el.dataset.pose, +el.value);
+			show();
+		};
+		el.parentElement.querySelector("[data-pose-reset]").onclick = () => {
+			set(rig(), el.dataset.pose, rig().sheet[el.dataset.pose]);
+			show();
+		};
+	}
+	pick.onchange = show;
+	show();
+	return {
+		values: pose,
+		resetAll() {
+			for (const r of POSE_RIGS)
+				for (const key of SHEET_KEYS) set(r, key, r.sheet[key]);
+			show();
+		},
+	};
+}
+
 function addDebugPanel(renderer, core) {
 	const sets = { bake: BAKE, look: LOOK, size: SIZE, waddle: WADDLE };
 	const defaults = {
@@ -104,6 +182,7 @@ function addDebugPanel(renderer, core) {
 	// Keep game keys (WASD, Esc) from firing while a slider has focus.
 	panel.addEventListener("keydown", (e) => e.stopPropagation());
 	document.body.append(panel);
+	const poses = addPoseSliders(panel, core);
 
 	// Re-bakes run one at a time; while one runs, only the latest wanted settings are kept.
 	let baking = false,
@@ -139,7 +218,7 @@ function addDebugPanel(renderer, core) {
 		}
 		if (which === "bake" || which === "size") rebake();
 	};
-	const sliders = [...panel.querySelectorAll("input[type=range]")];
+	const sliders = [...panel.querySelectorAll("input[data-set]")];
 	for (const el of sliders) {
 		el.oninput = () => set(el, +el.value);
 		el.parentElement.querySelector("[data-reset]").onclick = () =>
@@ -147,13 +226,20 @@ function addDebugPanel(renderer, core) {
 	}
 	panel.querySelector("#dbgResetAll").onclick = () => {
 		for (const el of sliders) set(el, defaults[el.dataset.set][el.dataset.key]);
+		poses.resetAll();
 	};
 	panel.querySelector("#dbgSpin").onchange = (e) =>
 		core.jr_set_debug_spin(e.target.checked ? 1 : 0);
 	panel.querySelector("#dbgCopy").onclick = () =>
 		navigator.clipboard?.writeText(
 			JSON.stringify(
-				{ bake: BAKE, look: LOOK, size: SIZE, waddle: WADDLE },
+				{
+					bake: BAKE,
+					look: LOOK,
+					size: SIZE,
+					waddle: WADDLE,
+					pose: poses.values,
+				},
 				null,
 				1,
 			),
@@ -210,8 +296,8 @@ async function boot() {
 	// Views are rebuilt on every read because wasm memory can grow and detach them.
 	const readState = () =>
 		new Float32Array(core.memory.buffer, core.jr_state_ptr(), STATE_FLOATS);
-	/** Each character's animation state (core/src/anim.rs), as objects keyed by the ANIM field names. Nothing
-	 * draws from it yet; it is the seam for posing characters on the drawing side. */
+	/** Each character's animation state (core/src/anim.rs), as objects keyed by the ANIM field names. The core
+	 * poses the puppets from the same records (rigs.rs); this copy is for scripted checks. */
 	const readAnims = () => {
 		const n = core.jr_anim_count();
 		const a = new Float32Array(
