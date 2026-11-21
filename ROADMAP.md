@@ -20,7 +20,7 @@ What the maintainer found when they played it:
 | Step | What | Size |
 | --- | --- | --- |
 | 1 | The action-game rebuild: controls, combat, enemies, skills and cards, rooms, two bosses (#43) | One large PR |
-| 2 | Paper puppets in 3D: the new art direction, for charge, recovery and hit animations (proposed plan, four PRs) | Large |
+| 2 | Paper puppets in 3D: the new art direction, for charge, recovery and hit animations (four PRs, [0008](docs/decisions/0008-paper-puppet-art-plan.md)) | Large |
 | 3 | Music and the low-health state | Small |
 | 4 | Meta progression | Medium |
 | 5 | More characters and stages | Medium, per character or stage |
@@ -158,7 +158,7 @@ Size. One PR touches nearly all of `core/` and much of `src/`. The ordered commi
 
 The new art direction ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). The game keeps its paper feel: characters stay flat paper cutouts with a white margin. But they move in 3D, the way a paper puppet held in the hand can turn, lean, lift and flip, and those movements carry the action game's timing so the player reads it from the body.
 
-**Status: proposed, not yet agreed.** The choices below are a recommendation for the maintainer to accept or change on the step's issues. Once they are agreed, a new record (0007) holds the ones that shape later work, and this section links it instead of restating them.
+**Status: agreed with the maintainer, to be confirmed on #45.** The choices that shape later work are recorded in [0008](docs/decisions/0008-paper-puppet-art-plan.md); this section adds the detail for building it.
 
 ### The look
 
@@ -211,16 +211,16 @@ Once the poses are in: a torn-paper mark and a few paper scraps at the point of 
 
 ### PRs
 
-Each PR is its own issue, as `CONTRIBUTING.md` asks, and each depends on the one before it. #39 (CI builds the wasm and checks the core) lands first.
+Each PR is its own issue, as `CONTRIBUTING.md` asks, and each depends on the one before it. #39 (CI builds the wasm and checks the core) landed first, in #44.
 
 | PR | What | Depends on | Size |
 | --- | --- | --- | --- |
-| A | Renderer: 16-float instances with turn, lean, lift and bend; the back of a sheet; the light; ordering parts by depth; the old outline wobble removed. The core sends zeros for the new fields, so the game looks as it does now, except for a ?debug toggle that spins every puppet to show the new fields work | #39 | Medium |
-| B | Core: 3D poses from the animation record for the player and the four small kinds, the facing turn, pose data in `content/game.json`, pose sliders in ?debug, tests | A | Large |
-| C | Hit feedback: paper marks and scraps, the camera push, hit-stop retuned | B | Small to medium |
-| D | Boss art: jointed parts in the character JSON and the Lightbox, the traced Glutton and Dragon, per-part move poses | B, and the artist's drawings | Large |
+| A, #46 | Renderer: 16-float instances with turn, lean, lift and bend; the back of a sheet; the light; ordering parts by depth; the old outline wobble removed. The core sends zeros for the new fields, so the game looks as it does now, except for a ?debug toggle that spins every puppet to show the new fields work | #39 | Medium |
+| B, #47 | Core: 3D poses from the animation record for the player and the four small kinds, the facing turn, pose data in `content/game.json`, pose sliders in ?debug, tests | A | Large |
+| C, #48 | Hit feedback: paper marks and scraps, the camera push, hit-stop retuned | B | Small to medium |
+| D, #49 | Boss art: jointed parts in the character JSON and the Lightbox, the traced Glutton and Dragon, per-part move poses | B, and the artist's drawings | Large |
 
-A docs PR first, with the agreed version of this section and record 0007.
+A docs PR first, with the agreed version of this section and record 0008 (#45).
 
 ### Done when
 

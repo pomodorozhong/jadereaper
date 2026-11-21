@@ -27,3 +27,4 @@ Copy [0000-template.md](0000-template.md) to the next free number, such as `0002
 | [0005](0005-room-based-action-game.md) | Make the game a room-based action game, not a survivor game | decided |
 | [0006](0006-paper-puppets-in-3d.md) | Keep the paper look, and animate the paper puppets in 3D | decided |
 | [0007](0007-build-the-wasm-in-ci.md) | Build the wasm in CI, and check the core and the JavaScript on every PR | decided |
+| [0008](0008-paper-puppet-art-plan.md) | Paper sheets in 3D, posed in the core, with the traced line art kept | decided |
