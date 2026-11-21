@@ -20,6 +20,7 @@ pub mod dragon;
 pub mod draw;
 pub mod elements;
 pub mod enemy;
+pub mod gallery;
 pub mod game;
 pub mod geom;
 pub mod moves;
@@ -42,13 +43,14 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle, calm, spin) = (
+    let (fps, poses, scale, waddle, calm, spin, sheet) = (
         g().boil_fps,
         g().boil_poses,
         g().draw_scale,
         g().waddle,
         g().reduce_motion,
         g().debug_spin,
+        g().sheet_pose,
     );
     *g() = Game::new(seed);
     g().set_view(w, h);
@@ -57,6 +59,7 @@ pub extern "C" fn jr_reset(seed: u32) {
     g().waddle = waddle;
     g().reduce_motion = calm;
     g().debug_spin = spin;
+    g().sheet_pose = sheet;
 }
 
 /// Start a new run.
@@ -96,6 +99,25 @@ pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_debug_spin(on: u32) {
     g().set_debug_spin(on != 0);
+}
+
+/// The ?debug pose sliders: set one of a rig's 3D pose numbers, `field` indexing `SHEET_KEYS`. Drawing only.
+#[no_mangle]
+pub extern "C" fn jr_set_pose(rig: u32, field: u32, value: f32) {
+    g().set_pose(rig as usize, field as usize, value);
+}
+
+/// The pose gallery: show every rig in every pose instead of the run (which is frozen while it shows), how far
+/// through each pose (0..1), the hit's damage, and the direction skills aim and hits push (radians, 0 right,
+/// positive down the screen). Drawing only.
+#[no_mangle]
+pub extern "C" fn jr_set_gallery(on: u32, progress: f32, damage: f32, angle: f32) {
+    g().set_gallery(on != 0);
+    g().gallery_view = gallery::GalleryView {
+        progress: if progress.is_finite() { progress } else { 0.0 },
+        damage: if damage.is_finite() { damage } else { 0.0 },
+        angle: if angle.is_finite() { angle } else { 0.0 },
+    };
 }
 
 /// How big a character is drawn: 0 is the player, 1 + kind an enemy kind (blot, wisp, brute, elite).

@@ -1,8 +1,9 @@
 //! Puppet rigs: poses come from the rig data.
 
+use jadereaper_core::anim::*;
 use jadereaper_core::defs::*;
 use jadereaper_core::game::{Game, Input, Phase, STEP};
-use jadereaper_core::rigs::{Doing, Pose};
+use jadereaper_core::rigs::{pose, Gait, Pose};
 
 fn body(g: &Game, part: f32) -> Inst {
     *g.inst
@@ -44,21 +45,39 @@ fn the_roll_tucks_and_spins_once() {
 #[test]
 fn poses_come_from_the_rig() {
     let rig = &RIGS[RG_BLOT];
-    let (wind, _) = Game::rig_pose(rig, Doing::Windup { k: 1.0 });
-    assert_eq!(wind, rig.windup);
-    let (hurt, _) = Game::rig_pose(rig, Doing::Hurt);
-    assert_eq!(hurt, rig.hurt);
-    let (walk, spin) = Game::rig_pose(
+    let rec = |phase, k| Anim {
+        who: 1.0,
+        id: 1.0,
+        x: 0.0,
+        y: 0.0,
+        face: 1.0,
+        phase,
+        k,
+        len: 0.5,
+        cancel: -1.0,
+        dx: 1.0,
+        dy: 0.0,
+        step: 0.0,
+        hit_dx: 0.0,
+        hit_dy: 0.0,
+        hit_dmg: 0.0,
+        hit_age: 1e6,
+    };
+    let at = |phase, k| pose(rig, &rig.sheet, &rec(phase, k), Gait::default()).flat;
+    assert_eq!(at(A_STARTUP, 1.0), rig.windup);
+    assert_eq!(at(A_HURT, 0.5), rig.hurt);
+    let walk = pose(
         rig,
-        Doing::Walk {
-            step: true,
+        &rig.sheet,
+        &rec(A_WALK, 0.0),
+        Gait {
             lean: 0.1,
             hop: -3.0,
+            ..Gait::default()
         },
     );
-    assert_eq!(spin, 0.0);
     assert_eq!(
-        walk,
+        walk.flat,
         Pose {
             tilt: 0.1,
             ..Pose::REST

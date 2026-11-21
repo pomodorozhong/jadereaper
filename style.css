@@ -182,15 +182,17 @@ button {
 button::before { background: var(--grain), linear-gradient(175deg, #f8f1de, #eadfc3); }
 button:nth-child(odd) { transform: rotate(0.8deg); }
 button:nth-child(even) { transform: rotate(-0.9deg); }
-button:hover, button:focus-visible {
+/* .pad-focus: the gamepad moved focus. Browsers hide :focus-visible for focus moved by code after a mouse click,
+   so the highlight would vanish; the class keeps it showing until the mouse moves (src/ui.js). */
+button:hover, button:focus-visible, .pad-focus button:focus {
   outline: none;
   transform: rotate(0deg) translateY(-3px) scale(1.04);
   color: var(--jade-dark);
 }
-button:hover::before, button:focus-visible::before {
+button:hover::before, button:focus-visible::before, .pad-focus button:focus::before {
   background: var(--grain), linear-gradient(175deg, #dff0e4, #c3e0cf);
 }
-button:focus-visible::after {
+button:focus-visible::after, .pad-focus button:focus::after {
   /* Ink underline for whatever the keyboard or gamepad has selected. */
   content: "";
   position: absolute;
@@ -249,7 +251,7 @@ button:active { transform: translateY(1px) scale(0.98); }
 .card:nth-child(2) { --tilt: 0.8deg; animation-delay: 0.09s; }
 .card:nth-child(3) { --tilt: 2.4deg; animation-delay: 0.16s; }
 button.card, button.card:nth-child(odd), button.card:nth-child(even) { transform: rotate(var(--tilt)); }
-button.card:hover, button.card:focus-visible { transform: rotate(0deg) translateY(-10px) scale(1.05); }
+button.card:hover, button.card:focus-visible, .pad-focus button.card:focus { transform: rotate(0deg) translateY(-10px) scale(1.05); }
 .card .glyph {
   font-family: var(--brush);
   font-size: 54px;

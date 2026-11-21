@@ -30,6 +30,27 @@ export function createUI({ onAction }) {
 		return current ? Array.from($(current).querySelectorAll("button")) : [];
 	}
 
+	// The screen button that last had focus, so the pad can take focus back after something outside the screen
+	// (a ?debug slider) took it.
+	let lastFocused = null;
+	// While the gamepad moves focus, show the highlight (style.css `.pad-focus`); the mouse turns it off again.
+	const padFocus = () => document.body.classList.add("pad-focus");
+	window.addEventListener("pointermove", () =>
+		document.body.classList.remove("pad-focus"),
+	);
+	document.addEventListener("focusin", (e) => {
+		if (current && $(current).contains(e.target)) lastFocused = e.target;
+	});
+	/** The focused button of the open screen, taking focus back from outside the screen if needed. */
+	function focusedButton() {
+		const list = buttons();
+		const el = document.activeElement;
+		if (list.includes(el)) return el;
+		const back = list.includes(lastFocused) ? lastFocused : list[0];
+		back?.focus({ preventScroll: true });
+		return back ?? null;
+	}
+
 	/** Show one screen (or none). A short lock stops a held button from picking something by accident. */
 	function show(name) {
 		for (const id of SCREENS) $(id).hidden = id !== name;
@@ -47,7 +68,8 @@ export function createUI({ onAction }) {
 	function navigate(dx, dy) {
 		const list = buttons();
 		if (!list.length) return false;
-		const i = list.indexOf(document.activeElement);
+		padFocus();
+		const i = list.indexOf(focusedButton());
 		const step = dx > 0 || dy > 0 ? 1 : -1;
 		const next = i < 0 ? 0 : (i + step + list.length) % list.length;
 		list[next].focus({ preventScroll: true });
@@ -56,8 +78,9 @@ export function createUI({ onAction }) {
 
 	/** Click the focused button (gamepad confirm). */
 	function confirm() {
-		const el = document.activeElement;
-		if (current && el instanceof HTMLButtonElement && $(current).contains(el)) {
+		if (current) padFocus();
+		const el = current ? focusedButton() : null;
+		if (el instanceof HTMLButtonElement) {
 			el.click();
 			return true;
 		}

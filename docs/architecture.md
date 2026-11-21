@@ -6,7 +6,7 @@ How the Rust simulation in `core/` is put together since roadmap step 1, the roo
 
 `content/game.json` holds the parts, events, rigs, enemy kinds, skills, elements, cards, rooms and moves. `tools/content.mjs` checks it and writes `core/src/content.rs`, `src/content.js` and `src/content.wgsl`, so ids exist once. Each table's fields and types are in `TABLES` in that script; a field can have a default (the boss-only move fields do). The generated files are committed, like the wasm.
 
-The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs`, `Move`, `After`, `Special` and `Stance` in `moves.rs`, `Card`, `Effect` and `Target` in `cards.rs`, `Room` in `rooms.rs`, `Rig` and `Pose` in `rigs.rs`. A new value that only changes numbers needs no code; a new kind of behaviour (a skill delivery, a boss special) does.
+The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs`, `Move`, `After`, `Special` and `Stance` in `moves.rs`, `Card`, `Effect` and `Target` in `cards.rs`, `Room` in `rooms.rs`, `Rig`, `Pose`, `SheetPose` and `Pose3` in `rigs.rs`. A new value that only changes numbers needs no code; a new kind of behaviour (a skill delivery, a boss special) does.
 
 ## Modules
 
@@ -22,7 +22,7 @@ The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs
 | `reactions.rs` | Element tags and the six reactions |
 | `cards.rs` | The card pool, offers, picks, and the per-button and character modifiers |
 | `rooms.rs` | Rooms, waves, clearing, winning, the arena walls |
-| `rigs.rs`, `draw.rs` | Puppet posing and the instance list for the renderer, including the player's own skill wash and recovery ring |
+| `rigs.rs`, `draw.rs` | Puppet posing (`pose` turns a rig and an animation record into a flat pose and a 3D sheet) and the instance list for the renderer, including the player's own skill wash and recovery ring |
 | `anim.rs` | Each character's animation state for the host: phase, progress, cancel point, direction, last hit |
 | `bot.rs` | The scripted player used by the tests |
 
