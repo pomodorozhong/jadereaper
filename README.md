@@ -120,7 +120,7 @@ Run the simulation tests natively:
 cargo test --release --manifest-path core/Cargo.toml
 ```
 
-The `Checks` workflow in `.github/workflows/checks.yml` runs these on every pull request, with `cargo fmt --check`, `cargo clippy` (warnings fail), a wasm build, Biome and the tool tests. Run the same locally:
+The `Checks` workflow in `.github/workflows/checks.yml` runs these on every pull request, with `cargo fmt --check`, `cargo clippy` (warnings fail), a wasm build, Biome (formatting and lint for the JavaScript) and the tool tests. Run the same locally:
 
 ```bash
 cargo fmt --manifest-path core/Cargo.toml
@@ -133,6 +133,8 @@ cargo clippy --release --all-targets --manifest-path core/Cargo.toml -- -D warni
 ```bash
 npm run lint
 ```
+
+`cargo fmt` and `npm run format` fix the formatting. Both use the tools' default styles ([0007](docs/decisions/0007-build-the-wasm-in-ci.md)).
 
 ## Extending
 
