@@ -22,8 +22,9 @@ export const LOOK = {
 	shadowX: 3.5,
 	shadowY: 6,
 	shadowAlpha: 0.5,
-	depthFade: 0.6, // how far paper fades into the ground at depthDist away from the camera (0 off, 1 gone)
-	depthDist: 1, // puppet heights away from the camera, from its ground point, for the full fade
+	depthFade: 0.85, // how far paper shifts towards the depth tone at depthDist away from the camera (0 off)
+	depthDist: 0.7, // puppet heights away from the camera, from its ground point, for the full shift
+	depthTone: 0.7, // what far paper shifts towards: 0 fades into the ground, 1 sinks into shade
 };
 
 /**
@@ -278,8 +279,8 @@ export async function createRenderer(canvas) {
 	 * @param {number} count number of instances
 	 */
 	function draw(memory, ptr, count, camX, camY) {
-		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding, depth fade
-		// and distance, padding.
+		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding, depth fade,
+		// distance and tone, padding.
 		globals.set([
 			view.w,
 			view.h,
@@ -295,7 +296,7 @@ export async function createRenderer(canvas) {
 			0,
 			LOOK.depthFade,
 			Math.max(0.05, LOOK.depthDist),
-			0,
+			LOOK.depthTone,
 			0,
 		]);
 		device.queue.writeBuffer(globalsBuf, 0, globals);
