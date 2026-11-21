@@ -68,6 +68,12 @@ try {
     await page.waitForTimeout(PLAY_MS);
     if (await page.locator('#error').isVisible()) problems.push('the "Cannot start" screen appeared during the run');
     if (!(await page.locator('#hud').isVisible())) problems.push('the HUD disappeared during the run');
+    // The animation buffer has the player first, with finite values.
+    const anims = await page.evaluate(() => window.jadereaper.anims());
+    const player = anims[0];
+    if (!player || player.WHO !== 0 || !Object.values(player).every(Number.isFinite)) {
+      problems.push(`bad animation state for the player: ${JSON.stringify(player)}`);
+    }
     outcome = `WebGPU available; played ${PLAY_MS / 1000} s of a run`;
   }
 

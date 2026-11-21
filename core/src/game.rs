@@ -65,6 +65,8 @@ pub struct Enemy {
     pub age: f32,
     /// Burn, chill, freeze and star marks.
     pub status: Status,
+    /// The last hit it took.
+    pub hit: crate::anim::Hit,
 }
 
 /// An enemy's attack cycle.
@@ -239,6 +241,8 @@ pub struct Game {
     pub auto_spawn: bool,
     pub(crate) next_id: u32,
     pub inst: Vec<Inst>,
+    /// Each character's animation state, for the renderer (layout in `anim.rs`).
+    pub anims: Vec<crate::anim::Anim>,
     pub events: Vec<[f32; 4]>,
     pub state: [f32; STATE_FLOATS],
     // Scratch buffers for the spatial grid and draw sorting.
@@ -312,6 +316,7 @@ impl Game {
             auto_spawn: true,
             next_id: 1,
             inst: Vec::with_capacity(MAX_INST),
+            anims: Vec::with_capacity(MAX_ENEMIES + 1),
             events: Vec::with_capacity(256),
             state: [0.0; STATE_FLOATS],
             cell_start: vec![0; BUCKETS + 1],
@@ -351,6 +356,7 @@ impl Game {
         }
         self.move_camera(dt);
         self.build();
+        self.build_anims();
         self.write_state();
     }
 
@@ -532,7 +538,7 @@ impl Game {
             Pick::Passive => 1.0,
             Pick::Reward => 2.0,
         };
-        for c in 0..N_CARDS.min(24) {
+        for c in 0..N_CARDS.min(22) {
             s[32 + c] = self.owned[c] as f32;
         }
         s[23] = ROOMS[self.room].waves.len() as f32;
@@ -578,5 +584,7 @@ impl Game {
             s[28 + c] = self.loadout[c] as f32;
         }
         s[31] = self.zoom;
+        // 54 hit-stop left, in seconds: the simulation is frozen while it is above zero.
+        s[54] = self.hitstop.max(0.0);
     }
 }

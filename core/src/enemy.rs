@@ -21,10 +21,14 @@ impl Game {
     pub(crate) fn hurt_enemy(&mut self, i: usize, dmg: f32, stagger: f32, kx: f32, ky: f32) {
         let dmg = self.boss_hit(i, dmg, stagger);
         let boss = KINDS[self.enemies[i].kind as usize].boss;
+        let now = self.time;
         let e = &mut self.enemies[i];
         let k = &KINDS[e.kind as usize];
         e.hp -= dmg;
         e.flash = 1.0;
+        let kl = (kx * kx + ky * ky).sqrt();
+        let (hx, hy) = if kl > 1e-3 { (kx / kl, ky / kl) } else { (0.0, 0.0) };
+        e.hit = crate::anim::Hit { dx: hx, dy: hy, dmg, at: now };
         let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
         e.kx += kx * heavy;
         e.ky += ky * heavy;
@@ -73,6 +77,7 @@ impl Game {
             think,
             age: 0.0,
             status: Status::default(),
+            hit: crate::anim::Hit::NONE,
         });
         if k.boss {
             self.boss = Some(crate::boss::BossState::new(id));

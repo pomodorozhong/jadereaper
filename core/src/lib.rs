@@ -6,8 +6,10 @@
 //!
 //! - instances: `jr_instance_count()` x 12 floats, uploaded to the GPU as is
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
+//! - anims: `jr_anim_count()` x `anim::ANIM_FLOATS` floats, each character's animation state (layout in `anim.rs`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
 
+pub mod anim;
 pub mod boss;
 pub mod bot;
 pub mod cards;
@@ -149,6 +151,16 @@ pub extern "C" fn jr_instance_count() -> u32 {
 #[no_mangle]
 pub extern "C" fn jr_state_ptr() -> *const f32 {
     g().state.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn jr_anims_ptr() -> *const f32 {
+    g().anims.as_ptr() as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn jr_anim_count() -> u32 {
+    g().anims.len() as u32
 }
 
 #[no_mangle]

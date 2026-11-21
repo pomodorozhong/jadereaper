@@ -85,6 +85,8 @@ pub struct Player {
     pub hits: Vec<u32>,
     /// Time left slowed (the Dragon's freezing field).
     pub slow: f32,
+    /// The last hit taken.
+    pub hit: crate::anim::Hit,
 }
 
 /// How far a leap aimed at this offset goes: to the aim point, at least 40 units and at most its reach.
@@ -112,6 +114,7 @@ impl Player {
             buffer: [0.0; N_BUTTONS],
             hits: Vec::with_capacity(64),
             slow: 0.0,
+            hit: crate::anim::Hit::NONE,
         }
     }
 
@@ -506,9 +509,11 @@ impl Game {
         let (kx, ky) = dir_to(from.0, from.1, px, py);
         let armored = self.player.armored() && !boss;
         let dmg = dmg * (1.0 - self.stats.armor);
+        let now = self.time;
         let p = &mut self.player;
         p.hp -= dmg;
         p.iframe = HURT_IFRAME;
+        p.hit = crate::anim::Hit { dx: kx, dy: ky, dmg, at: now };
         if !armored {
             p.act = Act::Hurt { t: 0.0 };
             p.kx = kx * 260.0;

@@ -96,6 +96,7 @@ Each frame the host calls `jr_input(mx, my, aim_x, aim_y, buttons)`, then `jr_up
 - Instances: 12 floats per paper part (`x, y, half width, half height, rotation, part id, flash, seed, r, g, b, a`). These bytes go to the GPU unchanged.
 - State: 64 floats for the HUD (health, room and wave, offered cards, the boss's health and stance, and so on). Indices are in `src/data.js` under `STATE`, and the layout is documented on `Game::write_state` in `core/src/game.rs`.
 - Events: 4 floats each (`type, x, y, value`), used for sound, damage numbers and reaction names.
+- Animation state: 16 floats per character, player first (`jr_anims_ptr`, `jr_anim_count`): what its body is doing (startup, active, recovery, roll, hurt and so on), how far through it, the cancel point, the action's direction, and the last hit's direction, damage and age. The layout is documented in `core/src/anim.rs` and mirrored in `src/data.js` under `ANIM`. Nothing draws from it yet; it is where the drawing side will pose characters in 3D ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). `jadereaper.anims()` reads it in the console.
 
 A run starts with `jr_start(seed)`, `jr_set_loadout(a, b, c)` and `jr_offer_passive()`. When the core sets the "choosing" flag the host shows the offered cards and answers with `jr_choose(slot)`.
 

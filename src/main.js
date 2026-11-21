@@ -5,7 +5,7 @@ import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
-import { EVENT, STATE, STATE_FLOATS, SKILLS, CARDS, ELEMENTS } from './data.js';
+import { ANIM, ANIM_FLOATS, EVENT, STATE, STATE_FLOATS, SKILLS, CARDS, ELEMENTS } from './data.js';
 import { pickLang, setLang, getLang, nextLang } from './i18n.js';
 import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
@@ -139,6 +139,13 @@ async function boot() {
   const seed = () => (Math.random() * 0xffffffff) >>> 0;
   // Views are rebuilt on every read because wasm memory can grow and detach them.
   const readState = () => new Float32Array(core.memory.buffer, core.jr_state_ptr(), STATE_FLOATS);
+  /** Each character's animation state (core/src/anim.rs), as objects keyed by the ANIM field names. Nothing
+   * draws from it yet; it is the seam for posing characters on the drawing side. */
+  const readAnims = () => {
+    const n = core.jr_anim_count();
+    const a = new Float32Array(core.memory.buffer, core.jr_anims_ptr(), n * ANIM_FLOATS);
+    return Array.from({ length: n }, (_, i) => Object.fromEntries(Object.entries(ANIM).map(([k, at]) => [k, a[i * ANIM_FLOATS + at]])));
+  };
   const three = (s, at) => Array.from(s.subarray(at, at + 3));
   // A card offer waiting for a confirm: the slot of an element card that would replace another element.
   let armed = -1;
@@ -382,8 +389,8 @@ async function boot() {
   }
   requestAnimationFrame(frame);
 
-  // Handy in the console: jadereaper.core, jadereaper.state().
-  window.jadereaper = { core, state: () => Array.from(readState()), get mode() { return mode; } };
+  // Handy in the console: jadereaper.core, jadereaper.state(), jadereaper.anims().
+  window.jadereaper = { core, state: () => Array.from(readState()), anims: readAnims, get mode() { return mode; } };
 }
 
 boot();
