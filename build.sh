@@ -5,6 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 node tools/content.mjs
+mkdir -p wasm
 cargo build --release --target wasm32-unknown-unknown --manifest-path core/Cargo.toml
 cp core/target/wasm32-unknown-unknown/release/jadereaper_core.wasm wasm/
 ls -l wasm/jadereaper_core.wasm

@@ -2,3 +2,5 @@ core/target/
 .DS_Store
 .font-cache/
 node_modules/
+# Built by ./build.sh, and by CI for the deploy (decision 0007).
+wasm/

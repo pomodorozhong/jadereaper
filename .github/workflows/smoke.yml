@@ -4,6 +4,7 @@ name: Smoke
 # error or failed request. The Ubuntu runner has no GPU, but Chromium with
 # --enable-unsafe-webgpu finds a software adapter there, so CI plays a few
 # seconds of a run on the CPU rather than checking the "Cannot start" screen.
+# The wasm is not committed, so it is built first (decision 0007).
 
 on:
   pull_request:
@@ -24,4 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Build the wasm
+        run: ./build.sh
       - run: npm run smoke

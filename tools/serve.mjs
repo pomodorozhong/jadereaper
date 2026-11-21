@@ -5,7 +5,7 @@
 //
 // The Lightbox is then at http://localhost:5173/tools/lightbox.html.
 
-import { createReadStream, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,8 +42,16 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+// The built core is not committed (decision 0007): ./build.sh writes it, and CI builds it for the deploy.
+const WASM = 'wasm/jadereaper_core.wasm';
+
 /** Start serving the repository root on 127.0.0.1. Resolves to the server once it listens. */
 export function serve(port = 5173) {
+  if (!existsSync(join(ROOT, WASM))) {
+    return Promise.reject(
+      new Error(`${WASM} is missing. Build it with ./build.sh (needs Rust: rustup target add wasm32-unknown-unknown).`),
+    );
+  }
   const server = createServer((req, res) => {
     let path;
     try {
