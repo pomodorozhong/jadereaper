@@ -192,6 +192,9 @@ pub struct Game {
     /// Each character's drawn facing mid-turn, by (who, id) from its animation record: -1..1, edge-on at 0.
     /// Drawing only; not in `state_hash`.
     pub(crate) flips: Vec<((f32, f32), f32)>,
+    /// The pose gallery (`?gallery`) is shown instead of the run, which is frozen. Drawing only.
+    pub gallery: bool,
+    pub gallery_view: crate::gallery::GalleryView,
     /// The animation clock when the facings last moved.
     pub(crate) flip_clock: f32,
     /// How big each character is drawn: the player, then each enemy kind. Hit areas do not change.
@@ -293,6 +296,8 @@ impl Game {
             sheet_pose: core::array::from_fn(|i| RIGS[i].sheet),
             flips: Vec::new(),
             flip_clock: 0.0,
+            gallery: false,
+            gallery_view: Default::default(),
             draw_scale: [1.0; 5],
             waddle: [
                 (KINDS[0].tilt.to_radians(), KINDS[0].rate),
@@ -374,6 +379,11 @@ impl Game {
         };
         self.events.clear();
         self.anim += dt;
+        if self.gallery {
+            self.build_gallery();
+            self.write_state();
+            return;
+        }
         if self.running && !self.choosing && !self.over {
             self.acc += dt;
             let mut n = 0;
