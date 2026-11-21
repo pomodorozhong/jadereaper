@@ -32,7 +32,19 @@ impl Game {
         seed: f32,
         color: [f32; 4],
     ) {
-        self.put_sheet(x, y, hw, hh, rot, part, flash, seed, color, Sheet::FLAT);
+        self.put_sheet(
+            x,
+            y,
+            hw,
+            hh,
+            rot,
+            part,
+            flash,
+            seed,
+            color,
+            Sheet::FLAT,
+            (0.0, 0.0),
+        );
     }
 
     /// `put` for a part held in 3D (see `Sheet`).
@@ -49,6 +61,7 @@ impl Game {
         seed: f32,
         color: [f32; 4],
         sheet: Sheet,
+        (depth, reach): (f32, f32),
     ) {
         if self.inst.len() >= MAX_INST {
             return;
@@ -73,6 +86,8 @@ impl Game {
             lean: sheet.lean,
             lift: sheet.lift,
             bend: sheet.bend,
+            depth,
+            reach,
         });
     }
 

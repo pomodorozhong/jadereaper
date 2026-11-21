@@ -5,7 +5,7 @@
 
 pub use crate::content::*;
 
-/// One paper cutout drawn by the renderer. 16 floats, 64 bytes.
+/// One paper cutout drawn by the renderer. 18 floats, 72 bytes.
 ///
 /// Each part is a sheet of paper oriented in 3D around its centre (`x`, `y`): `rot` turns it in its own plane,
 /// then `turn`, `lean` and `bend` (see `Sheet`) set it in 3D, and the renderer projects it with the fixed camera.
@@ -29,9 +29,15 @@ pub struct Inst {
     pub lean: f32,
     pub lift: f32,
     pub bend: f32,
+    /// How far the part's centre is towards the camera from its puppet's ground point, in world units, after the
+    /// puppet's turn and lean (negative is further away). The shader fades far paper into the ground with it.
+    pub depth: f32,
+    /// The puppet's drawn height in world units, so the shader can fade by depth in puppet heights; 0 for parts
+    /// that are not in a puppet, which never fade.
+    pub reach: f32,
 }
 
-pub const INST_FLOATS: usize = 16;
+pub const INST_FLOATS: usize = 18;
 
 /// How a paper sheet is held in 3D, on top of its in-plane rotation. All zero is a sheet standing flat to the
 /// camera, which is how every part was drawn before. The renderer's shader (`src/shader.wgsl`) applies them.
