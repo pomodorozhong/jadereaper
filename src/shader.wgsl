@@ -21,9 +21,10 @@ struct Globals {
   margin: f32,   // white cutout margin, world units
   shadow_a: f32, // drop shadow darkness
   pad: f32,
-  fade: f32,       // how far paper fades into the ground at fade_dist away from the camera
-  fade_dist: f32,  // puppet heights away from the camera, from its ground point, for the full fade
-  pad2: vec2f,
+  fade: f32,       // how far paper shifts towards the depth tone at fade_dist away from the camera
+  fade_dist: f32,  // puppet heights away from the camera, from its ground point, for the full shift
+  fade_tone: f32,  // what far paper shifts towards: 0 the ground, 1 shade
+  pad2: f32,
 };
 
 // The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
@@ -56,8 +57,10 @@ const VIEW_DIR = vec3f(0.0, -0.4472136, 0.8944272);   // normalize(0, -PITCH, 1)
 const LIGHT_DIR = vec3f(-0.5773503, -0.5773503, 0.5773503);
 const SHADE = 0.2;         // how much darker a sheet gets turned fully away from the light
 const SHOW_THROUGH = 0.22; // how strongly the front's ink shows on the back
-// The ground's base colour (fs_bg), which far paper fades into, like distance haze over the floor.
+// What far paper shifts towards: the ground's base colour (fs_bg), like haze over the floor, or a warm shade,
+// like the far end sinking into shadow. White paper is close to the ground colour, so shade reads far more.
 const GROUND = vec3f(0.925, 0.885, 0.79);
+const DEPTH_SHADE = vec3f(0.42, 0.39, 0.36);
 
 fn hash21(p: vec2f) -> f32 {
   var q = fract(p * vec2f(123.34, 456.21));
@@ -479,9 +482,10 @@ fn fs(i: VOut) -> @location(0) vec4f {
     rgb = mix(rgb, vec3f(1.0), flash * 0.85 * fill);
   }
   rgb *= i.side.y;
-  // Paper further from the camera than its puppet's ground point fades into the ground, so a sheet lying back
+  // Paper further from the camera than its puppet's ground point shifts towards the depth tone, so a sheet lying back
   // or leaning away reads as going into the distance, not as squashed. At rest every part is at depth zero.
-  rgb = mix(rgb, GROUND, G.fade * clamp(-i.depth / G.fade_dist, 0.0, 1.0));
+  let far = mix(GROUND, DEPTH_SHADE, G.fade_tone);
+  rgb = mix(rgb, far, G.fade * smoothstep(0.0, 1.0, -i.depth / G.fade_dist));
   if (margin < 0.004) { discard; }
   return vec4f(rgb, margin * i.color.a);
 }
