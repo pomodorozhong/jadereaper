@@ -12,7 +12,8 @@
     "start": "node tools/serve.mjs",
     "smoke": "node tools/smoke.mjs",
     "test": "node --test tools/*.test.mjs",
-    "lint": "biome lint --error-on-warnings"
+    "lint": "biome check --error-on-warnings",
+    "format": "biome format --write"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",

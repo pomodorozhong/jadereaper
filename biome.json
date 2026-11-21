@@ -1,15 +1,23 @@
 {
-  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "files": {
-    "includes": ["src/**/*.js", "tools/**/*.mjs"]
-  },
-  "formatter": {
-    "enabled": false
-  },
-  "assist": {
-    "enabled": false
-  },
-  "linter": {
-    "enabled": true
-  }
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"includes": ["src/**/*.js", "tools/**/*.mjs", "biome.json"]
+	},
+	"formatter": {
+		"enabled": true
+	},
+	"assist": {
+		"enabled": false
+	},
+	"linter": {
+		"enabled": true
+	},
+	"overrides": [
+		{
+			"includes": ["src/content.js"],
+			"formatter": {
+				"enabled": false
+			}
+		}
+	]
 }
