@@ -209,7 +209,7 @@ mod tests {
             game.update(1.0 / 60.0);
             assert!(game.inst.len() <= MAX_INST);
             if game.choosing {
-                game.choose((rng.next() % 3) as usize);
+                game.choose((rng.next_u32() % 3) as usize);
             }
             // Keep the run going so later rooms are exercised too.
             if game.over && !game.won {
@@ -298,9 +298,9 @@ mod tests {
             t += dt;
             // Inputs change on step boundaries, so different frame splits see the same input in every step.
             let k = (t * 2.0) as u32;
-            let mut r = Rng(k * 2654435761 | 1);
+            let mut r = Rng((k * 2654435761) | 1);
             game.input = game::Input {
-                buttons: if k % 3 == 0 { B_ROLL } else { 0 },
+                buttons: if k.is_multiple_of(3) { B_ROLL } else { 0 },
                 ..game::Input::moving(r.range(-1.0, 1.0), r.range(-1.0, 1.0))
             };
             game.update(dt);

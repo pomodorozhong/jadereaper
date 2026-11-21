@@ -152,8 +152,7 @@ impl Game {
     pub fn offer_reward(&mut self) {
         let mut pool = Vec::with_capacity(N_CARDS * 3);
         let used = |e: u8, mods: &[SkillMods; 3]| mods.iter().any(|m| m.element == e);
-        for c in 0..N_CARDS {
-            let card = &CARDS[c];
+        for (c, card) in CARDS.iter().enumerate() {
             let slots: &[usize] = match card.target {
                 Target::AnySkill => &[0, 1, 2],
                 Target::Skill(s) => match self.loadout.iter().position(|&l| l == s) {

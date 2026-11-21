@@ -163,6 +163,12 @@ impl Player {
     }
 }
 
+impl Default for Player {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Game {
     /// Read this step's input: buffer new presses, aim, then move, roll or use a skill.
     pub(crate) fn move_player(&mut self, dt: f32) {

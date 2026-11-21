@@ -480,7 +480,7 @@ impl Game {
                 let x = (cx as f32 + fx) * G;
                 let y = (cy as f32 + fy) * G;
                 let seed = (h & 255) as f32 / 255.0;
-                if (h >> 24) % 4 == 0 {
+                if (h >> 24).is_multiple_of(4) {
                     self.put(
                         x,
                         y,
@@ -599,8 +599,7 @@ impl Game {
         let mv = &MOVES[e.mv as usize];
         let mut x = e.x;
         let boss = self.boss_of(i);
-        let doing = if e.stun > 0.0 || e.status.frozen > 0.0 || boss.map_or(false, |b| b.down > 0.0)
-        {
+        let doing = if e.stun > 0.0 || e.status.frozen > 0.0 || boss.is_some_and(|b| b.down > 0.0) {
             Doing::Hurt
         } else {
             match e.phase {
@@ -662,7 +661,7 @@ impl Game {
                 tint,
             },
         );
-        if boss.map_or(false, |b| b.enraged()) {
+        if boss.is_some_and(|b| b.enraged()) {
             // Red ink veins once enraged.
             let h = rig.height() * s;
             for k in 0..4 {

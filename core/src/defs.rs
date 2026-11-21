@@ -80,7 +80,7 @@ pub struct Kind {
 pub struct Rng(pub u32);
 
 impl Rng {
-    pub fn next(&mut self) -> u32 {
+    pub fn next_u32(&mut self) -> u32 {
         let mut x = self.0;
         x ^= x << 13;
         x ^= x >> 17;
@@ -90,7 +90,7 @@ impl Rng {
     }
     /// Uniform in 0..1.
     pub fn f(&mut self) -> f32 {
-        (self.next() >> 8) as f32 / 16_777_216.0
+        (self.next_u32() >> 8) as f32 / 16_777_216.0
     }
     pub fn range(&mut self, a: f32, b: f32) -> f32 {
         a + (b - a) * self.f()

@@ -117,7 +117,7 @@ impl Game {
     /// The wind-up time of enemy `i`'s current move.
     pub fn windup_of(&self, e: &Enemy) -> f32 {
         let m = &MOVES[e.mv as usize];
-        let enraged = self.boss.map_or(false, |b| b.id == e.id && b.enraged());
+        let enraged = self.boss.is_some_and(|b| b.id == e.id && b.enraged());
         windup_for(m, enraged)
     }
 
@@ -365,7 +365,7 @@ impl Game {
                     en.pt = 0.0;
                     en.think = if enraged { 0.1 } else { 0.4 };
                     if enraged {
-                        b.chain = 1 + (self.rng.next() % 2) as u8;
+                        b.chain = 1 + (self.rng.next_u32() % 2) as u8;
                     }
                 }
             }

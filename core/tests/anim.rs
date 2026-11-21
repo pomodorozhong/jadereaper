@@ -3,7 +3,6 @@
 use jadereaper_core::anim::*;
 use jadereaper_core::defs::*;
 use jadereaper_core::game::{Game, Input, STEP};
-use jadereaper_core::skills::*;
 
 fn arena() -> Game {
     let mut g = Game::new(1);

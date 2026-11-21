@@ -272,7 +272,7 @@ impl Game {
         // A fire trail: drop patches while rolling, and burn what stands in them.
         if self.stats.trail > 0
             && matches!(self.player.act, crate::game::Act::Roll { .. })
-            && self.steps % 4 == 0
+            && self.steps.is_multiple_of(4)
         {
             let (x, y, element) = (self.player.x, self.player.y, self.stats.trail);
             if self.patches.len() < 40 {
@@ -287,7 +287,7 @@ impl Game {
         let mut p = 0;
         while p < self.patches.len() {
             let patch = self.patches[p];
-            if self.steps % 15 == 0 {
+            if self.steps.is_multiple_of(15) {
                 for i in 0..self.enemies.len() {
                     let e = &self.enemies[i];
                     if dist(e.x, e.y, patch.x, patch.y) < 26.0 + KINDS[e.kind as usize].r {

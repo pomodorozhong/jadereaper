@@ -151,13 +151,8 @@ impl Game {
                 let Some(b) = self.boss.filter(|b| b.id == e.id) else {
                     return (out, 1);
                 };
-                for k in 0..b.nspots as usize {
-                    out[k] = Area::new(
-                        b.spots[k].0,
-                        b.spots[k].1,
-                        (1.0, 0.0),
-                        Shape::Circle { r: m.reach },
-                    );
+                for (slot, spot) in out.iter_mut().zip(&b.spots).take(b.nspots as usize) {
+                    *slot = Area::new(spot.0, spot.1, (1.0, 0.0), Shape::Circle { r: m.reach });
                 }
                 (out, b.nspots as usize)
             }

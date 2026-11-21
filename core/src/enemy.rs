@@ -221,7 +221,7 @@ impl Game {
                             .filter(|&mv| d >= MOVES[mv].range.0 && d <= MOVES[mv].range.1);
                         let n = pick.clone().count();
                         if n > 0 {
-                            let r = (self.rng.next() as usize) % n;
+                            let r = (self.rng.next_u32() as usize) % n;
                             let mv = pick.clone().nth(r).unwrap();
                             let e = &mut self.enemies[i];
                             e.mv = mv as u8;
@@ -322,7 +322,7 @@ impl Game {
         for (i, e) in self.enemies.iter().enumerate() {
             if e.stun > 0.0
                 || e.status.frozen > 0.0
-                || self.boss_of(i).map_or(false, |b| b.down > 0.0)
+                || self.boss_of(i).is_some_and(|b| b.down > 0.0)
             {
                 continue;
             }
@@ -600,7 +600,7 @@ impl Game {
                 continue;
             }
             let k = &KINDS[e.kind as usize];
-            if self.boss.map_or(false, |b| b.id == e.id) {
+            if self.boss.is_some_and(|b| b.id == e.id) {
                 self.release_grab();
                 self.boss = None;
                 self.focus = None;

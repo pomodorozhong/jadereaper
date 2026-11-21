@@ -6,19 +6,11 @@ use crate::game::{Game, Input};
 use crate::geom::{dir_to, dist};
 use crate::skills::SkillKind;
 
+#[derive(Default)]
 pub struct Bot {
     /// Steps until the next skill press, so presses are fresh edges.
     wait: u32,
     next_slot: usize,
-}
-
-impl Default for Bot {
-    fn default() -> Self {
-        Bot {
-            wait: 0,
-            next_slot: 0,
-        }
-    }
 }
 
 impl Bot {

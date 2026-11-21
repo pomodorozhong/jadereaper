@@ -27,7 +27,7 @@ fn run(g: &mut Game, n: u32, input: Input) {
 
 #[test]
 fn each_skill_takes_its_data_time() {
-    for skill in 0..N_SKILLS {
+    for (skill, def) in SKILLS.iter().enumerate() {
         let mut g = arena();
         g.loadout[0] = skill;
         run(&mut g, 1, press(0));
@@ -37,9 +37,9 @@ fn each_skill_takes_its_data_time() {
             steps += 1;
             assert!(steps < 600);
         }
-        let want = (SKILLS[skill].total() / STEP).round() as i32;
+        let want = (def.total() / STEP).round() as i32;
         assert!(
-            (steps as i32 - want).abs() <= 1,
+            (steps - want).abs() <= 1,
             "skill {skill}: {steps} steps, data says {want}"
         );
     }
