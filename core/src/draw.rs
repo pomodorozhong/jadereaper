@@ -7,7 +7,7 @@ use crate::moves::{After, Special, Stance, MOVES};
 use crate::elements::{element_color, STAR_RADIUS, TRAIL_TIME, WELL_RANGE, WELL_TIME};
 use crate::player::HURT_IFRAME;
 use crate::rigs::{Doing, Look};
-use crate::skills::SKILLS;
+use crate::skills::{AreaKind, SkillKind, SKILLS};
 use core::f32::consts::TAU;
 
 const WARN: [f32; 4] = [0.17, 0.15, 0.13, 0.55];
@@ -108,6 +108,7 @@ impl Game {
                 self.draw_warning(ring, 0.0, [color[0], color[1], color[2], color[3] * 0.5]);
             }
         }
+        self.draw_player_skill();
         for i in 0..self.patches.len() {
             let p = self.patches[i];
             let c = element_color(p.element);
@@ -174,6 +175,44 @@ impl Game {
         for i in 0..self.fx.len() {
             if self.fx[i].top {
                 self.draw_fx(i);
+            }
+        }
+    }
+
+    /// The player's own skill, read like an enemy warning but in the skill's colour: through the startup a wash
+    /// in the shape of the coming hit fills in, pointing where the skill will go; through the recovery a ring
+    /// at the feet fills in ink until the cancel point, then turns to the skill's colour while a roll can cut it.
+    fn draw_player_skill(&mut self) {
+        let p = &self.player;
+        let Act::Skill { slot, t, dx, dy, step, dist, ox, oy, .. } = p.act else { return };
+        let (px, py) = (p.x, p.y);
+        let d = self.def(slot);
+        let c = element_color(self.mods[slot].element);
+        let (a0, a1) = (d.startup, d.startup + d.active);
+        if t < a1 {
+            let prog = (t / a0.max(1e-3)).min(1.0);
+            let dir = (dx, dy);
+            let area = match d.kind {
+                SkillKind::Leap => Area::new(ox + dx * dist, oy + dy * dist, dir, Shape::Circle { r: d.reach }),
+                SkillKind::Shot => Area::new(px, py, dir, Shape::Line { len: d.reach, half_w: d.width }),
+                SkillKind::Orbit => Area::new(px, py, dir, Shape::Ring { inner: d.reach - d.width, outer: d.reach + d.width }),
+                SkillKind::Melee if d.area != AreaKind::Arc && d.dash > 0.0 => {
+                    // A lunge or charge: the path still ahead of it.
+                    let gone = ((t - a0) / d.active.max(1e-3)).clamp(0.0, 1.0);
+                    let half_w = if d.area == AreaKind::Line { d.width } else { d.reach };
+                    Area::new(px, py, dir, Shape::Line { len: dist * (1.0 - gone) + d.reach, half_w })
+                }
+                _ => self.skill_area(slot, step, dir),
+            };
+            self.draw_warning(area, prog, [c[0], c[1], c[2], 0.5]);
+        } else {
+            let into = t - a1;
+            let (r, inner) = (36.0, 0.74);
+            if into < d.cancel {
+                self.draw_warning(Area::new(px, py, (1.0, 0.0), Shape::Ring { inner: r * inner, outer: r }), into / d.cancel.max(1e-3), [INK[0], INK[1], INK[2], 0.55]);
+            } else {
+                let fade = 1.0 - (into - d.cancel) / (d.recovery - d.cancel).max(1e-3);
+                self.draw_warning(Area::new(px, py, (1.0, 0.0), Shape::Ring { inner: r * inner, outer: r }), 1.0, [c[0], c[1], c[2], 0.35 + 0.5 * fade]);
             }
         }
     }

@@ -31,7 +31,9 @@ pub enum Act {
     /// Rolling in a direction; `t` counts up from 0 through the move and then the recovery.
     Roll { t: f32, dx: f32, dy: f32 },
     /// Using the skill on a button. `t` counts up from the start of the startup; `step` is the combo step.
-    Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool, dist: f32 },
+    /// `(dx, dy)` is the direction, which follows the aim through the startup and locks when the active window
+    /// starts. `(ox, oy)` is where the skill started; a leap lands `dist` from there along the direction.
+    Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool, dist: f32, ox: f32, oy: f32 },
     /// Knocked off balance by a hit.
     Hurt { t: f32 },
     /// Knocked down by a heavy boss hit; a roll gets up sooner.
@@ -70,6 +72,8 @@ pub struct Player {
     pub aim: (f32, f32),
     /// Aim point offset from the player, as last sent.
     pub aim_at: (f32, f32),
+    /// True when this step's input carried a new aim.
+    pub aim_new: bool,
     pub face: f32,
     pub walk: f32,
     pub moving: bool,
@@ -83,6 +87,11 @@ pub struct Player {
     pub slow: f32,
 }
 
+/// How far a leap aimed at this offset goes: to the aim point, at least 40 units and at most its reach.
+fn leap_dist((ax, ay): (f32, f32), reach: f32) -> f32 {
+    (ax * ax + ay * ay).sqrt().clamp(40.0, reach)
+}
+
 impl Player {
     pub fn new() -> Player {
         Player {
@@ -94,6 +103,7 @@ impl Player {
             max_hp: 100.0,
             aim: (1.0, 0.0),
             aim_at: (100.0, 0.0),
+            aim_new: false,
             face: 1.0,
             walk: 0.0,
             moving: false,
@@ -136,7 +146,8 @@ impl Game {
         }
         let (ax, ay) = (inp.ax, inp.ay);
         let al = (ax * ax + ay * ay).sqrt();
-        if al.is_finite() && al > 1.0 {
+        p.aim_new = al.is_finite() && al > 1.0;
+        if p.aim_new {
             p.aim = (ax / al, ay / al);
             p.aim_at = (ax, ay);
         }
@@ -265,13 +276,33 @@ impl Game {
         p.buffer[slot] = 0.0;
         p.hits.clear();
         // A leap goes to the aim point, as far as its reach; other moving skills always go their full distance.
-        let dist = if d.kind == SkillKind::Leap {
-            let (ax, ay) = p.aim_at;
-            (ax * ax + ay * ay).sqrt().clamp(40.0, d.dash)
-        } else {
-            d.dash
-        };
-        p.act = Act::Skill { slot, skill, t: 0.0, dx: p.aim.0, dy: p.aim.1, step, fired: false, dist };
+        let dist = if d.kind == SkillKind::Leap { leap_dist(p.aim_at, d.dash) } else { d.dash };
+        p.act = Act::Skill { slot, skill, t: 0.0, dx: p.aim.0, dy: p.aim.1, step, fired: false, dist, ox: p.x, oy: p.y };
+    }
+
+    /// Through a skill's startup its direction follows the aim, and a leap's landing point follows the aim point,
+    /// so a skill can be turned while it charges. Both lock when the active window starts.
+    fn reaim_skill(&mut self) {
+        let p = &mut self.player;
+        let Act::Skill { slot, t, ref mut dx, ref mut dy, ref mut dist, ox, oy, .. } = p.act else { return };
+        let d = SKILLS[self.loadout[slot]];
+        if t >= d.startup {
+            return;
+        }
+        if d.kind != SkillKind::Leap {
+            (*dx, *dy) = p.aim;
+            return;
+        }
+        if !p.aim_new {
+            return;
+        }
+        // The aim point, measured from where the leap started.
+        let (ax, ay) = (p.x + p.aim_at.0 - ox, p.y + p.aim_at.1 - oy);
+        let len = (ax * ax + ay * ay).sqrt();
+        if len > 1.0 {
+            (*dx, *dy) = (ax / len, ay / len);
+        }
+        *dist = leap_dist((ax, ay), d.dash);
     }
 
     /// The hit area of a skill button's use from where the player stands.
@@ -296,14 +327,18 @@ impl Game {
 
     /// One step of a skill. Returns how fast the player may walk meanwhile, as a share of walking speed.
     fn run_skill(&mut self, dt: f32) -> f32 {
-        let Act::Skill { slot, skill, t, dx, dy, step, mut fired, dist } = self.player.act else { return 1.0 };
+        self.reaim_skill();
+        let Act::Skill { slot, skill, t, dx, dy, step, mut fired, dist, ox, oy } = self.player.act else { return 1.0 };
         let d = self.def(slot);
         let (a0, a1) = (d.startup, d.startup + d.active);
         if d.kind == SkillKind::Leap && t < a0 {
-            // In the air through the startup.
-            let share = ((t + dt).min(a0) - t) / a0.max(1e-4);
-            self.player.x += dx * dist * share;
-            self.player.y += dy * dist * share;
+            // In the air through the startup, closing on the landing point so it is reached as the startup ends,
+            // wherever the aim has moved it.
+            let left = (a0 - t) / a0.max(1e-4);
+            let share = (((t + dt).min(a0) - t) / a0.max(1e-4) / left.max(1e-4)).min(1.0);
+            let (lx, ly) = (ox + dx * dist, oy + dy * dist);
+            self.player.x += (lx - self.player.x) * share;
+            self.player.y += (ly - self.player.y) * share;
         }
         if t + dt > a0 && t < a1 {
             if dist > 0.0 && d.kind != SkillKind::Leap {
@@ -325,7 +360,7 @@ impl Game {
         self.player.act = if t >= d.total() - 1e-4 {
             Act::Free
         } else {
-            Act::Skill { slot, skill, t, dx, dy, step, fired, dist }
+            Act::Skill { slot, skill, t, dx, dy, step, fired, dist, ox, oy }
         };
         if t < a1 {
             d.walk

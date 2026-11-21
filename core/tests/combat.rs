@@ -189,3 +189,61 @@ fn beads_orbit_and_rehit_after_a_while() {
     let most = (SKILLS[SK_BEADS].lasts / ORBIT_REHIT).ceil() as usize + 1;
     assert!(hits >= 2 && hits <= most, "{hits} hits");
 }
+
+#[test]
+fn a_skill_turns_with_the_aim_while_it_charges_and_locks_when_it_hits() {
+    let d = SKILLS[SK_CLEAVE];
+    let mut g = arena();
+    g.loadout[0] = SK_CLEAVE;
+    run(&mut g, 1, Input { ax: 100.0, buttons: 1, ..Input::default() });
+    // Turned straight down halfway through the startup.
+    run(&mut g, (d.startup * 0.5 / STEP) as u32, Input { ay: 100.0, ..Input::default() });
+    let Act::Skill { dx, dy, .. } = g.player.act else { panic!("not using the skill") };
+    assert!(dx.abs() < 1e-3 && (dy - 1.0).abs() < 1e-3, "({dx}, {dy})");
+    // Into the active window, then aimed left: the direction stays down.
+    run(&mut g, (d.startup * 0.5 / STEP) as u32 + 2, Input { ay: 100.0, ..Input::default() });
+    run(&mut g, 2, Input { ax: -100.0, ..Input::default() });
+    let Act::Skill { dx, dy, .. } = g.player.act else { panic!("not using the skill") };
+    assert!(dx.abs() < 1e-3 && (dy - 1.0).abs() < 1e-3, "locked at ({dx}, {dy})");
+}
+
+#[test]
+fn a_leap_lands_where_the_aim_point_moved_to() {
+    let d = SKILLS[SK_LEAP];
+    let mut g = arena();
+    g.loadout[0] = SK_LEAP;
+    run(&mut g, 1, Input { ax: 200.0, buttons: 1, ..Input::default() });
+    run(&mut g, (d.startup * 0.3 / STEP) as u32, Input::default());
+    // The host sends the aim point as an offset from where the player now is: the world point (0, 150).
+    while matches!(g.player.act, Act::Skill { t, .. } if t < d.startup) {
+        let (x, y) = (g.player.x, g.player.y);
+        run(&mut g, 1, Input { ax: -x, ay: 150.0 - y, ..Input::default() });
+    }
+    assert!(g.player.x.abs() < 2.0 && (g.player.y - 150.0).abs() < 2.0, "landed at ({}, {})", g.player.x, g.player.y);
+}
+
+#[test]
+fn the_players_skill_shows_while_it_charges_and_the_ring_marks_the_cancel_point() {
+    let d = SKILLS[SK_CLEAVE];
+    let jade = jadereaper_core::elements::element_color(0);
+    let warn = |g: &Game, part: f32| g.inst.iter().filter(|i| i.part % PART_SLOTS == part).map(|i| (i.color, i.flash)).collect::<Vec<_>>();
+    let mut g = arena();
+    g.loadout[0] = SK_CLEAVE;
+    run(&mut g, 1, Input { ax: 100.0, buttons: 1, ..Input::default() });
+    run(&mut g, (d.startup * 0.5 / STEP) as u32, Input::default());
+    let arc = warn(&g, P_WARN_ARC);
+    assert_eq!(arc.len(), 1, "one wash for the coming cleave");
+    assert_eq!(arc[0].0[..3], jade, "in the skill's colour");
+    assert!((arc[0].1 - 0.5).abs() < 0.05, "half filled halfway through the startup, got {}", arc[0].1);
+    // Early in the recovery: an ink ring, filling towards the cancel point.
+    run(&mut g, ((d.startup * 0.5 + d.active + d.cancel * 0.5) / STEP) as u32, Input::default());
+    let ring = warn(&g, P_WARN_RING);
+    assert_eq!(ring.len(), 1);
+    assert_eq!(ring[0].0[..3], INK);
+    // Past the cancel point: the ring turns to the skill's colour.
+    run(&mut g, (d.cancel * 0.5 / STEP) as u32 + 2, Input::default());
+    let ring = warn(&g, P_WARN_RING);
+    assert_eq!(ring[0].0[..3], jade);
+    run(&mut g, (d.recovery / STEP) as u32, Input::default());
+    assert!(warn(&g, P_WARN_RING).is_empty() && warn(&g, P_WARN_ARC).is_empty(), "gone once the skill ends");
+}
