@@ -24,16 +24,15 @@ fn the_roll_tucks_and_spins_once() {
         buttons: B_ROLL,
         ..Input::default()
     };
-    // It spins about its vertical axis now, not in its own plane.
     let mut turned = 0.0f32;
-    let mut last = rest.turn;
+    let mut last = rest.rot;
     let mut smallest = rest.hh;
     for _ in 0..((ROLL_TIME / STEP) as u32) {
         g.update(STEP);
         g.input.buttons = 0;
         let b = body(&g, P_PLAYER_BODY);
-        turned += (b.turn - last).abs();
-        last = b.turn;
+        turned += (b.rot - last).abs();
+        last = b.rot;
         smallest = smallest.min(b.hh);
     }
     assert!(

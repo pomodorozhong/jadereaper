@@ -82,7 +82,7 @@ pub struct SheetPose {
     /// Grabbed: how far it is pinned back, and how hard it shakes.
     pub grab: f32,
     pub shake: f32,
-    /// Roll: whole turns about its vertical axis.
+    /// Roll: whole spins in its own plane, about its middle.
     pub roll: f32,
     /// Stunned: how far it wobbles each way towards edge-on, and wobbles per second.
     pub wobble: f32,
@@ -142,6 +142,8 @@ impl Rig {
 pub struct Pose3 {
     pub flat: Pose,
     pub sheet: Sheet,
+    /// A spin in the puppet's own plane about its middle, in radians (the roll), on top of the flat pose's tilt.
+    pub spin: f32,
 }
 
 /// The walk cycle and a clock, which the animation record does not carry: they come from the drawing side.
@@ -194,6 +196,7 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
     let t = k * a.len;
     let aim = aim_turn(a.face, a.dx, a.dy, n.aim);
     let mut sheet = Sheet::FLAT;
+    let mut spin = 0.0;
     let off_step = (g.steps.floor() as i32) & 1 == 1;
     let walk = Pose {
         tilt: if off_step { -g.lean } else { g.lean },
@@ -253,8 +256,9 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
             Pose::REST.mix(&rig.attack.mix(&Pose::REST, 0.5 * s), up)
         }
         A_ROLL => {
+            // Tucks and spins in its own plane, like a cartwheel seen from the front.
             let m = (t / ROLL_TIME).min(1.0);
-            sheet.turn = n.roll * TAU * m;
+            spin = n.roll * TAU * m;
             Pose::REST.mix(&rig.roll, (m * PI).sin())
         }
         A_DOWN => {
@@ -289,7 +293,7 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
         flat.tilt += a.hit_dx * a.face * lean;
         sheet.bend += bend;
     }
-    Pose3 { flat, sheet }
+    Pose3 { flat, sheet, spin }
 }
 
 /// How a puppet is drawn this frame.
@@ -353,7 +357,13 @@ impl Game {
     pub(crate) fn draw_rig(&mut self, rig: &Rig, p3: Pose3, look: Look) {
         let pose = p3.flat;
         let (f, s) = (look.face, look.scale);
-        let tilt = pose.tilt * f;
+        let tilt = (pose.tilt + p3.spin) * f;
+        // A spinning puppet turns about its middle, not its feet.
+        let pivot = if p3.spin != 0.0 {
+            rig.height() * 0.5 * s
+        } else {
+            0.0
+        };
         let (c, sn) = (tilt.cos(), tilt.sin());
         let sheet = if self.debug_spin {
             self.debug_sheet(look.seed)
@@ -398,13 +408,13 @@ impl Game {
                     continue;
                 }
             }
-            let (ox, oy) = (p.x * f * s * pose.sx, p.y * s * pose.sy);
+            let (ox, oy) = (p.x * f * s * pose.sx, p.y * s * pose.sy + pivot);
             let (rx, ry) = (ox * c - oy * sn, ox * sn + oy * c);
             placed[n] = Placed {
                 depth: k as f32,
                 z: 0.0,
                 x: rx + pose.dx * f,
-                y: ry + pose.dy,
+                y: ry - pivot + pose.dy,
                 hw: p.hw * s * pose.sx * f,
                 hh: p.hh * s * pose.sy,
                 rot: p.rot * f + tilt,
@@ -484,6 +494,7 @@ mod tests {
     const REST: Pose3 = Pose3 {
         flat: Pose::REST,
         sheet: Sheet::FLAT,
+        spin: 0.0,
     };
 
     fn drawn_pose(p3: Pose3, sheet: Sheet) -> Vec<Inst> {
@@ -731,22 +742,26 @@ mod tests {
     }
 
     #[test]
-    fn a_roll_turns_once() {
+    fn a_roll_spins_once_in_its_own_plane() {
         let len = ROLL_TIME + ROLL_RECOVER;
-        let turn = |k: f32| posed(&rec(A_ROLL, k, len)).sheet.turn;
-        assert_eq!(turn(0.0), 0.0);
+        let at = |k: f32| posed(&rec(A_ROLL, k, len));
+        assert_eq!(at(0.0).spin, 0.0);
         let mut last = 0.0;
         for i in 1..=20 {
-            let t = turn(i as f32 / 20.0);
-            assert!(t >= last);
-            last = t;
+            let p = at(i as f32 / 20.0);
+            assert!(p.spin >= last);
+            // A cartwheel facing the camera: the sheet never turns about its vertical axis.
+            assert_eq!(p.sheet.turn, 0.0);
+            last = p.spin;
         }
         assert!((last - TAU).abs() < 1e-5);
-        // Halfway round its back is to the camera, so its parts are drawn in the other order.
-        let half = drawn_pose(posed(&rec(A_ROLL, 0.5 * ROLL_TIME / len, len)), Sheet::FLAT);
-        let mut reversed = ids(&drawn(Sheet::FLAT));
-        reversed.reverse();
-        assert_eq!(ids(&half), reversed);
+        // Halfway, it is upside down about its middle: the head is below the body.
+        let half = drawn_pose(at(0.5 * ROLL_TIME / len), Sheet::FLAT);
+        let body = *half
+            .iter()
+            .find(|i| i.part % PART_SLOTS == P_PLAYER_BODY)
+            .unwrap();
+        assert!(head(&half).y > body.y);
     }
 
     #[test]
