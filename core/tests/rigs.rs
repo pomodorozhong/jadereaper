@@ -5,7 +5,10 @@ use jadereaper_core::game::{Game, Input, Phase, STEP};
 use jadereaper_core::rigs::{Doing, Pose};
 
 fn body(g: &Game, part: f32) -> Inst {
-    *g.inst.iter().find(|i| i.part % PART_SLOTS == part).expect("part drawn")
+    *g.inst
+        .iter()
+        .find(|i| i.part % PART_SLOTS == part)
+        .expect("part drawn")
 }
 
 #[test]
@@ -15,7 +18,11 @@ fn the_roll_tucks_and_spins_once() {
     g.auto_spawn = false;
     g.update(STEP);
     let rest = body(&g, P_PLAYER_BODY);
-    g.input = Input { mx: 1.0, buttons: B_ROLL, ..Input::default() };
+    g.input = Input {
+        mx: 1.0,
+        buttons: B_ROLL,
+        ..Input::default()
+    };
     let mut turned = 0.0f32;
     let mut last = rest.rot;
     let mut smallest = rest.hh;
@@ -27,7 +34,10 @@ fn the_roll_tucks_and_spins_once() {
         last = b.rot;
         smallest = smallest.min(b.hh);
     }
-    assert!((turned - core::f32::consts::TAU).abs() < 0.8, "turned {turned}");
+    assert!(
+        (turned - core::f32::consts::TAU).abs() < 0.8,
+        "turned {turned}"
+    );
     assert!(smallest < rest.hh * 0.85, "did not tuck");
 }
 
@@ -38,9 +48,22 @@ fn poses_come_from_the_rig() {
     assert_eq!(wind, rig.windup);
     let (hurt, _) = Game::rig_pose(rig, Doing::Hurt);
     assert_eq!(hurt, rig.hurt);
-    let (walk, spin) = Game::rig_pose(rig, Doing::Walk { step: true, lean: 0.1, hop: -3.0 });
+    let (walk, spin) = Game::rig_pose(
+        rig,
+        Doing::Walk {
+            step: true,
+            lean: 0.1,
+            hop: -3.0,
+        },
+    );
     assert_eq!(spin, 0.0);
-    assert_eq!(walk, Pose { tilt: 0.1, ..Pose::REST });
+    assert_eq!(
+        walk,
+        Pose {
+            tilt: 0.1,
+            ..Pose::REST
+        }
+    );
 }
 
 #[test]
@@ -50,7 +73,9 @@ fn an_enemy_winding_up_is_drawn_in_its_windup_pose() {
     g.auto_spawn = false;
     g.add_enemy(K_BRUTE, 100.0, 0.0);
     let mut n = 0;
-    while !(g.enemies[0].phase == Phase::Windup && g.enemies[0].pt > MOVES[M_BRUTE_SLAM].windup * 0.5) {
+    while !(g.enemies[0].phase == Phase::Windup
+        && g.enemies[0].pt > MOVES[M_BRUTE_SLAM].windup * 0.5)
+    {
         g.update(STEP);
         n += 1;
         assert!(n < 600);

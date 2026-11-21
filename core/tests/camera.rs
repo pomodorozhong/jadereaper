@@ -21,7 +21,13 @@ fn settle(g: &mut Game, input: Input) {
 #[test]
 fn leads_towards_the_aim() {
     let mut g = game();
-    settle(&mut g, Input { ax: 200.0, ..Input::default() });
+    settle(
+        &mut g,
+        Input {
+            ax: 200.0,
+            ..Input::default()
+        },
+    );
     let lead = g.cam.0 - g.player.x;
     assert!(lead > 50.0 && lead < 90.0, "lead {lead}");
 }
@@ -31,8 +37,18 @@ fn stays_inside_the_arena() {
     let mut g = game();
     g.arena = Some([-300.0, -300.0, 300.0, 300.0]);
     g.player.x = 290.0;
-    settle(&mut g, Input { ax: 200.0, ..Input::default() });
-    assert!(g.cam.0 + g.view_w <= 300.0 + 60.0 + 0.01, "camera right edge {}", g.cam.0 + g.view_w);
+    settle(
+        &mut g,
+        Input {
+            ax: 200.0,
+            ..Input::default()
+        },
+    );
+    assert!(
+        g.cam.0 + g.view_w <= 300.0 + 60.0 + 0.01,
+        "camera right edge {}",
+        g.cam.0 + g.view_w
+    );
 }
 
 #[test]
@@ -52,7 +68,11 @@ fn reduce_motion_turns_off_shake_and_hit_stop() {
     g.reduce_motion = true;
     let i = g.add_enemy(K_BLOT, 40.0, 0.0).unwrap();
     g.enemies[i].hp = 1e6;
-    g.input = Input { ax: 100.0, buttons: B_SKILL1, ..Input::default() };
+    g.input = Input {
+        ax: 100.0,
+        buttons: B_SKILL1,
+        ..Input::default()
+    };
     for _ in 0..20 {
         g.update(STEP);
         assert_eq!(g.hitstop, 0.0);

@@ -117,14 +117,16 @@ impl Game {
     /// The wind-up time of enemy `i`'s current move.
     pub fn windup_of(&self, e: &Enemy) -> f32 {
         let m = &MOVES[e.mv as usize];
-        let enraged = self.boss.map_or(false, |b| b.id == e.id && b.enraged());
+        let enraged = self.boss.is_some_and(|b| b.id == e.id && b.enraged());
         windup_for(m, enraged)
     }
 
     /// A hit on the boss: it fills the stagger meter instead of interrupting, counts towards enraging, and an eat
     /// in progress is stopped. Returns the damage after the knocked-down bonus.
     pub(crate) fn boss_hit(&mut self, i: usize, dmg: f32, stagger: f32) -> f32 {
-        let Some(mut b) = self.boss_of(i) else { return dmg };
+        let Some(mut b) = self.boss_of(i) else {
+            return dmg;
+        };
         let dmg = if b.down > 0.0 { dmg * DOWN_DAMAGE } else { dmg };
         if b.down <= 0.0 {
             b.meter += stagger;
@@ -164,12 +166,19 @@ impl Game {
 
         // Enrage, for good.
         let hp = self.enemies[i].hp;
-        if self.enemies[i].kind == K_GLUTTON && b.phase == 1 && (hp < max_hp * ENRAGE_HP || b.recent > max_hp * ENRAGE_BURST || b.rage >= 1.0) {
+        if self.enemies[i].kind == K_GLUTTON
+            && b.phase == 1
+            && (hp < max_hp * ENRAGE_HP || b.recent > max_hp * ENRAGE_BURST || b.rage >= 1.0)
+        {
             b.phase = 2;
             let (x, y) = (self.enemies[i].x, self.enemies[i].y);
             self.shake = self.shake.max(1.0);
             self.event(EV_ENRAGE, x, y, 0.0);
-            self.add_fx(Fx { grow: 400.0, top: false, ..Fx::at(x, y, P_RING, 0.4, 30.0, 30.0, [0.74, 0.18, 0.14, 0.8]) });
+            self.add_fx(Fx {
+                grow: 400.0,
+                top: false,
+                ..Fx::at(x, y, P_RING, 0.4, 30.0, 30.0, [0.74, 0.18, 0.14, 0.8])
+            });
         }
 
         // Knocked down by a full meter.
@@ -223,7 +232,8 @@ impl Game {
                         let en = &mut self.enemies[i];
                         en.mv = mv as u8;
                         // An enraged combo runs one hit longer.
-                        en.chain = MOVES[mv].chain + if enraged && MOVES[mv].chain > 0 { 1 } else { 0 };
+                        en.chain =
+                            MOVES[mv].chain + if enraged && MOVES[mv].chain > 0 { 1 } else { 0 };
                         b.cooldowns[mv] = MOVES[mv].cooldown;
                         // Turn to face the player as the wind-up starts.
                         if MOVES[mv].special != Special::Behind {
@@ -247,7 +257,11 @@ impl Game {
                             for k in 0..2 {
                                 if self.enemies.len() < SUMMON_CAP + 1 {
                                     let a = b.dir + if k == 0 { 1.8 } else { -1.8 };
-                                    self.add_enemy(K_BLOT, x + a.cos() * 120.0, y + a.sin() * 120.0);
+                                    self.add_enemy(
+                                        K_BLOT,
+                                        x + a.cos() * 120.0,
+                                        y + a.sin() * 120.0,
+                                    );
                                 }
                             }
                         }
@@ -255,7 +269,8 @@ impl Game {
                             if let Some(j) = self.nearest_blot(i, 260.0) {
                                 // Eaten: removed with the dead, without counting as a kill.
                                 self.enemies[j].hp = f32::NEG_INFINITY;
-                                self.enemies[i].hp = (self.enemies[i].hp + max_hp * EAT_HEAL).min(max_hp);
+                                self.enemies[i].hp =
+                                    (self.enemies[i].hp + max_hp * EAT_HEAL).min(max_hp);
                                 b.rage += EAT_RAGE;
                                 self.event(EV_HEAL, x, y, 0.0);
                             }
@@ -292,7 +307,10 @@ impl Game {
                     en.x += en.dx * m.dash * dt / m.active;
                     en.y += en.dy * m.dash * dt / m.active;
                 }
-                let attack = !matches!(m.special, Special::Summon | Special::Eat | Special::Finisher);
+                let attack = !matches!(
+                    m.special,
+                    Special::Summon | Special::Eat | Special::Finisher
+                );
                 if attack && !self.enemies[i].struck {
                     let (areas, n) = self.strike_areas(i, pt / m.active);
                     let (ex, ey) = (self.enemies[i].x, self.enemies[i].y);
@@ -347,14 +365,22 @@ impl Game {
                     en.pt = 0.0;
                     en.think = if enraged { 0.1 } else { 0.4 };
                     if enraged {
-                        b.chain = 1 + (self.rng.next() % 2) as u8;
+                        b.chain = 1 + (self.rng.next_u32() % 2) as u8;
                     }
                 }
             }
         }
         let en = &mut self.enemies[i];
-        en.dx = if en.phase == Phase::Approach { b.dir.cos() } else { en.dx };
-        en.dy = if en.phase == Phase::Approach { b.dir.sin() } else { en.dy };
+        en.dx = if en.phase == Phase::Approach {
+            b.dir.cos()
+        } else {
+            en.dx
+        };
+        en.dy = if en.phase == Phase::Approach {
+            b.dir.sin()
+        } else {
+            en.dy
+        };
         if b.dir.cos().abs() > 0.15 {
             en.face = b.dir.cos().signum();
         }
@@ -412,7 +438,11 @@ impl Game {
     fn nearest_blot(&self, boss: usize, range: f32) -> Option<usize> {
         let (bx, by) = (self.enemies[boss].x, self.enemies[boss].y);
         (0..self.enemies.len())
-            .filter(|&j| self.enemies[j].kind == K_BLOT && self.enemies[j].hp > 0.0 && dist(bx, by, self.enemies[j].x, self.enemies[j].y) < range)
+            .filter(|&j| {
+                self.enemies[j].kind == K_BLOT
+                    && self.enemies[j].hp > 0.0
+                    && dist(bx, by, self.enemies[j].x, self.enemies[j].y) < range
+            })
             .min_by(|&a, &c| {
                 let da = dist(bx, by, self.enemies[a].x, self.enemies[a].y);
                 let dc = dist(bx, by, self.enemies[c].x, self.enemies[c].y);
@@ -427,14 +457,25 @@ impl Game {
         if m.special == Special::Sweep {
             let base = e.dy.atan2(e.dx);
             let a = base - SWEEP_HALF + 2.0 * SWEEP_HALF * k.clamp(0.0, 1.0);
-            return Area::new(e.x, e.y, (a.cos(), a.sin()), Shape::Line { len: m.reach, half_w: m.width });
+            return Area::new(
+                e.x,
+                e.y,
+                (a.cos(), a.sin()),
+                Shape::Line {
+                    len: m.reach,
+                    half_w: m.width,
+                },
+            );
         }
         self.strike_area(e)
     }
 
     /// Hit the boss with an element-free hit of the first skill button's element, for tests.
     pub fn hit_boss_for_test(&mut self, dmg: f32) {
-        if let Some(i) = self.boss.and_then(|b| self.enemies.iter().position(|e| e.id == b.id)) {
+        if let Some(i) = self
+            .boss
+            .and_then(|b| self.enemies.iter().position(|e| e.id == b.id))
+        {
             let element = self.mods[0].element;
             self.hurt_enemy(i, dmg, 10.0, 0.0, 0.0);
             self.apply_element(i, element, dmg, 10.0);
@@ -446,8 +487,16 @@ impl Game {
         if let Act::Grabbed { .. } = self.player.act {
             self.player.act = Act::Free;
             self.player.iframe = 0.6;
-            if let Some(i) = self.boss.and_then(|b| self.enemies.iter().position(|e| e.id == b.id)) {
-                let (kx, ky) = dir_to(self.enemies[i].x, self.enemies[i].y, self.player.x, self.player.y);
+            if let Some(i) = self
+                .boss
+                .and_then(|b| self.enemies.iter().position(|e| e.id == b.id))
+            {
+                let (kx, ky) = dir_to(
+                    self.enemies[i].x,
+                    self.enemies[i].y,
+                    self.player.x,
+                    self.player.y,
+                );
                 self.player.kx = kx * 300.0;
                 self.player.ky = ky * 300.0;
             }

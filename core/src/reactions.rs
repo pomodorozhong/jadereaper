@@ -82,7 +82,11 @@ impl Game {
         let boss = self.is_boss(i);
         let color = |e: u8| crate::elements::element_color(e + 1);
         let ring = |g: &mut Game, radius: f32, c: [f32; 3]| {
-            g.add_fx(Fx { grow: radius / 0.25, top: false, ..Fx::at(x, y, P_RING, 0.25, 10.0, 10.0, [c[0], c[1], c[2], 0.9]) });
+            g.add_fx(Fx {
+                grow: radius / 0.25,
+                top: false,
+                ..Fx::at(x, y, P_RING, 0.25, 10.0, 10.0, [c[0], c[1], c[2], 0.9])
+            });
         };
         match r {
             R_STEAM => {
@@ -149,7 +153,19 @@ impl Game {
                 for &(j, d) in near.iter().take(3) {
                     let (tx, ty) = (self.enemies[j].x, self.enemies[j].y);
                     let rot = (ty - y).atan2(tx - x);
-                    self.add_fx(Fx { rot, seed: 0.9, ..Fx::at((x + tx) * 0.5, (y + ty) * 0.5 - 24.0, P_SLASH, 0.2, d * 0.5, 6.0, [c[0], c[1], c[2], 0.95]) });
+                    self.add_fx(Fx {
+                        rot,
+                        seed: 0.9,
+                        ..Fx::at(
+                            (x + tx) * 0.5,
+                            (y + ty) * 0.5 - 24.0,
+                            P_SLASH,
+                            0.2,
+                            d * 0.5,
+                            6.0,
+                            [c[0], c[1], c[2], 0.95],
+                        )
+                    });
                     self.hurt_enemy(j, dmg * 0.6 + 12.0, 20.0, 0.0, 0.0);
                 }
             }

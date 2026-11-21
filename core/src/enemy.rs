@@ -1,11 +1,11 @@
 //! Enemies: spawning, movement, taking hits and dying, and the player's projectiles.
 
 use crate::defs::*;
+use crate::elements::Status;
 use crate::game::*;
 use crate::geom::{dir_to, dist, Area, Shape};
 use crate::moves::*;
 use crate::player::PLAYER_R;
-use crate::elements::Status;
 use crate::skills::AreaKind;
 use core::f32::consts::TAU;
 
@@ -27,8 +27,17 @@ impl Game {
         e.hp -= dmg;
         e.flash = 1.0;
         let kl = (kx * kx + ky * ky).sqrt();
-        let (hx, hy) = if kl > 1e-3 { (kx / kl, ky / kl) } else { (0.0, 0.0) };
-        e.hit = crate::anim::Hit { dx: hx, dy: hy, dmg, at: now };
+        let (hx, hy) = if kl > 1e-3 {
+            (kx / kl, ky / kl)
+        } else {
+            (0.0, 0.0)
+        };
+        e.hit = crate::anim::Hit {
+            dx: hx,
+            dy: hy,
+            dmg,
+            at: now,
+        };
         let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
         e.kx += kx * heavy;
         e.ky += ky * heavy;
@@ -95,13 +104,30 @@ impl Game {
         };
         if m.special == Special::Sweep {
             // Warned as the whole arc the line will sweep.
-            return Area::new(e.ox, e.oy, (e.dx, e.dy), Shape::Arc { r: m.reach, half: SWEEP_HALF });
+            return Area::new(
+                e.ox,
+                e.oy,
+                (e.dx, e.dy),
+                Shape::Arc {
+                    r: m.reach,
+                    half: SWEEP_HALF,
+                },
+            );
         }
         let shape = match m.area {
             AreaKind::Circle => Shape::Circle { r: m.reach },
-            AreaKind::Arc => Shape::Arc { r: m.reach, half: m.width },
-            AreaKind::Line => Shape::Line { len: m.reach, half_w: m.width },
-            AreaKind::Ring => Shape::Ring { inner: (m.reach - m.width).max(0.0), outer: m.reach },
+            AreaKind::Arc => Shape::Arc {
+                r: m.reach,
+                half: m.width,
+            },
+            AreaKind::Line => Shape::Line {
+                len: m.reach,
+                half_w: m.width,
+            },
+            AreaKind::Ring => Shape::Ring {
+                inner: (m.reach - m.width).max(0.0),
+                outer: m.reach,
+            },
         };
         Area::new(x, y, (e.dx, e.dy), shape)
     }
@@ -171,7 +197,11 @@ impl Game {
                     e.think -= dt;
                     let moves = KINDS[e.kind as usize].moves;
                     // Wisps keep their distance; the rest close in to striking range.
-                    let (near, far) = if e.kind == K_WISP { (200.0, 300.0) } else { (0.0, MOVES[moves[0]].range.1 * 0.7) };
+                    let (near, far) = if e.kind == K_WISP {
+                        (200.0, 300.0)
+                    } else {
+                        (0.0, MOVES[moves[0]].range.1 * 0.7)
+                    };
                     let dir = if d > far {
                         1.0
                     } else if d < near {
@@ -185,10 +215,13 @@ impl Game {
                         e.face = (tx * dir).signum();
                     }
                     if e.think <= 0.0 && e.age > 0.8 {
-                        let pick = moves.iter().copied().filter(|&mv| d >= MOVES[mv].range.0 && d <= MOVES[mv].range.1);
+                        let pick = moves
+                            .iter()
+                            .copied()
+                            .filter(|&mv| d >= MOVES[mv].range.0 && d <= MOVES[mv].range.1);
                         let n = pick.clone().count();
                         if n > 0 {
-                            let r = (self.rng.next() as usize) % n;
+                            let r = (self.rng.next_u32() as usize) % n;
                             let mv = pick.clone().nth(r).unwrap();
                             let e = &mut self.enemies[i];
                             e.mv = mv as u8;
@@ -201,7 +234,8 @@ impl Game {
                     if e.pt >= m.windup {
                         e.phase = Phase::Active;
                         e.pt = 0.0;
-                        let (ex, ey, dx, dy, boss) = (e.x, e.y, e.dx, e.dy, KINDS[e.kind as usize].boss);
+                        let (ex, ey, dx, dy, boss) =
+                            (e.x, e.y, e.dx, e.dy, KINDS[e.kind as usize].boss);
                         let warned = m.windup;
                         match m.after {
                             After::None => {}
@@ -286,15 +320,23 @@ impl Game {
     pub fn threat(&self, within: f32) -> bool {
         let (px, py) = (self.player.x, self.player.y);
         for (i, e) in self.enemies.iter().enumerate() {
-            if e.stun > 0.0 || e.status.frozen > 0.0 || self.boss_of(i).map_or(false, |b| b.down > 0.0) {
+            if e.stun > 0.0
+                || e.status.frozen > 0.0
+                || self.boss_of(i).is_some_and(|b| b.down > 0.0)
+            {
                 continue;
             }
             let m = &MOVES[e.mv as usize];
-            if matches!(m.special, Special::Summon | Special::Eat | Special::Finisher) {
+            if matches!(
+                m.special,
+                Special::Summon | Special::Eat | Special::Finisher
+            ) {
                 continue;
             }
             let soon = match e.phase {
-                Phase::Windup => self.windup_of(e) - e.pt <= within && !matches!(m.after, After::Shot { .. }),
+                Phase::Windup => {
+                    self.windup_of(e) - e.pt <= within && !matches!(m.after, After::Shot { .. })
+                }
                 Phase::Active => !e.struck && !matches!(m.after, After::Shot { .. }),
                 _ => false,
             };
@@ -313,7 +355,11 @@ impl Game {
             }
             let area = if m.special == Special::Sweep {
                 // Where the swept line will be.
-                let k = if e.phase == Phase::Active { (e.pt + within) / m.active } else { 0.0 };
+                let k = if e.phase == Phase::Active {
+                    (e.pt + within) / m.active
+                } else {
+                    0.0
+                };
                 self.boss_area(i, k)
             } else if e.phase == Phase::Active {
                 // Where the strike will be, for a body still dashing in.
@@ -345,9 +391,17 @@ impl Game {
                 let v = (h.vx * h.vx + h.vy * h.vy).sqrt().max(1e-3);
                 let along = (rx * h.vx + ry * h.vy) / v;
                 let side = (-rx * h.vy + ry * h.vx).abs() / v;
-                if side > h.r + PLAYER_R || along < -h.r { f32::MAX } else { along - h.r - PLAYER_R }
+                if side > h.r + PLAYER_R || along < -h.r {
+                    f32::MAX
+                } else {
+                    along - h.r - PLAYER_R
+                }
             };
-            let speed = if h.band > 0.0 { h.grow } else { (h.vx * h.vx + h.vy * h.vy).sqrt() };
+            let speed = if h.band > 0.0 {
+                h.grow
+            } else {
+                (h.vx * h.vx + h.vy * h.vy).sqrt()
+            };
             // A shot or ring takes most of a roll's invulnerability to pass, so only count it as it arrives.
             if gap <= speed * within.min(0.03) {
                 return true;
@@ -384,7 +438,11 @@ impl Game {
             h.life -= dt;
             h.warned += dt;
             let d = dist(h.x, h.y, px, py);
-            let hit = if h.band > 0.0 { (d - h.r).abs() < h.band * 0.5 + PLAYER_R } else { d < h.r + PLAYER_R };
+            let hit = if h.band > 0.0 {
+                (d - h.r).abs() < h.band * 0.5 + PLAYER_R
+            } else {
+                d < h.r + PLAYER_R
+            };
             h.cool = (h.cool - dt).max(0.0);
             let h = *h;
             let mut gone = h.life <= 0.0;
@@ -512,7 +570,8 @@ impl Game {
             }
             if let Some(i) = hit {
                 let sh = &mut self.shots[s];
-                let (vx, vy, dmg, stagger, kb, element) = (sh.vx, sh.vy, sh.dmg, sh.stagger, sh.knockback, sh.element);
+                let (vx, vy, dmg, stagger, kb, element) =
+                    (sh.vx, sh.vy, sh.dmg, sh.stagger, sh.knockback, sh.element);
                 sh.last = self.enemies[i].id;
                 sh.pierce -= 1;
                 let v = (vx * vx + vy * vy).sqrt().max(1e-3);
@@ -541,7 +600,7 @@ impl Game {
                 continue;
             }
             let k = &KINDS[e.kind as usize];
-            if self.boss.map_or(false, |b| b.id == e.id) {
+            if self.boss.is_some_and(|b| b.id == e.id) {
                 self.release_grab();
                 self.boss = None;
                 self.focus = None;
@@ -562,7 +621,15 @@ impl Game {
                     grow: 8.0,
                     seed,
                     top: false,
-                    ..Fx::at(e.x, e.y - k.r * 0.5, P_SPLAT, 0.55, size, size * 0.8, [INK[0], INK[1], INK[2], 0.7])
+                    ..Fx::at(
+                        e.x,
+                        e.y - k.r * 0.5,
+                        P_SPLAT,
+                        0.55,
+                        size,
+                        size * 0.8,
+                        [INK[0], INK[1], INK[2], 0.7],
+                    )
                 });
             }
         }

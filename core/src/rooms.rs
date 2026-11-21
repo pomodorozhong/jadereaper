@@ -155,13 +155,27 @@ impl Game {
         }
         if self.add_enemy(kind, x, y).is_some() {
             let k = &KINDS[kind as usize];
-            self.add_fx(Fx { top: false, grow: 30.0, ..Fx::at(x, y, P_SPLAT, 0.6, k.r * 1.2, k.r * 0.8, [INK[0], INK[1], INK[2], 0.5]) });
+            self.add_fx(Fx {
+                top: false,
+                grow: 30.0,
+                ..Fx::at(
+                    x,
+                    y,
+                    P_SPLAT,
+                    0.6,
+                    k.r * 1.2,
+                    k.r * 0.8,
+                    [INK[0], INK[1], INK[2], 0.5],
+                )
+            });
         }
     }
 
     /// Keep the player and enemies inside the arena.
     pub(crate) fn keep_inside(&mut self) {
-        let Some([x0, y0, x1, y1]) = self.arena else { return };
+        let Some([x0, y0, x1, y1]) = self.arena else {
+            return;
+        };
         let p = &mut self.player;
         p.x = p.x.clamp(x0 + PLAYER_R, x1 - PLAYER_R);
         p.y = p.y.clamp(y0 + PLAYER_R, y1 - PLAYER_R);

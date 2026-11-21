@@ -16,8 +16,20 @@ fn steps(g: &mut Game, n: u32, input: Input) {
     }
 }
 
-const ROLL: Input = Input { mx: 1.0, my: 0.0, ax: 0.0, ay: 0.0, buttons: B_ROLL };
-const RIGHT: Input = Input { mx: 1.0, my: 0.0, ax: 0.0, ay: 0.0, buttons: 0 };
+const ROLL: Input = Input {
+    mx: 1.0,
+    my: 0.0,
+    ax: 0.0,
+    ay: 0.0,
+    buttons: B_ROLL,
+};
+const RIGHT: Input = Input {
+    mx: 1.0,
+    my: 0.0,
+    ax: 0.0,
+    ay: 0.0,
+    buttons: 0,
+};
 
 fn secs(t: f32) -> u32 {
     (t / STEP).round() as u32
@@ -30,10 +42,16 @@ fn roll_is_invulnerable_then_recovers() {
     assert!(matches!(g.player.act, Act::Roll { .. }));
     assert!(g.player.invulnerable());
     steps(&mut g, secs(ROLL_INVULN) - 2, ROLL);
-    assert!(g.player.invulnerable(), "still invulnerable just before the window ends");
+    assert!(
+        g.player.invulnerable(),
+        "still invulnerable just before the window ends"
+    );
     steps(&mut g, 2, RIGHT);
     assert!(!g.player.invulnerable(), "vulnerable after the window");
-    assert!(matches!(g.player.act, Act::Roll { .. }), "still rolling or recovering");
+    assert!(
+        matches!(g.player.act, Act::Roll { .. }),
+        "still rolling or recovering"
+    );
     steps(&mut g, secs(ROLL_TIME + ROLL_RECOVER - ROLL_INVULN), RIGHT);
     assert_eq!(g.player.act, Act::Free);
 }
@@ -44,7 +62,11 @@ fn roll_covers_its_distance() {
     let x0 = g.player.x;
     steps(&mut g, 1, ROLL);
     steps(&mut g, secs(ROLL_TIME), Input::default());
-    assert!((g.player.x - x0 - ROLL_DIST).abs() < 1.0, "rolled {}", g.player.x - x0);
+    assert!(
+        (g.player.x - x0 - ROLL_DIST).abs() < 1.0,
+        "rolled {}",
+        g.player.x - x0
+    );
 }
 
 #[test]
@@ -54,7 +76,9 @@ fn roll_cannot_be_chained_during_recovery() {
     steps(&mut g, secs(ROLL_TIME) + 1, RIGHT);
     // A fresh press during the recovery is buffered, but only acts once the recovery ends.
     steps(&mut g, 1, ROLL);
-    let Act::Roll { t, .. } = g.player.act else { panic!("expected the first roll's recovery") };
+    let Act::Roll { t, .. } = g.player.act else {
+        panic!("expected the first roll's recovery")
+    };
     assert!(t > ROLL_TIME, "a new roll started during the recovery");
 }
 
@@ -67,7 +91,9 @@ fn press_just_before_recovery_ends_is_buffered() {
     steps(&mut g, total - 1 - secs(0.1), RIGHT);
     steps(&mut g, 1, ROLL);
     steps(&mut g, secs(0.1) + 1, ROLL);
-    let Act::Roll { t, .. } = g.player.act else { panic!("the buffered roll did not start") };
+    let Act::Roll { t, .. } = g.player.act else {
+        panic!("the buffered roll did not start")
+    };
     assert!(t < 0.1);
 }
 
@@ -85,7 +111,15 @@ fn press_too_early_is_dropped() {
 #[test]
 fn aim_follows_the_aim_point() {
     let mut g = game();
-    steps(&mut g, 1, Input { ax: 0.0, ay: -50.0, ..Input::default() });
+    steps(
+        &mut g,
+        1,
+        Input {
+            ax: 0.0,
+            ay: -50.0,
+            ..Input::default()
+        },
+    );
     assert!((g.player.aim.1 + 1.0).abs() < 1e-5);
     // Zero aim keeps the last one.
     steps(&mut g, 1, Input::default());

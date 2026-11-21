@@ -8,92 +8,122 @@
 // WebGPU, it checks that the "Cannot start" screen shows the WebGPU reason.
 // Then it opens the Lightbox and checks that it loads cleanly.
 
-import { chromium } from 'playwright';
-import { isLocalOnly, serve } from './serve.mjs';
+import { chromium } from "playwright";
+import { isLocalOnly, missingWasm, serve } from "./serve.mjs";
 
 const PLAY_MS = 3000;
 const TIMEOUT_MS = 20000;
 
+const missing = missingWasm();
+if (missing) {
+	console.error(`smoke: ${missing}`);
+	process.exit(1);
+}
+
 const server = await serve(0);
 const url = `http://localhost:${server.address().port}/`;
-const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ args: ["--enable-unsafe-webgpu"] });
 const problems = [];
 let consoleErrors = [];
 let outcome;
 let inGame = true;
 
 try {
-  const page = await browser.newPage();
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
-  });
-  page.on('pageerror', (err) => problems.push(`page error: ${err.message}`));
-  page.on('requestfailed', (req) => problems.push(`request failed: ${req.url()} (${req.failure()?.errorText})`));
-  page.on('response', (res) => {
-    if (res.status() >= 400) problems.push(`HTTP ${res.status()}: ${res.url()}`);
-    // These are served locally but not published, so the game would 404 on them on Pages.
-    const rel = new URL(res.url()).pathname.slice(1);
-    if (inGame && isLocalOnly(rel)) {
-      problems.push(`the game loaded a local-only file: ${rel}`);
-    }
-  });
+	const page = await browser.newPage();
+	page.on("console", (msg) => {
+		if (msg.type() === "error") consoleErrors.push(msg.text());
+	});
+	page.on("pageerror", (err) => problems.push(`page error: ${err.message}`));
+	page.on("requestfailed", (req) =>
+		problems.push(`request failed: ${req.url()} (${req.failure()?.errorText})`),
+	);
+	page.on("response", (res) => {
+		if (res.status() >= 400)
+			problems.push(`HTTP ${res.status()}: ${res.url()}`);
+		// These are served locally but not published, so the game would 404 on them on Pages.
+		const rel = new URL(res.url()).pathname.slice(1);
+		if (inGame && isLocalOnly(rel)) {
+			problems.push(`the game loaded a local-only file: ${rel}`);
+		}
+	});
 
-  await page.goto(url);
-  await page.locator('#title:not([hidden]), #error:not([hidden])').first().waitFor({ timeout: TIMEOUT_MS });
+	await page.goto(url);
+	await page
+		.locator("#title:not([hidden]), #error:not([hidden])")
+		.first()
+		.waitFor({ timeout: TIMEOUT_MS });
 
-  if (await page.locator('#error').isVisible()) {
-    // The page's own i18n module gives the expected messages in its language.
-    const allowed = await page.evaluate(async () => {
-      const { t } = await import('./src/i18n.js');
-      return [t('error.noWebgpu'), t('error.noAdapter')];
-    });
-    const shown = (await page.locator('#errorText').textContent()).trim();
-    const noWebgpu = allowed.includes(shown);
-    if (!noWebgpu) problems.push(`"Cannot start" screen with an unexpected reason: ${shown}`);
-    // main.js logs the reason it shows, so that one console error is expected.
-    consoleErrors = consoleErrors.filter((text) => !text.includes(shown));
-    outcome = noWebgpu ? `no WebGPU here; the "Cannot start" screen shows: ${shown}` : 'the game could not start';
-  } else {
-    await page.locator('#title [data-action="start"]').click();
-    // Pick the first three skills on the skill pick screen, then begin.
-    await page.locator('#skillpick').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
-    await page.waitForTimeout(400);
-    for (let i = 0; i < 3; i++) await page.locator('#skillCards .card').nth(i).click();
-    await page.locator('#pickBegin').click();
-    await page.locator('#hud').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
-    // Take the first starting passive.
-    await page.locator('#levelup').waitFor({ state: 'visible', timeout: TIMEOUT_MS });
-    await page.waitForTimeout(400);
-    await page.locator('#cards .card').first().click();
-    await page.waitForTimeout(PLAY_MS);
-    if (await page.locator('#error').isVisible()) problems.push('the "Cannot start" screen appeared during the run');
-    if (!(await page.locator('#hud').isVisible())) problems.push('the HUD disappeared during the run');
-    // The animation buffer has the player first, with finite values.
-    const anims = await page.evaluate(() => window.jadereaper.anims());
-    const player = anims[0];
-    if (!player || player.WHO !== 0 || !Object.values(player).every(Number.isFinite)) {
-      problems.push(`bad animation state for the player: ${JSON.stringify(player)}`);
-    }
-    outcome = `WebGPU available; played ${PLAY_MS / 1000} s of a run`;
-  }
+	if (await page.locator("#error").isVisible()) {
+		// The page's own i18n module gives the expected messages in its language.
+		const allowed = await page.evaluate(async () => {
+			const { t } = await import("./src/i18n.js");
+			return [t("error.noWebgpu"), t("error.noAdapter")];
+		});
+		const shown = (await page.locator("#errorText").textContent()).trim();
+		const noWebgpu = allowed.includes(shown);
+		if (!noWebgpu)
+			problems.push(
+				`"Cannot start" screen with an unexpected reason: ${shown}`,
+			);
+		// main.js logs the reason it shows, so that one console error is expected.
+		consoleErrors = consoleErrors.filter((text) => !text.includes(shown));
+		outcome = noWebgpu
+			? `no WebGPU here; the "Cannot start" screen shows: ${shown}`
+			: "the game could not start";
+	} else {
+		await page.locator('#title [data-action="start"]').click();
+		// Pick the first three skills on the skill pick screen, then begin.
+		await page
+			.locator("#skillpick")
+			.waitFor({ state: "visible", timeout: TIMEOUT_MS });
+		await page.waitForTimeout(400);
+		for (let i = 0; i < 3; i++)
+			await page.locator("#skillCards .card").nth(i).click();
+		await page.locator("#pickBegin").click();
+		await page
+			.locator("#hud")
+			.waitFor({ state: "visible", timeout: TIMEOUT_MS });
+		// Take the first starting passive.
+		await page
+			.locator("#levelup")
+			.waitFor({ state: "visible", timeout: TIMEOUT_MS });
+		await page.waitForTimeout(400);
+		await page.locator("#cards .card").first().click();
+		await page.waitForTimeout(PLAY_MS);
+		if (await page.locator("#error").isVisible())
+			problems.push('the "Cannot start" screen appeared during the run');
+		if (!(await page.locator("#hud").isVisible()))
+			problems.push("the HUD disappeared during the run");
+		// The animation buffer has the player first, with finite values.
+		const anims = await page.evaluate(() => window.jadereaper.anims());
+		const player = anims[0];
+		if (player?.WHO !== 0 || !Object.values(player).every(Number.isFinite)) {
+			problems.push(
+				`bad animation state for the player: ${JSON.stringify(player)}`,
+			);
+		}
+		outcome = `WebGPU available; played ${PLAY_MS / 1000} s of a run`;
+	}
 
-  inGame = false;
-  await page.goto(`${url}tools/lightbox.html`);
-  await page.locator('h1', { hasText: 'Lightbox' }).waitFor({ timeout: TIMEOUT_MS });
-  outcome += '; the Lightbox loads';
+	inGame = false;
+	await page.goto(`${url}tools/lightbox.html`);
+	await page
+		.locator("h1", { hasText: "Lightbox" })
+		.waitFor({ timeout: TIMEOUT_MS });
+	outcome += "; the Lightbox loads";
 } catch (err) {
-  problems.push(`smoke test failed: ${err.message}`);
+	problems.push(`smoke test failed: ${err.message}`);
 } finally {
-  await browser.close();
-  server.close();
+	await browser.close();
+	server.close();
 }
 
 problems.push(...consoleErrors.map((text) => `console error: ${text}`));
 if (outcome) console.log(`smoke: ${outcome}`);
 if (problems.length) {
-  for (const problem of problems) console.error(`  ${problem}`);
-  console.error(`smoke: failed with ${problems.length} problem(s)`);
-  process.exitCode = 1;
+	for (const problem of problems) console.error(`  ${problem}`);
+	console.error(`smoke: failed with ${problems.length} problem(s)`);
+	process.exitCode = 1;
 } else {
-  console.log('smoke: ok');
+	console.log("smoke: ok");
 }

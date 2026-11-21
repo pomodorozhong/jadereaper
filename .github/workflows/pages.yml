@@ -1,9 +1,9 @@
 name: Pages
 
-# Publishes the game to GitHub Pages on every push to main. The site is the
-# committed files as they are (the wasm and fonts are checked in), so nothing
-# is built here. The font check runs first so a font missing a character the
-# game shows is never published.
+# Publishes the game to GitHub Pages on every push to main. The wasm is not
+# committed (decision 0007), so this installs stable Rust and builds it with
+# ./build.sh; the fonts are committed and copied as they are. The font check
+# runs first so a font missing a character the game shows is never published.
 
 on:
   push:
@@ -30,6 +30,12 @@ jobs:
       - run: npm ci
       - name: Check fonts
         run: tools/check-fonts.sh
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Build the wasm
+        run: ./build.sh
       - name: Collect the site
         run: |
           mkdir _site

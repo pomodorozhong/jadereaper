@@ -25,7 +25,7 @@ Choices that shape later work, such as the toolchain or a design pillar, are dec
 
 ## Before you open a PR
 
-Run the checks in [AGENTS.md](AGENTS.md) and list in the PR which ones you ran, what they showed, and which ones you skipped and why. Read [docs/README.md](docs/README.md) for the gotchas, for example that the built wasm and the bundled fonts are committed.
+Run the checks in [AGENTS.md](AGENTS.md) and list in the PR which ones you ran, what they showed, and which ones you skipped and why. Read [docs/README.md](docs/README.md) for the gotchas, for example that the bundled fonts are committed but the built wasm is not.
 
 ## AI coding agents
 

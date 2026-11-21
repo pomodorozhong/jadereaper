@@ -4,11 +4,21 @@ A room-based action game running natively in the browser: pick three skills, fig
 
 ## Play it online
 
-https://pomodorozhong.github.io/jadereaper/ (needs a browser with WebGPU). Every push to `main` republishes it through the `Pages` workflow in `.github/workflows/pages.yml`, which checks the fonts and then deploys `index.html`, `style.css`, `src/`, `wasm/` and `assets/` as they are committed.
+https://pomodorozhong.github.io/jadereaper/ (needs a browser with WebGPU). Every push to `main` republishes it through the `Pages` workflow in `.github/workflows/pages.yml`, which checks the fonts, builds the wasm with `./build.sh` and then deploys `index.html`, `style.css`, `src/`, `wasm/` and `assets/`.
 
 ## Run it
 
-Serve the folder with any static file server and open it in a browser with WebGPU (current Chrome, Edge or Safari). WebGPU needs `http://localhost` or `https`, so opening `index.html` from disk will not work. The repository has a small one with no dependencies (Node 26):
+The built core is not committed ([0007](docs/decisions/0007-build-the-wasm-in-ci.md)), so build it first. This needs Rust with the wasm target and Node 26:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+```bash
+./build.sh
+```
+
+Then serve the folder with any static file server and open it in a browser with WebGPU (current Chrome, Edge or Safari). WebGPU needs `http://localhost` or `https`, so opening `index.html` from disk will not work. The repository has a small one with no dependencies:
 
 ```bash
 npm start
@@ -16,7 +26,7 @@ npm start
 
 Then open http://localhost:5173. The same server has the Lightbox, the tool for tracing character art, at http://localhost:5173/tools/lightbox.html (see [docs/character-art-pipeline.md](docs/character-art-pipeline.md)).
 
-The built `wasm/jadereaper_core.wasm` is checked in, so Rust is only needed if you change the core.
+Run `./build.sh` again after changing `core/` or `content/game.json`. If the wasm is missing, `npm start` warns and the smoke test stops with a message, but neither notices a stale one. The Lightbox does not need the wasm, so tracing art needs only Node.
 
 To check that the page loads cleanly, run the smoke test. It loads the game in headless Chromium and fails on any console error or failed request; without WebGPU it checks the "Cannot start" screen instead. CI runs it on every pull request.
 
@@ -60,7 +70,7 @@ The UI is HTML and CSS over the canvas: torn-edge paper sheets, tags and cards, 
 | `core/src/lib.rs` | The `jr_*` functions exported to JavaScript, and tests |
 | `core/tests/` | Simulation tests, including whole runs played by the scripted bot in `core/src/bot.rs` |
 | `content/game.json` | All game content, in one file |
-| `wasm/` | Built core |
+| `wasm/` | Built core, written by `./build.sh` (not committed) |
 | `src/main.js` | Loads the core, frame loop, game modes |
 | `src/renderer.js` | WebGPU setup, part image atlas, drawing |
 | `src/characters.js` | Bakes the hand-traced characters into part images |
@@ -102,21 +112,29 @@ A run starts with `jr_start(seed)`, `jr_set_loadout(a, b, c)` and `jr_offer_pass
 
 ## Build the core
 
-```bash
-rustup target add wasm32-unknown-unknown
-```
-
-```bash
-./build.sh
-```
-
-`./build.sh` first runs `node tools/content.mjs`, which checks `content/game.json` and writes the generated tables for Rust, JavaScript and WGSL. Commit them with the content change; `node tools/content.mjs --check` (and `npm test`) fails when they are stale.
+`./build.sh` (see [Run it](#run-it)) first runs `node tools/content.mjs`, which checks `content/game.json` and writes the generated tables for Rust, JavaScript and WGSL. Commit them with the content change; `node tools/content.mjs --check` (and `npm test`) fails when they are stale.
 
 Run the simulation tests natively:
 
 ```bash
 cargo test --release --manifest-path core/Cargo.toml
 ```
+
+The `Checks` workflow in `.github/workflows/checks.yml` runs these on every pull request, with `cargo fmt --check`, `cargo clippy` (warnings fail), a wasm build, Biome (formatting and lint for the JavaScript) and the tool tests. Run the same locally:
+
+```bash
+cargo fmt --manifest-path core/Cargo.toml
+```
+
+```bash
+cargo clippy --release --all-targets --manifest-path core/Cargo.toml -- -D warnings
+```
+
+```bash
+npm run lint
+```
+
+`cargo fmt` and `npm run format` fix the formatting. Both use the tools' default styles ([0007](docs/decisions/0007-build-the-wasm-in-ci.md)).
 
 ## Extending
 

@@ -140,7 +140,19 @@ impl Game {
                     let (tx, ty) = (self.enemies[j].x, self.enemies[j].y);
                     let rot = (ty - y).atan2(tx - x);
                     let c = element_color(element);
-                    self.add_fx(Fx { rot, seed: 0.9, ..Fx::at((x + tx) * 0.5, (y + ty) * 0.5 - 24.0, P_SLASH, 0.15, d * 0.5, 6.0, [c[0], c[1], c[2], 0.95]) });
+                    self.add_fx(Fx {
+                        rot,
+                        seed: 0.9,
+                        ..Fx::at(
+                            (x + tx) * 0.5,
+                            (y + ty) * 0.5 - 24.0,
+                            P_SLASH,
+                            0.15,
+                            d * 0.5,
+                            6.0,
+                            [c[0], c[1], c[2], 0.95],
+                        )
+                    });
                     // The chain hit carries no element, so it does not chain on.
                     self.hurt_enemy(j, dmg * CHAIN_SHARE, stagger * CHAIN_SHARE, 0.0, 0.0);
                 }
@@ -153,7 +165,12 @@ impl Game {
                     s.marks += 1;
                     if s.marks >= MARKS_TO_WELL {
                         s.marks = 0;
-                        self.wells.push(Well { x, y, t: WELL_TIME, dmg: dmg * 1.5 + 12.0 });
+                        self.wells.push(Well {
+                            x,
+                            y,
+                            t: WELL_TIME,
+                            dmg: dmg * 1.5 + 12.0,
+                        });
                     }
                 }
             }
@@ -219,8 +236,31 @@ impl Game {
                     }
                 }
                 let c = element_color(E_CELESTIAL + 1);
-                self.add_fx(Fx { grow: 200.0, top: false, ..Fx::at(well.x, well.y, P_RING, 0.3, 20.0, 20.0, [c[0], c[1], c[2], 0.9]) });
-                self.add_fx(Fx { vy: 0.0, ..Fx::at(well.x, well.y - 40.0, P_GEM, 0.3, 14.0, 18.0, [0.95, 0.85, 0.4, 1.0]) });
+                self.add_fx(Fx {
+                    grow: 200.0,
+                    top: false,
+                    ..Fx::at(
+                        well.x,
+                        well.y,
+                        P_RING,
+                        0.3,
+                        20.0,
+                        20.0,
+                        [c[0], c[1], c[2], 0.9],
+                    )
+                });
+                self.add_fx(Fx {
+                    vy: 0.0,
+                    ..Fx::at(
+                        well.x,
+                        well.y - 40.0,
+                        P_GEM,
+                        0.3,
+                        14.0,
+                        18.0,
+                        [0.95, 0.85, 0.4, 1.0],
+                    )
+                });
                 self.shake = self.shake.max(0.5);
                 self.event(EV_PULSE, well.x, well.y, 0.0);
                 self.wells.swap_remove(w);
@@ -230,16 +270,24 @@ impl Game {
         }
 
         // A fire trail: drop patches while rolling, and burn what stands in them.
-        if self.stats.trail > 0 && matches!(self.player.act, crate::game::Act::Roll { .. }) && self.steps % 4 == 0 {
+        if self.stats.trail > 0
+            && matches!(self.player.act, crate::game::Act::Roll { .. })
+            && self.steps.is_multiple_of(4)
+        {
             let (x, y, element) = (self.player.x, self.player.y, self.stats.trail);
             if self.patches.len() < 40 {
-                self.patches.push(Patch { x, y, t: TRAIL_TIME, element });
+                self.patches.push(Patch {
+                    x,
+                    y,
+                    t: TRAIL_TIME,
+                    element,
+                });
             }
         }
         let mut p = 0;
         while p < self.patches.len() {
             let patch = self.patches[p];
-            if self.steps % 15 == 0 {
+            if self.steps.is_multiple_of(15) {
                 for i in 0..self.enemies.len() {
                     let e = &self.enemies[i];
                     if dist(e.x, e.y, patch.x, patch.y) < 26.0 + KINDS[e.kind as usize].r {

@@ -13,11 +13,12 @@ pub mod anim;
 pub mod boss;
 pub mod bot;
 pub mod cards;
+#[rustfmt::skip] // written by tools/content.mjs, which owns its layout
 pub mod content;
 pub mod defs;
 pub mod dragon;
-pub mod elements;
 pub mod draw;
+pub mod elements;
 pub mod enemy;
 pub mod game;
 pub mod geom;
@@ -41,7 +42,13 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle, calm) = (g().boil_fps, g().boil_poses, g().draw_scale, g().waddle, g().reduce_motion);
+    let (fps, poses, scale, waddle, calm) = (
+        g().boil_fps,
+        g().boil_poses,
+        g().draw_scale,
+        g().waddle,
+        g().reduce_motion,
+    );
     *g() = Game::new(seed);
     g().set_view(w, h);
     g().set_boil(fps, poses);
@@ -100,7 +107,13 @@ pub extern "C" fn jr_set_waddle(kind: u32, tilt: f32, rate: f32) {
 /// units (zero keeps the last aim), and the held buttons (`B_*` bits: skill 1, 2, 3, roll).
 #[no_mangle]
 pub extern "C" fn jr_input(mx: f32, my: f32, aim_x: f32, aim_y: f32, buttons: u32) {
-    g().input = game::Input { mx, my, ax: aim_x, ay: aim_y, buttons };
+    g().input = game::Input {
+        mx,
+        my,
+        ax: aim_x,
+        ay: aim_y,
+        buttons,
+    };
 }
 
 /// Advance by a frame's time in seconds. The simulation runs in fixed 60 Hz steps (`game::STEP`) and carries
@@ -196,7 +209,7 @@ mod tests {
             game.update(1.0 / 60.0);
             assert!(game.inst.len() <= MAX_INST);
             if game.choosing {
-                game.choose((rng.next() % 3) as usize);
+                game.choose((rng.next_u32() % 3) as usize);
             }
             // Keep the run going so later rooms are exercised too.
             if game.over && !game.won {
@@ -204,10 +217,16 @@ mod tests {
                 game.player.hp = game.player.max_hp;
             }
             for i in &game.inst {
-                assert!(i.x.is_finite() && i.y.is_finite() && i.hw.is_finite() && i.rot.is_finite());
+                assert!(
+                    i.x.is_finite() && i.y.is_finite() && i.hw.is_finite() && i.rot.is_finite()
+                );
             }
         }
-        assert!(game.rooms_cleared >= 2, "cleared {} rooms", game.rooms_cleared);
+        assert!(
+            game.rooms_cleared >= 2,
+            "cleared {} rooms",
+            game.rooms_cleared
+        );
         assert!(game.kills > 10, "expected kills, got {}", game.kills);
     }
 
@@ -223,13 +242,25 @@ mod tests {
                 game.choose(0);
             }
         }
-        let poses = |g: &Game| g.inst.iter().map(|i| (i.part / PART_SLOTS).floor() as u32).collect::<Vec<_>>();
+        let poses = |g: &Game| {
+            g.inst
+                .iter()
+                .map(|i| (i.part / PART_SLOTS).floor() as u32)
+                .collect::<Vec<_>>()
+        };
         let now = poses(&game);
         assert!(now.iter().all(|&p| p < MAX_POSES));
         let first = now[0];
-        assert!(now.iter().any(|&p| p != first), "every instance shows the same pose");
+        assert!(
+            now.iter().any(|&p| p != first),
+            "every instance shows the same pose"
+        );
         for i in &game.inst {
-            assert!(PARTS.contains(&(i.part % PART_SLOTS)), "part id {} lost its base id", i.part);
+            assert!(
+                PARTS.contains(&(i.part % PART_SLOTS)),
+                "part id {} lost its base id",
+                i.part
+            );
         }
 
         game.set_boil(4.0, 1);
@@ -239,7 +270,12 @@ mod tests {
 
     #[test]
     fn draw_scale_changes_only_the_drawing() {
-        let robe = |g: &Game| *g.inst.iter().find(|i| i.part % PART_SLOTS == P_PLAYER_BODY).unwrap();
+        let robe = |g: &Game| {
+            *g.inst
+                .iter()
+                .find(|i| i.part % PART_SLOTS == P_PLAYER_BODY)
+                .unwrap()
+        };
         let mut game = Game::new(9);
         game.set_view(640.0, 360.0);
         game.update(1.0 / 60.0);
@@ -262,8 +298,11 @@ mod tests {
             t += dt;
             // Inputs change on step boundaries, so different frame splits see the same input in every step.
             let k = (t * 2.0) as u32;
-            let mut r = Rng(k * 2654435761 | 1);
-            game.input = game::Input { buttons: if k % 3 == 0 { B_ROLL } else { 0 }, ..game::Input::moving(r.range(-1.0, 1.0), r.range(-1.0, 1.0)) };
+            let mut r = Rng((k * 2654435761) | 1);
+            game.input = game::Input {
+                buttons: if k.is_multiple_of(3) { B_ROLL } else { 0 },
+                ..game::Input::moving(r.range(-1.0, 1.0), r.range(-1.0, 1.0))
+            };
             game.update(dt);
             if game.choosing {
                 game.choose(0);

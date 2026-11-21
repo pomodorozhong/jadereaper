@@ -92,8 +92,14 @@ fn finisher_drops_with_weak_element_damage_down_to_a_floor() {
     let lots = finisher_damage(100.0, WEAK_FULL * 3.0, true);
     assert!(full > some && some > lots);
     assert!((lots - 100.0 * FINISHER_FIRST * FINISHER_FLOOR).abs() < 1e-4);
-    assert!(full < 100.0, "the first finisher never kills from full health");
-    assert!(finisher_damage(100.0, 0.0, false) >= 100.0, "later ones can");
+    assert!(
+        full < 100.0,
+        "the first finisher never kills from full health"
+    );
+    assert!(
+        finisher_damage(100.0, 0.0, false) >= 100.0,
+        "later ones can"
+    );
 }
 
 /// Run until the finisher lands, rolling all the way through; returns the damage taken from it.
@@ -118,7 +124,11 @@ fn take_finisher(weak: bool) -> f32 {
     let mut taken = 0.0;
     for k in 0..(60 * 4) {
         let hp = g.player.hp;
-        g.input = Input { mx: 1.0, buttons: if k % 20 == 0 { B_ROLL } else { 0 }, ..Input::default() };
+        g.input = Input {
+            mx: 1.0,
+            buttons: if k % 20 == 0 { B_ROLL } else { 0 },
+            ..Input::default()
+        };
         g.update(STEP);
         taken += (hp - g.player.hp).max(0.0);
         if g.stance == Stance::Ice {
@@ -135,7 +145,10 @@ fn the_roll_does_not_avoid_the_finisher_and_weak_damage_softens_it() {
     let plain = take_finisher(false);
     let weak = take_finisher(true);
     assert!(plain > 0.0, "rolling avoided the finisher");
-    assert!(weak < plain, "weak-element damage did not soften it: {weak} vs {plain}");
+    assert!(
+        weak < plain,
+        "weak-element damage did not soften it: {weak} vs {plain}"
+    );
 }
 
 #[test]
@@ -156,7 +169,10 @@ fn enough_weak_element_damage_knocks_it_down() {
     }
     // Past the hit-stop.
     steps(&mut g, 12);
-    assert!(boss(&g).down > 0.0, "weak-element damage did not knock it down");
+    assert!(
+        boss(&g).down > 0.0,
+        "weak-element damage did not knock it down"
+    );
 }
 
 #[test]
@@ -173,15 +189,25 @@ fn rolling_avoids_every_dragon_attack_but_the_finisher() {
             let j = dragon(&g);
             let (dx, dy) = (g.enemies[j].x - g.player.x, g.enemies[j].y - g.player.y);
             let d = (dx * dx + dy * dy).sqrt().max(1e-3);
-            let line = MOVES[g.enemies[j].mv as usize].area == jadereaper_core::skills::AreaKind::Line;
-            let (mut mx, mut my) = if line { (-dy / d, dx / d) } else { (dx / d, dy / d) };
+            let line =
+                MOVES[g.enemies[j].mv as usize].area == jadereaper_core::skills::AreaKind::Line;
+            let (mut mx, mut my) = if line {
+                (-dy / d, dx / d)
+            } else {
+                (dx / d, dy / d)
+            };
             let mut buttons = if roll { B_ROLL } else { 0 };
             if let Some(out) = g.pool_escape() {
                 // Burning pools are walked out of.
                 (mx, my) = out;
                 buttons = 0;
             }
-            g.input = Input { mx, my, buttons, ..Input::default() };
+            g.input = Input {
+                mx,
+                my,
+                buttons,
+                ..Input::default()
+            };
             let hp = g.player.hp;
             let in_pool = g.pool_escape().is_some();
             g.update(STEP);
@@ -209,7 +235,10 @@ fn fire_or_ice_is_offered_before_the_final_boss() {
         g.wave = ROOMS[N_ROOMS - 2].waves.len() - 1;
         g.update(STEP);
         assert!(g.choosing);
-        let offered = g.choices.iter().any(|&c| c >= 0 && [E_FIRE + 1, E_ICE + 1].contains(&CARDS[c as usize].element));
+        let offered = g
+            .choices
+            .iter()
+            .any(|&c| c >= 0 && [E_FIRE + 1, E_ICE + 1].contains(&CARDS[c as usize].element));
         assert!(offered, "seed {seed}: {:?}", g.choices);
     }
 }

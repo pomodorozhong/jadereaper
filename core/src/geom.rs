@@ -28,8 +28,18 @@ pub struct Area {
 impl Area {
     pub fn new(x: f32, y: f32, dir: (f32, f32), shape: Shape) -> Area {
         let l = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
-        let (dx, dy) = if l > 1e-6 && l.is_finite() { (dir.0 / l, dir.1 / l) } else { (1.0, 0.0) };
-        Area { x, y, dx, dy, shape }
+        let (dx, dy) = if l > 1e-6 && l.is_finite() {
+            (dir.0 / l, dir.1 / l)
+        } else {
+            (1.0, 0.0)
+        };
+        Area {
+            x,
+            y,
+            dx,
+            dy,
+            shape,
+        }
     }
 
     /// True when a round target at (tx, ty) with radius `tr` touches the area.
@@ -98,18 +108,45 @@ mod tests {
         assert!(c.hits(14.0, 0.0, 5.0));
         assert!(!c.hits(16.0, 0.0, 5.0));
 
-        let a = Area::new(0.0, 0.0, (1.0, 0.0), Shape::Arc { r: 100.0, half: 0.5 });
+        let a = Area::new(
+            0.0,
+            0.0,
+            (1.0, 0.0),
+            Shape::Arc {
+                r: 100.0,
+                half: 0.5,
+            },
+        );
         assert!(a.hits(50.0, 0.0, 1.0));
         assert!(!a.hits(-50.0, 0.0, 1.0));
         assert!(!a.hits(0.0, 50.0, 1.0));
-        assert!(a.hits(0.0, 2.0, 5.0), "a target overlapping the origin is hit");
+        assert!(
+            a.hits(0.0, 2.0, 5.0),
+            "a target overlapping the origin is hit"
+        );
 
-        let l = Area::new(0.0, 0.0, (0.0, 1.0), Shape::Line { len: 100.0, half_w: 10.0 });
+        let l = Area::new(
+            0.0,
+            0.0,
+            (0.0, 1.0),
+            Shape::Line {
+                len: 100.0,
+                half_w: 10.0,
+            },
+        );
         assert!(l.hits(5.0, 90.0, 1.0));
         assert!(!l.hits(20.0, 50.0, 1.0));
         assert!(!l.hits(0.0, 120.0, 1.0));
 
-        let r = Area::new(0.0, 0.0, (1.0, 0.0), Shape::Ring { inner: 50.0, outer: 60.0 });
+        let r = Area::new(
+            0.0,
+            0.0,
+            (1.0, 0.0),
+            Shape::Ring {
+                inner: 50.0,
+                outer: 60.0,
+            },
+        );
         assert!(r.hits(55.0, 0.0, 1.0));
         assert!(!r.hits(20.0, 0.0, 1.0));
     }

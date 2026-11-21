@@ -6,7 +6,7 @@ Step 1 is one large PR, by the maintainer's choice, built as ordered commits so 
 
 ## Current state
 
-Step 1 is built on `feat/room-action-game` (#43): Jade Reaper is now a room-based action game ([0005](docs/decisions/0005-room-based-action-game.md)). The Rust core (`core/`) runs in fixed 60 Hz steps and replays a seed exactly. The player aims, uses three skills chosen from eight, and rolls. Six rooms of waves end in two bosses, the Glutton and the Two-Element Dragon. Cards from one pool add the four elements and their reactions. Content lives in `content/game.json`, and a generator writes the ids for Rust, JavaScript and WGSL. The WebGPU renderer draws everything as flat paper cutouts. Characters are puppets of rigid paper parts, posed as a whole by a shift, a tilt in the screen plane and a squash. The traced characters have a line boil ([0003](docs/decisions/0003-character-art-pipeline.md)). The two bosses are flat placeholder ellipses. CI runs the font check and the smoke test, and deploys `main` to GitHub Pages; it does not run the core tests or rebuild the wasm yet (#39).
+Step 1 is built on `feat/room-action-game` (#43): Jade Reaper is now a room-based action game ([0005](docs/decisions/0005-room-based-action-game.md)). The Rust core (`core/`) runs in fixed 60 Hz steps and replays a seed exactly. The player aims, uses three skills chosen from eight, and rolls. Six rooms of waves end in two bosses, the Glutton and the Two-Element Dragon. Cards from one pool add the four elements and their reactions. Content lives in `content/game.json`, and a generator writes the ids for Rust, JavaScript and WGSL. The WebGPU renderer draws everything as flat paper cutouts. Characters are puppets of rigid paper parts, posed as a whole by a shift, a tilt in the screen plane and a squash. The traced characters have a line boil ([0003](docs/decisions/0003-character-art-pipeline.md)). The two bosses are flat placeholder ellipses. CI checks the core (tests, `cargo fmt`, `cargo clippy`, a wasm build) and the JavaScript (Biome) on every PR, runs the font check and the smoke test, and builds the wasm for the GitHub Pages deploy of `main`; the wasm is not committed ([0007](docs/decisions/0007-build-the-wasm-in-ci.md), #39).
 
 What the maintainer found when they played it:
 
@@ -26,8 +26,6 @@ What the maintainer found when they played it:
 | 5 | More characters and stages | Medium, per character or stage |
 | 6 | Touch controls | Medium to high |
 | 7 | WebGL2 fallback | Medium to high |
-
-#39 (CI builds the wasm and checks the core) did not land before step 1 and is still open. Land it before step 2, so a stale committed wasm cannot slip into another large change.
 
 ## 1. The action-game rebuild
 

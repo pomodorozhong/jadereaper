@@ -20,7 +20,11 @@ pub struct Input {
 
 impl Input {
     pub fn moving(mx: f32, my: f32) -> Input {
-        Input { mx, my, ..Input::default() }
+        Input {
+            mx,
+            my,
+            ..Input::default()
+        }
     }
 }
 
@@ -29,17 +33,39 @@ impl Input {
 pub enum Act {
     Free,
     /// Rolling in a direction; `t` counts up from 0 through the move and then the recovery.
-    Roll { t: f32, dx: f32, dy: f32 },
+    Roll {
+        t: f32,
+        dx: f32,
+        dy: f32,
+    },
     /// Using the skill on a button. `t` counts up from the start of the startup; `step` is the combo step.
     /// `(dx, dy)` is the direction, which follows the aim through the startup and locks when the active window
     /// starts. `(ox, oy)` is where the skill started; a leap lands `dist` from there along the direction.
-    Skill { slot: usize, skill: usize, t: f32, dx: f32, dy: f32, step: u8, fired: bool, dist: f32, ox: f32, oy: f32 },
+    Skill {
+        slot: usize,
+        skill: usize,
+        t: f32,
+        dx: f32,
+        dy: f32,
+        step: u8,
+        fired: bool,
+        dist: f32,
+        ox: f32,
+        oy: f32,
+    },
     /// Knocked off balance by a hit.
-    Hurt { t: f32 },
+    Hurt {
+        t: f32,
+    },
     /// Knocked down by a heavy boss hit; a roll gets up sooner.
-    Down { t: f32 },
+    Down {
+        t: f32,
+    },
     /// Held by a boss's grab; pressing roll `GRAB_MASH` times breaks free.
-    Grabbed { t: f32, mash: u8 },
+    Grabbed {
+        t: f32,
+        mash: u8,
+    },
 }
 
 /// Lying down this long after a knockdown, unless a roll gets up sooner.
@@ -137,6 +163,12 @@ impl Player {
     }
 }
 
+impl Default for Player {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Game {
     /// Read this step's input: buffer new presses, aim, then move, roll or use a skill.
     pub(crate) fn move_player(&mut self, dt: f32) {
@@ -145,7 +177,11 @@ impl Game {
         self.prev_buttons = inp.buttons;
         let p = &mut self.player;
         for (b, t) in p.buffer.iter_mut().enumerate() {
-            *t = if pressed & (1 << b) != 0 { BUFFER } else { (*t - dt).max(0.0) };
+            *t = if pressed & (1 << b) != 0 {
+                BUFFER
+            } else {
+                (*t - dt).max(0.0)
+            };
         }
         let (ax, ay) = (inp.ax, inp.ay);
         let al = (ax * ax + ay * ay).sqrt();
@@ -166,7 +202,13 @@ impl Game {
             my /= len;
             len = 1.0;
         }
-        let speed = WALK_SPEED * self.stats.speed * if self.player.slow > 0.0 { crate::dragon::FIELD_SLOW } else { 1.0 };
+        let speed = WALK_SPEED
+            * self.stats.speed
+            * if self.player.slow > 0.0 {
+                crate::dragon::FIELD_SLOW
+            } else {
+                1.0
+            };
         self.player.slow = (self.player.slow - dt).max(0.0);
         let regen = self.stats.regen;
         let roll_dist = ROLL_DIST * self.stats.roll;
@@ -186,16 +228,28 @@ impl Game {
                     p.y += dy * d;
                 }
                 let t = t + dt;
-                p.act = if t >= ROLL_TIME + ROLL_RECOVER - 1e-4 { Act::Free } else { Act::Roll { t, dx, dy } };
+                p.act = if t >= ROLL_TIME + ROLL_RECOVER - 1e-4 {
+                    Act::Free
+                } else {
+                    Act::Roll { t, dx, dy }
+                };
             }
             Act::Skill { .. } => walk = self.run_skill(dt),
             Act::Hurt { t } => {
                 let t = t + dt;
-                self.player.act = if t >= HURT_TIME { Act::Free } else { Act::Hurt { t } };
+                self.player.act = if t >= HURT_TIME {
+                    Act::Free
+                } else {
+                    Act::Hurt { t }
+                };
             }
             Act::Down { t } => {
                 let t = t + dt;
-                self.player.act = if t >= DOWN_TIME { Act::Free } else { Act::Down { t } };
+                self.player.act = if t >= DOWN_TIME {
+                    Act::Free
+                } else {
+                    Act::Down { t }
+                };
             }
             Act::Grabbed { t, mash } => {
                 let t = t + dt;
@@ -240,7 +294,11 @@ impl Game {
     /// Start a buffered roll or skill when the body allows it.
     fn start_actions(&mut self, len: f32, mx: f32, my: f32) {
         let p = &self.player;
-        let roll_dir = if len > 0.15 { (mx / len, my / len) } else { p.aim };
+        let roll_dir = if len > 0.15 {
+            (mx / len, my / len)
+        } else {
+            p.aim
+        };
         match p.act {
             Act::Free => {
                 if p.buffer[3] > 0.0 {
@@ -279,15 +337,42 @@ impl Game {
         p.buffer[slot] = 0.0;
         p.hits.clear();
         // A leap goes to the aim point, as far as its reach; other moving skills always go their full distance.
-        let dist = if d.kind == SkillKind::Leap { leap_dist(p.aim_at, d.dash) } else { d.dash };
-        p.act = Act::Skill { slot, skill, t: 0.0, dx: p.aim.0, dy: p.aim.1, step, fired: false, dist, ox: p.x, oy: p.y };
+        let dist = if d.kind == SkillKind::Leap {
+            leap_dist(p.aim_at, d.dash)
+        } else {
+            d.dash
+        };
+        p.act = Act::Skill {
+            slot,
+            skill,
+            t: 0.0,
+            dx: p.aim.0,
+            dy: p.aim.1,
+            step,
+            fired: false,
+            dist,
+            ox: p.x,
+            oy: p.y,
+        };
     }
 
     /// Through a skill's startup its direction follows the aim, and a leap's landing point follows the aim point,
     /// so a skill can be turned while it charges. Both lock when the active window starts.
     fn reaim_skill(&mut self) {
         let p = &mut self.player;
-        let Act::Skill { slot, t, ref mut dx, ref mut dy, ref mut dist, ox, oy, .. } = p.act else { return };
+        let Act::Skill {
+            slot,
+            t,
+            ref mut dx,
+            ref mut dy,
+            ref mut dist,
+            ox,
+            oy,
+            ..
+        } = p.act
+        else {
+            return;
+        };
         let d = SKILLS[self.loadout[slot]];
         if t >= d.startup {
             return;
@@ -315,9 +400,18 @@ impl Game {
         let reach = d.reach * if finish { COMBO_FINISH_REACH } else { 1.0 };
         let shape = match d.area {
             AreaKind::Circle => Shape::Circle { r: reach },
-            AreaKind::Arc => Shape::Arc { r: reach, half: d.width },
-            AreaKind::Line => Shape::Line { len: reach, half_w: d.width },
-            AreaKind::Ring => Shape::Ring { inner: (reach - d.width).max(0.0), outer: reach },
+            AreaKind::Arc => Shape::Arc {
+                r: reach,
+                half: d.width,
+            },
+            AreaKind::Line => Shape::Line {
+                len: reach,
+                half_w: d.width,
+            },
+            AreaKind::Ring => Shape::Ring {
+                inner: (reach - d.width).max(0.0),
+                outer: reach,
+            },
         };
         Area::new(self.player.x, self.player.y, dir, shape)
     }
@@ -331,7 +425,21 @@ impl Game {
     /// One step of a skill. Returns how fast the player may walk meanwhile, as a share of walking speed.
     fn run_skill(&mut self, dt: f32) -> f32 {
         self.reaim_skill();
-        let Act::Skill { slot, skill, t, dx, dy, step, mut fired, dist, ox, oy } = self.player.act else { return 1.0 };
+        let Act::Skill {
+            slot,
+            skill,
+            t,
+            dx,
+            dy,
+            step,
+            mut fired,
+            dist,
+            ox,
+            oy,
+        } = self.player.act
+        else {
+            return 1.0;
+        };
         let d = self.def(slot);
         let (a0, a1) = (d.startup, d.startup + d.active);
         if d.kind == SkillKind::Leap && t < a0 {
@@ -363,7 +471,18 @@ impl Game {
         self.player.act = if t >= d.total() - 1e-4 {
             Act::Free
         } else {
-            Act::Skill { slot, skill, t, dx, dy, step, fired, dist, ox, oy }
+            Act::Skill {
+                slot,
+                skill,
+                t,
+                dx,
+                dy,
+                step,
+                fired,
+                dist,
+                ox,
+                oy,
+            }
         };
         if t < a1 {
             d.walk
@@ -385,7 +504,20 @@ impl Game {
                 // Lunges and charges leave a streak of ink along their path.
                 let len = dist + area.reach();
                 let rot = dir.1.atan2(dir.0);
-                self.add_fx(Fx { rot, seed: 0.2, top: false, ..Fx::at(px + dir.0 * len * 0.5, py + dir.1 * len * 0.5, P_SLASH, 0.3, len * 0.5, 14.0, jade) });
+                self.add_fx(Fx {
+                    rot,
+                    seed: 0.2,
+                    top: false,
+                    ..Fx::at(
+                        px + dir.0 * len * 0.5,
+                        py + dir.1 * len * 0.5,
+                        P_SLASH,
+                        0.3,
+                        len * 0.5,
+                        14.0,
+                        jade,
+                    )
+                });
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Melee => {
@@ -394,22 +526,52 @@ impl Game {
                     vr: 5.0 * self.player.face,
                     grow: 60.0,
                     seed: 0.3,
-                    ..Fx::at(px, py - 24.0, P_SLASH, 0.22, area.reach(), area.reach(), jade)
+                    ..Fx::at(
+                        px,
+                        py - 24.0,
+                        P_SLASH,
+                        0.22,
+                        area.reach(),
+                        area.reach(),
+                        jade,
+                    )
                 });
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Leap => {
-                self.add_fx(Fx { grow: (area.reach() - 30.0) / 0.25, seed: 0.4, top: false, ..Fx::at(px, py, P_RING, 0.25, 30.0, 30.0, [INK[0], INK[1], INK[2], 0.6]) });
+                self.add_fx(Fx {
+                    grow: (area.reach() - 30.0) / 0.25,
+                    seed: 0.4,
+                    top: false,
+                    ..Fx::at(
+                        px,
+                        py,
+                        P_RING,
+                        0.25,
+                        30.0,
+                        30.0,
+                        [INK[0], INK[1], INK[2], 0.6],
+                    )
+                });
                 self.shake = self.shake.max(0.6);
                 self.event(EV_PULSE, px, py, 0.0);
             }
             SkillKind::Orbit => {
-                self.orbit = Some(crate::game::Orbit { slot, t: d.lasts, spin: 0.0, hits: Vec::with_capacity(16) });
+                self.orbit = Some(crate::game::Orbit {
+                    slot,
+                    t: d.lasts,
+                    spin: 0.0,
+                    hits: Vec::with_capacity(16),
+                });
                 self.event(EV_SHOOT, px, py, 0.0);
             }
             SkillKind::Nova => {
                 let life = 0.3;
-                self.add_fx(Fx { grow: (area.reach() - 20.0) / life, seed: 0.7, ..Fx::at(px, py - 10.0, P_RING, life, 20.0, 20.0, jade) });
+                self.add_fx(Fx {
+                    grow: (area.reach() - 20.0) / life,
+                    seed: 0.7,
+                    ..Fx::at(px, py - 10.0, P_RING, life, 20.0, 20.0, jade)
+                });
                 self.event(EV_PULSE, px, py, 0.0);
             }
             SkillKind::Shot => {
@@ -437,7 +599,14 @@ impl Game {
     }
 
     /// Hit every enemy in the area that this skill use has not hit yet.
-    pub(crate) fn hit_area(&mut self, area: Area, dmg: f32, stagger: f32, knockback: f32, element: u8) {
+    pub(crate) fn hit_area(
+        &mut self,
+        area: Area,
+        dmg: f32,
+        stagger: f32,
+        knockback: f32,
+        element: u8,
+    ) {
         for i in 0..self.enemies.len() {
             let e = &self.enemies[i];
             if e.hp <= 0.0 || self.player.hits.contains(&e.id) {
@@ -458,7 +627,10 @@ impl Game {
         let o = self.orbit.as_ref()?;
         let a = o.spin + k as f32 * core::f32::consts::TAU / ORBIT_BEADS as f32;
         let r = self.def(o.slot).reach;
-        Some((self.player.x + a.cos() * r, self.player.y + a.sin() * r * 0.8))
+        Some((
+            self.player.x + a.cos() * r,
+            self.player.y + a.sin() * r * 0.8,
+        ))
     }
 
     /// Spin the orbiting beads and hit what they touch, each target again only after `ORBIT_REHIT`.
@@ -513,7 +685,12 @@ impl Game {
         let p = &mut self.player;
         p.hp -= dmg;
         p.iframe = HURT_IFRAME;
-        p.hit = crate::anim::Hit { dx: kx, dy: ky, dmg, at: now };
+        p.hit = crate::anim::Hit {
+            dx: kx,
+            dy: ky,
+            dmg,
+            at: now,
+        };
         if !armored {
             p.act = Act::Hurt { t: 0.0 };
             p.kx = kx * 260.0;
@@ -531,7 +708,15 @@ impl Game {
                 rot: a,
                 vr: 9.0,
                 seed,
-                ..Fx::at(px, py - 30.0, P_SCRAP, 0.5, 4.0, 4.0, [0.20, 0.42, 0.36, 1.0])
+                ..Fx::at(
+                    px,
+                    py - 30.0,
+                    P_SCRAP,
+                    0.5,
+                    4.0,
+                    4.0,
+                    [0.20, 0.42, 0.36, 1.0],
+                )
             });
         }
         if self.player.hp <= 0.0 {

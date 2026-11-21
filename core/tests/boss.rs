@@ -36,7 +36,10 @@ fn boss_moves_are_warned_long_enough_even_enraged() {
         let m = &MOVES[mv];
         let floor = if m.big { MIN_BIG_WARNING } else { MIN_WARNING };
         for enraged in [false, true] {
-            assert!(windup_for(m, enraged) >= floor - 1e-6, "move {mv} enraged {enraged}");
+            assert!(
+                windup_for(m, enraged) >= floor - 1e-6,
+                "move {mv} enraged {enraged}"
+            );
         }
         assert!(windup_for(m, true) < m.windup || windup_for(m, true) == floor);
     }
@@ -118,15 +121,28 @@ fn a_full_stagger_meter_knocks_it_down_and_it_takes_extra_damage() {
     let hp = g.enemies[i].hp;
     g.player.x = g.enemies[i].x;
     g.player.y = g.enemies[i].y + 80.0;
-    g.input = Input { ax: 0.0, ay: -100.0, buttons: B_SKILL1, ..Input::default() };
+    g.input = Input {
+        ax: 0.0,
+        ay: -100.0,
+        buttons: B_SKILL1,
+        ..Input::default()
+    };
     let mut dealt = 0.0;
     for _ in 0..20 {
         g.update(STEP);
         g.input.buttons = 0;
-        dealt += g.events.iter().filter(|e| e[0] == EV_HIT).map(|e| e[3]).sum::<f32>();
+        dealt += g
+            .events
+            .iter()
+            .filter(|e| e[0] == EV_HIT)
+            .map(|e| e[3])
+            .sum::<f32>();
     }
     let base = SKILLS[SK_SCYTHE].damage;
-    assert!((hp - g.enemies[i].hp - base * DOWN_DAMAGE).abs() < 0.01, "dealt {dealt}");
+    assert!(
+        (hp - g.enemies[i].hp - base * DOWN_DAMAGE).abs() < 0.01,
+        "dealt {dealt}"
+    );
     steps(&mut g, (DOWN_TIME / STEP) as u32);
     assert!(boss(&g).down <= 0.0, "it gets up");
 }
@@ -144,7 +160,10 @@ fn eating_a_blot_heals_and_angers_and_a_hit_stops_it() {
     g.enemies[i].pt = 0.0;
     g.player.x = 400.0;
     steps(&mut g, (MOVES[M_GLUTTON_EAT].windup / STEP) as u32 + 2);
-    assert!(g.enemies.iter().all(|e| e.kind != K_BLOT), "the blot was eaten");
+    assert!(
+        g.enemies.iter().all(|e| e.kind != K_BLOT),
+        "the blot was eaten"
+    );
     assert!(g.enemies[glutton(&g)].hp > max * 0.8);
     assert_eq!(boss(&g).rage, EAT_RAGE);
     assert_eq!(g.kills, 0, "eating is not a kill");
@@ -160,7 +179,10 @@ fn eating_a_blot_heals_and_angers_and_a_hit_stops_it() {
     steps(&mut g, 10);
     g.hit_boss_for_test(1.0);
     steps(&mut g, (MOVES[M_GLUTTON_EAT].windup / STEP) as u32 + 2);
-    assert!(g.enemies.iter().any(|e| e.kind == K_BLOT), "the hit stopped the eating");
+    assert!(
+        g.enemies.iter().any(|e| e.kind == K_BLOT),
+        "the hit stopped the eating"
+    );
 }
 
 #[test]
@@ -183,7 +205,10 @@ fn mashing_roll_breaks_a_grab() {
         assert!(n < 120, "the grab did not land");
     }
     for k in 0..(GRAB_MASH as u32 * 2) {
-        g.input = Input { buttons: if k % 2 == 0 { B_ROLL } else { 0 }, ..Input::default() };
+        g.input = Input {
+            buttons: if k % 2 == 0 { B_ROLL } else { 0 },
+            ..Input::default()
+        };
         g.update(STEP);
     }
     assert!(!matches!(g.player.act, Act::Grabbed { .. }), "still held");
@@ -194,14 +219,24 @@ fn mashing_roll_breaks_a_grab() {
 fn bosses_are_never_pulled_or_frozen() {
     let (mut g, i) = arena();
     let (x, y) = (g.enemies[i].x, g.enemies[i].y);
-    g.wells.push(Well { x: x + 100.0, y, t: 0.8, dmg: 1.0 });
+    g.wells.push(Well {
+        x: x + 100.0,
+        y,
+        t: 0.8,
+        dmg: 1.0,
+    });
     g.enemies[i].think = 1e9;
     // Close by, so it stands its ground rather than walking.
     g.player.x = x - 60.0;
     g.player.y = y + 40.0;
     steps(&mut g, 30);
     let e = &g.enemies[glutton(&g)];
-    assert!((e.x - x).abs() < 1e-3 && (e.y - y).abs() < 1e-3, "pulled to {} {}", e.x, e.y);
+    assert!(
+        (e.x - x).abs() < 1e-3 && (e.y - y).abs() < 1e-3,
+        "pulled to {} {}",
+        e.x,
+        e.y
+    );
     g.apply_card(C_ICE, 0);
     for _ in 0..4 {
         g.hit_boss_for_test(1.0);
@@ -216,7 +251,11 @@ fn a_boss_hit_interrupts_hyper_armor() {
     g.loadout[0] = SK_CLEAVE;
     g.player.x = 0.0;
     g.player.y = 0.0;
-    g.input = Input { ay: -100.0, buttons: B_SKILL1, ..Input::default() };
+    g.input = Input {
+        ay: -100.0,
+        buttons: B_SKILL1,
+        ..Input::default()
+    };
     g.update(STEP);
     g.input = Input::default();
     steps(&mut g, (SKILLS[SK_CLEAVE].startup / STEP) as u32);
@@ -241,9 +280,19 @@ fn rolling_avoids_every_glutton_attack() {
             let (dx, dy) = (g.enemies[j].x - g.player.x, g.enemies[j].y - g.player.y);
             let d = (dx * dx + dy * dy).sqrt().max(1e-3);
             // Roll sideways out of a line, through anything else.
-            let line = MOVES[g.enemies[j].mv as usize].area == jadereaper_core::skills::AreaKind::Line;
-            let (mx, my) = if line { (-dy / d, dx / d) } else { (dx / d, dy / d) };
-            g.input = Input { mx, my, buttons: if roll { B_ROLL } else { 0 }, ..Input::default() };
+            let line =
+                MOVES[g.enemies[j].mv as usize].area == jadereaper_core::skills::AreaKind::Line;
+            let (mx, my) = if line {
+                (-dy / d, dx / d)
+            } else {
+                (dx / d, dy / d)
+            };
+            g.input = Input {
+                mx,
+                my,
+                buttons: if roll { B_ROLL } else { 0 },
+                ..Input::default()
+            };
             let hp = g.player.hp;
             g.update(STEP);
             if g.player.hp < hp {

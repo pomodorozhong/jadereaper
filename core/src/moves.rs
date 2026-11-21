@@ -9,9 +9,16 @@ use crate::skills::AreaKind;
 pub enum After {
     None,
     /// A slow ink shot along the move's direction: speed, radius.
-    Shot { speed: f32, r: f32 },
+    Shot {
+        speed: f32,
+        r: f32,
+    },
     /// A shock ring spreading from the strike: final radius, speed, band width.
-    Wave { to: f32, speed: f32, band: f32 },
+    Wave {
+        to: f32,
+        speed: f32,
+        band: f32,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]

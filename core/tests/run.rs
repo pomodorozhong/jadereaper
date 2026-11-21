@@ -32,7 +32,11 @@ fn bot_with_light_skills_reaches_the_boss_room() {
     // Only the scythe combo and the talisman are light; the lunge cut is the quickest of the rest.
     for seed in [1, 2] {
         let (room, secs) = reach_boss([SK_SCYTHE, SK_TALISMAN, SK_LUNGE], seed);
-        assert_eq!(room, boss_room(), "seed {seed}: stopped in room {room} after {secs} s");
+        assert_eq!(
+            room,
+            boss_room(),
+            "seed {seed}: stopped in room {room} after {secs} s"
+        );
     }
 }
 
@@ -40,7 +44,11 @@ fn bot_with_light_skills_reaches_the_boss_room() {
 fn bot_with_heavy_skills_reaches_the_boss_room() {
     for seed in [1, 2] {
         let (room, secs) = reach_boss([SK_CHARGE, SK_CLEAVE, SK_LEAP], seed);
-        assert_eq!(room, boss_room(), "seed {seed}: stopped in room {room} after {secs} s");
+        assert_eq!(
+            room,
+            boss_room(),
+            "seed {seed}: stopped in room {room} after {secs} s"
+        );
     }
 }
 
@@ -78,7 +86,13 @@ fn beating_the_last_room_wins() {
         e.hp = 30.0;
     }
     bot::play(&mut g, 120.0, |_| false);
-    assert!(g.won && g.over, "room {}, wave {}, {} enemies left", g.room, g.wave, g.enemies.len());
+    assert!(
+        g.won && g.over,
+        "room {}, wave {}, {} enemies left",
+        g.room,
+        g.wave,
+        g.enemies.len()
+    );
 }
 
 /// Prints how the bot fares room by room, for tuning:
@@ -86,7 +100,10 @@ fn beating_the_last_room_wins() {
 #[test]
 #[ignore]
 fn report() {
-    for loadout in [[SK_SCYTHE, SK_TALISMAN, SK_LUNGE], [SK_CHARGE, SK_CLEAVE, SK_LEAP]] {
+    for loadout in [
+        [SK_SCYTHE, SK_TALISMAN, SK_LUNGE],
+        [SK_CHARGE, SK_CLEAVE, SK_LEAP],
+    ] {
         let mut g = start(1, loadout);
         let mut bot = bot::Bot::default();
         let mut room = usize::MAX;
@@ -97,14 +114,20 @@ fn report() {
             }
             if g.room != room {
                 room = g.room;
-                println!("{loadout:?} room {room}: hp {:.0}/{:.0} at {:.0} s", g.player.hp, g.player.max_hp, g.time);
+                println!(
+                    "{loadout:?} room {room}: hp {:.0}/{:.0} at {:.0} s",
+                    g.player.hp, g.player.max_hp, g.time
+                );
             }
             g.input = bot.input(&g);
             g.update(1.0 / 60.0);
             hurt += g.events.iter().filter(|e| e[0] == EV_HURT).count();
             if g.over {
                 let how = if g.won { "won" } else { "died" };
-                println!("{loadout:?} {how} in room {} wave {} at {:.0} s, hit {hurt} times", g.room, g.wave, g.time);
+                println!(
+                    "{loadout:?} {how} in room {} wave {} at {:.0} s, hit {hurt} times",
+                    g.room, g.wave, g.time
+                );
                 break;
             }
         }

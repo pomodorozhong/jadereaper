@@ -6,27 +6,22 @@ use crate::game::{Game, Input};
 use crate::geom::{dir_to, dist};
 use crate::skills::SkillKind;
 
+#[derive(Default)]
 pub struct Bot {
     /// Steps until the next skill press, so presses are fresh edges.
     wait: u32,
     next_slot: usize,
 }
 
-impl Default for Bot {
-    fn default() -> Self {
-        Bot { wait: 0, next_slot: 0 }
-    }
-}
-
 impl Bot {
     /// The input for this step. Call `Game::update` with it, then `pick` if the game is choosing.
     pub fn input(&mut self, g: &Game) -> Input {
         let (px, py) = (g.player.x, g.player.y);
-        let Some(e) = g
-            .enemies
-            .iter()
-            .min_by(|a, b| dist(a.x, a.y, px, py).partial_cmp(&dist(b.x, b.y, px, py)).unwrap_or(core::cmp::Ordering::Equal))
-        else {
+        let Some(e) = g.enemies.iter().min_by(|a, b| {
+            dist(a.x, a.y, px, py)
+                .partial_cmp(&dist(b.x, b.y, px, py))
+                .unwrap_or(core::cmp::Ordering::Equal)
+        }) else {
             return Input::default();
         };
         let d = dist(e.x, e.y, px, py);
@@ -36,11 +31,23 @@ impl Bot {
 
         if let Some((ox, oy)) = g.pool_escape() {
             // Walk out of burning ground.
-            return Input { mx: ox, my: oy, ax: aim.0, ay: aim.1, buttons: 0 };
+            return Input {
+                mx: ox,
+                my: oy,
+                ax: aim.0,
+                ay: aim.1,
+                buttons: 0,
+            };
         }
         if g.threat(0.08) {
             // Roll through the attacker.
-            return Input { mx: dx, my: dy, ax: aim.0, ay: aim.1, buttons: B_ROLL };
+            return Input {
+                mx: dx,
+                my: dy,
+                ax: aim.0,
+                ay: aim.1,
+                buttons: B_ROLL,
+            };
         }
 
         // Pick the next skill that can reach.
@@ -77,8 +84,20 @@ impl Bot {
                 }
             })
             .fold(f32::MAX, f32::min);
-        let (mx, my) = if d > want { (dx, dy) } else if d < want * 0.5 { (-dx, -dy) } else { (-dy * 0.4, dx * 0.4) };
-        Input { mx, my, ax: aim.0, ay: aim.1, buttons }
+        let (mx, my) = if d > want {
+            (dx, dy)
+        } else if d < want * 0.5 {
+            (-dx, -dy)
+        } else {
+            (-dy * 0.4, dx * 0.4)
+        };
+        Input {
+            mx,
+            my,
+            ax: aim.0,
+            ay: aim.1,
+            buttons,
+        }
     }
 }
 

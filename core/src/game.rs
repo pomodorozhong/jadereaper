@@ -9,8 +9,8 @@
 use crate::cards::{Pick, SkillMods, Stats, NO_SLOT};
 use crate::defs::*;
 use crate::elements::{Patch, Status, Well};
-use crate::rooms::Stage;
 pub use crate::player::{Act, Input, Player};
+use crate::rooms::Stage;
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
 pub const MAX_ENEMIES: usize = 10;
@@ -130,7 +130,6 @@ pub struct Shot {
     pub element: u8,
 }
 
-
 pub struct Fx {
     pub x: f32,
     pub y: f32,
@@ -153,7 +152,23 @@ pub struct Fx {
 impl Fx {
     /// A still effect at a spot; set the other fields with struct update syntax.
     pub fn at(x: f32, y: f32, part: f32, life: f32, hw: f32, hh: f32, color: [f32; 4]) -> Fx {
-        Fx { x, y, vx: 0.0, vy: 0.0, life, max: life, part, hw, hh, rot: 0.0, vr: 0.0, grow: 0.0, color, seed: 0.5, top: true }
+        Fx {
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
+            life,
+            max: life,
+            part,
+            hw,
+            hh,
+            rot: 0.0,
+            vr: 0.0,
+            grow: 0.0,
+            color,
+            seed: 0.5,
+            top: true,
+        }
     }
 }
 
@@ -253,7 +268,6 @@ pub struct Game {
     pub(crate) order: Vec<(f32, u16)>,
 }
 
-
 impl Game {
     pub fn new(seed: u32) -> Game {
         Game {
@@ -277,7 +291,11 @@ impl Game {
             input: Input::default(),
             prev_buttons: 0,
             player: Player::new(),
-            loadout: [crate::skills::SK_SCYTHE, crate::skills::SK_TALISMAN, crate::skills::SK_PULSE],
+            loadout: [
+                crate::skills::SK_SCYTHE,
+                crate::skills::SK_TALISMAN,
+                crate::skills::SK_PULSE,
+            ],
             enemies: Vec::with_capacity(MAX_ENEMIES),
             shots: Vec::with_capacity(MAX_SHOTS),
             orbit: None,
@@ -335,7 +353,11 @@ impl Game {
     /// Advance by a frame's time: the simulation runs in fixed `STEP`s and keeps the remainder for the next
     /// frame. Drawing, the camera and the HUD state follow every call.
     pub fn update(&mut self, dt: f32) {
-        let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
+        let dt = if dt.is_finite() {
+            dt.clamp(0.0, 0.25)
+        } else {
+            0.0
+        };
         self.events.clear();
         self.anim += dt;
         if self.running && !self.choosing && !self.over {
@@ -390,14 +412,27 @@ impl Game {
             // Keep the view inside the arena, or centred on it when the arena is smaller than the view.
             let (hw, hh) = (self.view_w, self.view_h);
             let m = 60.0;
-            let clamp = |v: f32, lo: f32, hi: f32| if lo > hi { (lo + hi) * 0.5 } else { v.clamp(lo, hi) };
+            let clamp = |v: f32, lo: f32, hi: f32| {
+                if lo > hi {
+                    (lo + hi) * 0.5
+                } else {
+                    v.clamp(lo, hi)
+                }
+            };
             self.cam_at.0 = clamp(self.cam_at.0, x0 - m + hw, x1 + m - hw);
             self.cam_at.1 = clamp(self.cam_at.1, y0 - m - 40.0 + hh, y1 + m - hh);
         }
         self.shake = (self.shake - dt * 3.0).max(0.0);
-        let s = if self.reduce_motion { 0.0 } else { self.shake * self.shake * 9.0 };
+        let s = if self.reduce_motion {
+            0.0
+        } else {
+            self.shake * self.shake * 9.0
+        };
         let q = (self.anim * 30.0).floor();
-        self.cam = (self.cam_at.0 + s * (q * 12.9898).sin(), self.cam_at.1 + s * (q * 78.233).cos());
+        self.cam = (
+            self.cam_at.0 + s * (q * 12.9898).sin(),
+            self.cam_at.1 + s * (q * 78.233).cos(),
+        );
     }
 
     pub(crate) fn snap_camera(&mut self) {
@@ -545,7 +580,9 @@ impl Game {
         s[24] = self.won as u8 as f32;
         s[25] = ROOMS[self.room].boss as f32;
         // 56 boss health, 57 its maximum, 58 its stagger meter (0..1), 59 flags (1 enraged, 2 down), 60 boss kind + 1.
-        let boss = self.boss.and_then(|b| self.enemies.iter().find(|e| e.id == b.id).map(|e| (b, e)));
+        let boss = self
+            .boss
+            .and_then(|b| self.enemies.iter().find(|e| e.id == b.id).map(|e| (b, e)));
         if let Some((b, e)) = boss {
             let k = &KINDS[e.kind as usize];
             s[56] = e.hp.max(0.0);
@@ -576,7 +613,9 @@ impl Game {
         s[63] = self
             .enemies
             .iter()
-            .find(|e| e.kind == K_DRAGON && e.mv as usize == M_DRAGON_FINISHER && e.phase == Phase::Windup)
+            .find(|e| {
+                e.kind == K_DRAGON && e.mv as usize == M_DRAGON_FINISHER && e.phase == Phase::Windup
+            })
             .map_or(0.0, |e| (e.pt / MOVES[M_DRAGON_FINISHER].windup).min(1.0));
         s[26] = self.player.x;
         s[27] = self.player.y;
