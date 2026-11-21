@@ -5,7 +5,10 @@
 
 pub use crate::content::*;
 
-/// One paper cutout drawn by the renderer. 12 floats, 48 bytes.
+/// One paper cutout drawn by the renderer. 16 floats, 64 bytes.
+///
+/// Each part is a sheet of paper oriented in 3D around its centre (`x`, `y`): `rot` turns it in its own plane,
+/// then `turn`, `lean` and `bend` (see `Sheet`) set it in 3D, and the renderer projects it with the fixed camera.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Inst {
@@ -22,9 +25,54 @@ pub struct Inst {
     /// Per-instance random value, used for shape variety and the line boil pose.
     pub seed: f32,
     pub color: [f32; 4],
+    pub turn: f32,
+    pub lean: f32,
+    pub lift: f32,
+    pub bend: f32,
 }
 
-pub const INST_FLOATS: usize = 12;
+pub const INST_FLOATS: usize = 16;
+
+/// How a paper sheet is held in 3D, on top of its in-plane rotation. All zero is a sheet standing flat to the
+/// camera, which is how every part was drawn before. The renderer's shader (`src/shader.wgsl`) applies them.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Sheet {
+    /// Radians about the vertical axis; positive turns the sheet's front to the right. Edge-on at a quarter
+    /// turn, its back shows past that.
+    pub turn: f32,
+    /// Radians about the horizontal axis; positive leans the top back, away from the camera.
+    pub lean: f32,
+    /// World units off the ground. The sheet rises on screen, its shadow stays on the ground.
+    pub lift: f32,
+    /// Curl along the sheet's height, in radians from its middle to its top and bottom edges; positive curls
+    /// both edges towards the camera.
+    pub bend: f32,
+}
+
+impl Sheet {
+    pub const FLAT: Sheet = Sheet {
+        turn: 0.0,
+        lean: 0.0,
+        lift: 0.0,
+        bend: 0.0,
+    };
+}
+
+/// How steeply the fixed camera looks down at the ground, as how far up the screen a point moves per world unit
+/// it lies away from the camera. Standing sheets are drawn at full height; one lying on its back shows at this
+/// fraction of its height. `PITCH` in `src/shader.wgsl` must match.
+pub const PITCH: f32 = 0.5;
+
+/// Place a point given relative to a sheet's anchor (x right, y down, z towards the camera) by turning it by
+/// `turn` about the vertical axis and leaning it by `lean`, then project it onto the screen. Matches `orient` and
+/// `project` in `src/shader.wgsl`. Returns the screen offset and the depth towards the camera.
+pub fn orient(p: [f32; 3], turn: f32, lean: f32) -> (f32, f32, f32) {
+    let (ct, st) = (turn.cos(), turn.sin());
+    let (x, y, z) = (p[0] * ct + p[2] * st, p[1], -p[0] * st + p[2] * ct);
+    let (cl, sl) = (lean.cos(), lean.sin());
+    let (y, z) = (y * cl - z * sl, y * sl + z * cl);
+    (x, y + z * PITCH, z)
+}
 pub const MAX_INST: usize = 4096;
 
 /// Part ids run below this. The instance's part is `id + PART_SLOTS * pose`, so the renderer can pick each

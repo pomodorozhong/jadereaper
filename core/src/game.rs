@@ -184,6 +184,8 @@ pub struct Game {
     /// Line boil of the traced characters: poses per second, and how many poses each part has.
     pub boil_fps: f32,
     pub boil_poses: u32,
+    /// The ?debug toggle that spins every puppet in 3D. Drawing only; not in `state_hash`.
+    pub debug_spin: bool,
     /// How big each character is drawn: the player, then each enemy kind. Hit areas do not change.
     pub draw_scale: [f32; 5],
     /// Each enemy kind's waddle: (tilt each way in radians, pose changes per second). Starts from `KINDS`.
@@ -279,6 +281,7 @@ impl Game {
             anim: 0.0,
             boil_fps: 4.0,
             boil_poses: MAX_POSES,
+            debug_spin: false,
             draw_scale: [1.0; 5],
             waddle: [
                 (KINDS[0].tilt.to_radians(), KINDS[0].rate),

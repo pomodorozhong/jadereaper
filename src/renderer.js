@@ -1,9 +1,13 @@
-// WebGPU renderer: one background pass and one instanced draw of paper parts.
+// WebGPU renderer: one background pass and one instanced draw of paper parts, each a sheet in 3D.
 import { t } from "./i18n.js";
 import { PART_IDS } from "./data.js";
 import { BAKE, bakeCharacters } from "./characters.js";
 
-const INSTANCE_BYTES = 48;
+// 16 floats per paper part (Inst in core/src/defs.rs): x, y, half width, half height | rot, part, flash, seed |
+// r, g, b, a | turn, lean, lift, bend.
+const INSTANCE_BYTES = 64;
+// Vertices per instance: the ground shadow, then the sheet, each cut into 4 strips of 2 triangles (src/shader.wgsl).
+const INSTANCE_VERTS = 48;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 460; // world units across the shorter screen side, before the core's zoom
 // The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.
@@ -11,15 +15,13 @@ const PART_SLOTS = 32;
 const MAX_POSES = 8;
 
 /** Look settings sent to the shader each frame. The ?debug panel changes them at run time. */
-// Tuned by the maintainer in the ?debug panel. The line boil replaces the old outline wobble, which stays off.
+// Tuned by the maintainer in the ?debug panel.
 export const LOOK = {
-	stopMotionFps: 0, // how often the old outline wobble steps (off)
 	boilFps: 4, // how often the traced characters change pose; the core picks each instance's pose
 	margin: 2.1, // white cutout margin, world units
 	shadowX: 3.5,
 	shadowY: 6,
 	shadowAlpha: 0.5,
-	wobble: 0, // the shader's old outline wobble on cutout parts, world units (off)
 };
 
 /**
@@ -133,7 +135,7 @@ export async function createRenderer(canvas) {
 		throw new Error(t("error.shader", { detail }));
 	}
 
-	const globals = new Float32Array(16);
+	const globals = new Float32Array(12);
 	const globalsBuf = device.createBuffer({
 		size: globals.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -228,6 +230,7 @@ export async function createRenderer(canvas) {
 						{ shaderLocation: 0, offset: 0, format: "float32x4" },
 						{ shaderLocation: 1, offset: 16, format: "float32x4" },
 						{ shaderLocation: 2, offset: 32, format: "float32x4" },
+						{ shaderLocation: 3, offset: 48, format: "float32x4" },
 					],
 				},
 			],
@@ -271,7 +274,8 @@ export async function createRenderer(canvas) {
 	 * @param {number} ptr byte offset of the instance array
 	 * @param {number} count number of instances
 	 */
-	function draw(memory, ptr, count, camX, camY, time) {
+	function draw(memory, ptr, count, camX, camY) {
+		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding.
 		globals.set([
 			view.w,
 			view.h,
@@ -279,16 +283,12 @@ export async function createRenderer(canvas) {
 			camY,
 			canvas.width,
 			canvas.height,
-			time,
-			Math.floor(time * LOOK.stopMotionFps),
-			view.px,
-			LOOK.margin,
-			0,
-			0,
 			LOOK.shadowX,
 			LOOK.shadowY,
+			view.px,
+			LOOK.margin,
 			LOOK.shadowAlpha,
-			LOOK.wobble,
+			0,
 		]);
 		device.queue.writeBuffer(globalsBuf, 0, globals);
 		const n = Math.min(count, MAX_INSTANCES);
@@ -312,7 +312,7 @@ export async function createRenderer(canvas) {
 		if (n > 0) {
 			pass.setPipeline(partPipeline);
 			pass.setVertexBuffer(0, instBuf);
-			pass.draw(6, n);
+			pass.draw(INSTANCE_VERTS, n);
 		}
 		pass.end();
 		device.queue.submit([encoder.finish()]);

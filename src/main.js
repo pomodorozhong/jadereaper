@@ -96,6 +96,7 @@ function addDebugPanel(renderer, core) {
     <label for="dbg_${set}_${key}">${label}</label><input id="dbg_${set}_${key}" data-set="${set}" data-key="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${sets[set][key]}">
     <output style="font-variant-numeric:tabular-nums">${sets[set][key]}</output><button type="button" data-reset="${key}" title="Reset to ${defaults[set][key]}" style="${btn}">↺</button></div>`;
 	panel.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><b>Debug</b><span>
+    <label title="Spin every puppet in 3D: turn, lean, lift and bend, to check the paper sheets"><input type="checkbox" id="dbgSpin"> Spin puppets</label>
     <button type="button" id="dbgCopy" title="Copy the current values as JSON" style="${btn}">Copy values</button>
     <button type="button" id="dbgResetAll" style="${btn}">Reset all</button>
     <button type="button" id="dbgFold" style="${btn}">Hide</button></span></div>
@@ -147,6 +148,8 @@ function addDebugPanel(renderer, core) {
 	panel.querySelector("#dbgResetAll").onclick = () => {
 		for (const el of sliders) set(el, defaults[el.dataset.set][el.dataset.key]);
 	};
+	panel.querySelector("#dbgSpin").onchange = (e) =>
+		core.jr_set_debug_spin(e.target.checked ? 1 : 0);
 	panel.querySelector("#dbgCopy").onclick = () =>
 		navigator.clipboard?.writeText(
 			JSON.stringify(
@@ -433,7 +436,6 @@ async function boot() {
 	}
 
 	let last = performance.now();
-	let clock = 0;
 
 	function frame(now) {
 		const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
@@ -455,7 +457,6 @@ async function boot() {
 
 		// Paused freezes everything. Other menus keep the paper puppets moving.
 		const step = mode === "paused" ? 0 : dt;
-		clock += step;
 		if (mode === "playing") {
 			const [ax, ay] = aimOffset(pad.aim, readState(), view);
 			core.jr_input(pad.mx, pad.my, ax, ay, pad.buttons);
@@ -541,7 +542,6 @@ async function boot() {
 			core.jr_instance_count(),
 			s[STATE.CAM_X],
 			s[STATE.CAM_Y],
-			clock,
 		);
 		requestAnimationFrame(frame);
 	}

@@ -4,7 +4,7 @@
 //! The host (JavaScript) calls the `jr_*` functions below and reads three
 //! buffers straight out of linear memory each frame:
 //!
-//! - instances: `jr_instance_count()` x 12 floats, uploaded to the GPU as is
+//! - instances: `jr_instance_count()` x `defs::INST_FLOATS` (16) floats, uploaded to the GPU as is
 //! - state: `STATE_FLOATS` floats for the HUD (layout in `Game::write_state`)
 //! - anims: `jr_anim_count()` x `anim::ANIM_FLOATS` floats, each character's animation state (layout in `anim.rs`)
 //! - events: `jr_event_count()` x 4 floats `[type, x, y, value]` for sound
@@ -42,12 +42,13 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle, calm) = (
+    let (fps, poses, scale, waddle, calm, spin) = (
         g().boil_fps,
         g().boil_poses,
         g().draw_scale,
         g().waddle,
         g().reduce_motion,
+        g().debug_spin,
     );
     *g() = Game::new(seed);
     g().set_view(w, h);
@@ -55,6 +56,7 @@ pub extern "C" fn jr_reset(seed: u32) {
     g().draw_scale = scale;
     g().waddle = waddle;
     g().reduce_motion = calm;
+    g().debug_spin = spin;
 }
 
 /// Start a new run.
@@ -87,6 +89,13 @@ pub extern "C" fn jr_set_reduce_motion(on: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_boil(fps: f32, poses: u32) {
     g().set_boil(fps, poses);
+}
+
+/// The ?debug toggle: spin every puppet in 3D (turn, lean, lift and bend), to show the renderer's sheets work.
+/// Drawing only.
+#[no_mangle]
+pub extern "C" fn jr_set_debug_spin(on: u32) {
+    g().set_debug_spin(on != 0);
 }
 
 /// How big a character is drawn: 0 is the player, 1 + kind an enemy kind (blot, wisp, brute, elite).
