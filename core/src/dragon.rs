@@ -208,8 +208,7 @@ impl Game {
                 });
             }
             Special::Pools => {
-                for k in 0..b.nspots as usize {
-                    let (x, y) = b.spots[k];
+                for &(x, y) in b.spots.iter().take(b.nspots as usize) {
                     self.add_hazard(Hazard {
                         x,
                         y,
