@@ -28,7 +28,7 @@ For the JavaScript the same reasoning applies: Biome's default style over a conf
 
 ## Consequences
 
-- Rust with the wasm target (`rustup target add wasm32-unknown-unknown`) is now needed to run the game locally, not only to change the core. `npm start` and `npm run smoke` stop with a message naming `./build.sh` when the wasm is missing.
+- Rust with the wasm target (`rustup target add wasm32-unknown-unknown`) is now needed to run the game locally, not only to change the core. When the wasm is missing, `npm run smoke` stops with a message naming `./build.sh`, and `npm start` warns but keeps serving, so the Lightbox, which does not load the wasm, still needs only Node ([0004](0004-serve-the-lightbox-locally.md)).
 - After changing `core/` or `content/game.json`, run `./build.sh` before playing locally, but commit only the source and the generated tables.
 - The deploy and the smoke test take longer, because they install Rust and build.
 - A new stable Rust release can bring clippy warnings or formatting changes that fail CI with no code change. Fix them when that happens.

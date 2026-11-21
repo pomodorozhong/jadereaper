@@ -44,17 +44,17 @@ const TYPES = {
 };
 
 // The built core is not committed (decision 0007): ./build.sh writes it, and CI builds it for the deploy.
+// The game needs it; the Lightbox does not, so serving goes ahead without it.
 const WASM = "wasm/jadereaper_core.wasm";
+
+/** Why the game cannot load, or null when the built core is there. */
+export function missingWasm() {
+	if (existsSync(join(ROOT, WASM))) return null;
+	return `${WASM} is missing, so the game cannot load. Build it with ./build.sh (needs Rust: rustup target add wasm32-unknown-unknown).`;
+}
 
 /** Start serving the repository root on 127.0.0.1. Resolves to the server once it listens. */
 export function serve(port = 5173) {
-	if (!existsSync(join(ROOT, WASM))) {
-		return Promise.reject(
-			new Error(
-				`${WASM} is missing. Build it with ./build.sh (needs Rust: rustup target add wasm32-unknown-unknown).`,
-			),
-		);
-	}
 	const server = createServer((req, res) => {
 		let path;
 		try {
@@ -101,4 +101,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	const port = Number(process.argv[2] || 5173);
 	await serve(port);
 	console.log(`Serving on http://localhost:${port}`);
+	const missing = missingWasm();
+	if (missing) console.warn(`Warning: ${missing} The Lightbox still works.`);
 }

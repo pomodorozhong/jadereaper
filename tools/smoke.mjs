@@ -9,10 +9,16 @@
 // Then it opens the Lightbox and checks that it loads cleanly.
 
 import { chromium } from "playwright";
-import { isLocalOnly, serve } from "./serve.mjs";
+import { isLocalOnly, missingWasm, serve } from "./serve.mjs";
 
 const PLAY_MS = 3000;
 const TIMEOUT_MS = 20000;
+
+const missing = missingWasm();
+if (missing) {
+	console.error(`smoke: ${missing}`);
+	process.exit(1);
+}
 
 const server = await serve(0);
 const url = `http://localhost:${server.address().port}/`;

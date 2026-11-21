@@ -26,7 +26,7 @@ npm start
 
 Then open http://localhost:5173. The same server has the Lightbox, the tool for tracing character art, at http://localhost:5173/tools/lightbox.html (see [docs/character-art-pipeline.md](docs/character-art-pipeline.md)).
 
-Run `./build.sh` again after changing `core/` or `content/game.json`. `npm start` and the smoke test stop with a message if the wasm is missing, but they do not notice a stale one.
+Run `./build.sh` again after changing `core/` or `content/game.json`. If the wasm is missing, `npm start` warns and the smoke test stops with a message, but neither notices a stale one. The Lightbox does not need the wasm, so tracing art needs only Node.
 
 To check that the page loads cleanly, run the smoke test. It loads the game in headless Chromium and fails on any console error or failed request; without WebGPU it checks the "Cannot start" screen instead. CI runs it on every pull request.
 
