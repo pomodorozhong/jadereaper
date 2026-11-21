@@ -22,7 +22,8 @@ The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs
 | `reactions.rs` | Element tags and the six reactions |
 | `cards.rs` | The card pool, offers, picks, and the per-button and character modifiers |
 | `rooms.rs` | Rooms, waves, clearing, winning, the arena walls |
-| `rigs.rs`, `draw.rs` | Puppet posing and the instance list for the renderer |
+| `rigs.rs`, `draw.rs` | Puppet posing and the instance list for the renderer, including the player's own skill wash and recovery ring |
+| `anim.rs` | Each character's animation state for the host: phase, progress, cancel point, direction, last hit |
 | `bot.rs` | The scripted player used by the tests |
 
 ## Rules the tests hold the code to
@@ -30,6 +31,7 @@ The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs
 - **Replays.** The step is fixed at 1/60 s and every random choice comes from `Game::rng`, so the same seed and inputs give the same `state_hash`, whatever the frame rate.
 - **Fair warnings.** Every attack winds up for at least `MIN_WARNING` (0.4 s), and big boss moves for `MIN_BIG_WARNING` (0.6 s), even when the Glutton is enraged (`windup_for`). `Game::min_warned` records the shortest warning any hit had.
 - **The roll answers every attack but the finisher.** A lunge or charge along a line hits with the attacker's body as it passes (`strike_area`), a swept breath with the line where it is, a line of lances only where it erupts. A roll timed to the arrival therefore avoids it. Lingering pools are walked out of, not rolled through.
+- **A skill turns with the aim until it hits.** Its direction, and a leap's landing point, follow the aim through the startup and lock when the active window starts.
 - **Hits land once per use.** A skill use keeps the ids it hit; an orbit can hit again after `ORBIT_REHIT`.
 - **Bosses are never pulled or frozen.** Gravity wells, the collapsing star and stasis skip them and add stagger instead.
 
