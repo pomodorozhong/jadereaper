@@ -49,7 +49,11 @@ pub fn weakness(stance: Stance) -> u8 {
 
 /// The Dragon's damage from the finisher: full when no weak-element damage was dealt in the stance.
 pub fn finisher_damage(max_hp: f32, weak_dmg: f32, first: bool) -> f32 {
-    let share = if first { FINISHER_FIRST } else { FINISHER_LATER };
+    let share = if first {
+        FINISHER_FIRST
+    } else {
+        FINISHER_LATER
+    };
     max_hp * share * (1.0 - weak_dmg / WEAK_FULL).max(FINISHER_FLOOR)
 }
 
@@ -64,7 +68,9 @@ impl Game {
             return;
         }
         let id = self.enemies[i].id;
-        let Some(b) = self.boss.as_mut().filter(|b| b.id == id) else { return };
+        let Some(b) = self.boss.as_mut().filter(|b| b.id == id) else {
+            return;
+        };
         b.weak_dmg += dmg;
         b.weak_meter += dmg;
         if b.weak_meter >= WEAK_DOWN && b.down <= 0.0 {
@@ -90,7 +96,8 @@ impl Game {
             }
         }
         let e = &self.enemies[i];
-        let busy = matches!(e.phase, Phase::Windup | Phase::Active) && e.mv as usize == M_DRAGON_FINISHER;
+        let busy =
+            matches!(e.phase, Phase::Windup | Phase::Active) && e.mv as usize == M_DRAGON_FINISHER;
         if over && !busy {
             let e = &mut self.enemies[i];
             e.mv = M_DRAGON_FINISHER as u8;
@@ -141,9 +148,16 @@ impl Game {
         let mut out = [one; 5];
         match m.special {
             Special::Pools | Special::Shards => {
-                let Some(b) = self.boss.filter(|b| b.id == e.id) else { return (out, 1) };
+                let Some(b) = self.boss.filter(|b| b.id == e.id) else {
+                    return (out, 1);
+                };
                 for k in 0..b.nspots as usize {
-                    out[k] = Area::new(b.spots[k].0, b.spots[k].1, (1.0, 0.0), Shape::Circle { r: m.reach });
+                    out[k] = Area::new(
+                        b.spots[k].0,
+                        b.spots[k].1,
+                        (1.0, 0.0),
+                        Shape::Circle { r: m.reach },
+                    );
                 }
                 (out, b.nspots as usize)
             }
@@ -162,10 +176,21 @@ impl Game {
         if m.special == Special::Lances {
             let front = m.reach * k.clamp(0.0, 1.0);
             let start = (front - LANCE_FRONT).max(0.0);
-            let a = Area::new(e.ox + e.dx * start, e.oy + e.dy * start, (e.dx, e.dy), Shape::Line { len: front - start, half_w: m.width });
+            let a = Area::new(
+                e.ox + e.dx * start,
+                e.oy + e.dy * start,
+                (e.dx, e.dy),
+                Shape::Line {
+                    len: front - start,
+                    half_w: m.width,
+                },
+            );
             return ([a; 5], 1);
         }
-        if matches!(m.special, Special::Pools | Special::Shards | Special::Dive | Special::Field | Special::Finisher) {
+        if matches!(
+            m.special,
+            Special::Pools | Special::Shards | Special::Dive | Special::Field | Special::Finisher
+        ) {
             return self.move_areas(e);
         }
         ([self.boss_area(i, k); 5], 1)
@@ -181,7 +206,11 @@ impl Game {
                 en.x = e.ox;
                 en.y = e.oy;
                 self.shake = self.shake.max(0.8);
-                self.add_fx(Fx { grow: 300.0, top: false, ..Fx::at(e.ox, e.oy, P_RING, 0.3, 30.0, 30.0, [0.86, 0.36, 0.16, 0.8]) });
+                self.add_fx(Fx {
+                    grow: 300.0,
+                    top: false,
+                    ..Fx::at(e.ox, e.oy, P_RING, 0.3, 30.0, 30.0, [0.86, 0.36, 0.16, 0.8])
+                });
             }
             Special::Pools => {
                 for k in 0..b.nspots as usize {
@@ -227,8 +256,21 @@ impl Game {
         b.stance_t = 0.0;
         b.weak_dmg = 0.0;
         b.weak_meter = 0.0;
-        self.stance = if self.stance == Stance::Ice { Stance::Fire } else { Stance::Ice };
-        self.event(EV_STANCE, px, py, if self.stance == Stance::Fire { 1.0 } else { 2.0 });
+        self.stance = if self.stance == Stance::Ice {
+            Stance::Fire
+        } else {
+            Stance::Ice
+        };
+        self.event(
+            EV_STANCE,
+            px,
+            py,
+            if self.stance == Stance::Fire {
+                1.0
+            } else {
+                2.0
+            },
+        );
     }
 
     /// A hit from a Dragon move on the player: the freezing field slows.

@@ -53,7 +53,12 @@ pub struct Hit {
 }
 
 impl Hit {
-    pub const NONE: Hit = Hit { dx: 0.0, dy: 0.0, dmg: 0.0, at: -1e6 };
+    pub const NONE: Hit = Hit {
+        dx: 0.0,
+        dy: 0.0,
+        dmg: 0.0,
+        at: -1e6,
+    };
 }
 
 /// One character's record; see the module docs for the layout.
@@ -82,7 +87,15 @@ const _: () = assert!(core::mem::size_of::<Anim>() == ANIM_FLOATS * 4);
 
 /// A phase, how far through it (0..1) and its length.
 fn through(phase: f32, t: f32, len: f32) -> (f32, f32, f32) {
-    (phase, if len > 0.0 { (t / len).clamp(0.0, 1.0) } else { 0.0 }, len)
+    (
+        phase,
+        if len > 0.0 {
+            (t / len).clamp(0.0, 1.0)
+        } else {
+            0.0
+        },
+        len,
+    )
 }
 
 impl Game {
@@ -98,7 +111,14 @@ impl Game {
                 dir = (dx, dy);
                 through(A_ROLL, t, ROLL_TIME + ROLL_RECOVER)
             }
-            Act::Skill { slot, t, dx, dy, step: s, .. } => {
+            Act::Skill {
+                slot,
+                t,
+                dx,
+                dy,
+                step: s,
+                ..
+            } => {
                 let d = self.def(slot);
                 dir = (dx, dy);
                 step = s as f32;
@@ -108,7 +128,11 @@ impl Game {
                 } else if t < a1 {
                     through(A_ACTIVE, t - a0, d.active)
                 } else {
-                    cancel = if d.recovery > 0.0 { (d.cancel / d.recovery).min(1.0) } else { 0.0 };
+                    cancel = if d.recovery > 0.0 {
+                        (d.cancel / d.recovery).min(1.0)
+                    } else {
+                        0.0
+                    };
                     through(A_RECOVERY, t - a1, d.recovery)
                 }
             }
@@ -143,9 +167,17 @@ impl Game {
             let (phase, k, len) = if let Some(t) = down.filter(|&t| t > 0.0) {
                 through(A_DOWN, crate::boss::DOWN_TIME - t, crate::boss::DOWN_TIME)
             } else if e.status.frozen > 0.0 {
-                through(A_STUNNED, crate::elements::FREEZE_TIME - e.status.frozen, crate::elements::FREEZE_TIME)
+                through(
+                    A_STUNNED,
+                    crate::elements::FREEZE_TIME - e.status.frozen,
+                    crate::elements::FREEZE_TIME,
+                )
             } else if e.stun > 0.0 {
-                through(A_STUNNED, crate::enemy::STUN_TIME - e.stun, crate::enemy::STUN_TIME)
+                through(
+                    A_STUNNED,
+                    crate::enemy::STUN_TIME - e.stun,
+                    crate::enemy::STUN_TIME,
+                )
             } else {
                 match e.phase {
                     Phase::Windup => through(A_STARTUP, e.pt, self.windup_of(&e)),
@@ -154,7 +186,11 @@ impl Game {
                     Phase::Approach => (A_WALK, 0.0, 0.0),
                 }
             };
-            let dir = if e.phase == Phase::Approach { (e.face, 0.0) } else { (e.dx, e.dy) };
+            let dir = if e.phase == Phase::Approach {
+                (e.face, 0.0)
+            } else {
+                (e.dx, e.dy)
+            };
             self.anims.push(Anim {
                 who: 1.0 + e.kind as f32,
                 id: e.id as f32,

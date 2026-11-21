@@ -30,12 +30,24 @@ pub struct Pose {
 }
 
 impl Pose {
-    pub const REST: Pose = Pose { dx: 0.0, dy: 0.0, tilt: 0.0, sx: 1.0, sy: 1.0 };
+    pub const REST: Pose = Pose {
+        dx: 0.0,
+        dy: 0.0,
+        tilt: 0.0,
+        sx: 1.0,
+        sy: 1.0,
+    };
 
     /// Blend from this pose to another by `k` in 0..1.
     pub fn mix(&self, o: &Pose, k: f32) -> Pose {
         let l = |a: f32, b: f32| a + (b - a) * k;
-        Pose { dx: l(self.dx, o.dx), dy: l(self.dy, o.dy), tilt: l(self.tilt, o.tilt), sx: l(self.sx, o.sx), sy: l(self.sy, o.sy) }
+        Pose {
+            dx: l(self.dx, o.dx),
+            dy: l(self.dy, o.dy),
+            tilt: l(self.tilt, o.tilt),
+            sx: l(self.sx, o.sx),
+            sy: l(self.sy, o.sy),
+        }
     }
 }
 
@@ -59,16 +71,26 @@ impl Rig {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Doing {
     /// Standing or walking; `step` flips between the two walk tilts, `lean` is how far each tilts.
-    Walk { step: bool, lean: f32, hop: f32 },
+    Walk {
+        step: bool,
+        lean: f32,
+        hop: f32,
+    },
     /// Winding up, `k` from 0 to 1.
-    Windup { k: f32 },
+    Windup {
+        k: f32,
+    },
     /// Striking, `k` from 0 to 1.
-    Attack { k: f32 },
+    Attack {
+        k: f32,
+    },
     Hurt,
     /// Knocked flat.
     Down,
     /// Rolling, `k` from 0 to 1 through the roll's movement: the puppet tucks and spins once.
-    Roll { k: f32 },
+    Roll {
+        k: f32,
+    },
 }
 
 /// How a puppet is drawn this frame.
@@ -95,12 +117,25 @@ impl Game {
         match doing {
             Doing::Walk { step, lean, hop } => {
                 let t = if step { lean } else { -lean };
-                (Pose { tilt: t, dy: if step { 0.0 } else { hop }, ..Pose::REST }, 0.0)
+                (
+                    Pose {
+                        tilt: t,
+                        dy: if step { 0.0 } else { hop },
+                        ..Pose::REST
+                    },
+                    0.0,
+                )
             }
             Doing::Windup { k } => (Pose::REST.mix(&rig.windup, (k * 3.0).min(1.0)), 0.0),
             Doing::Attack { k } => (rig.windup.mix(&rig.attack, (k * 4.0).min(1.0)), 0.0),
             Doing::Hurt => (rig.hurt, 0.0),
-            Doing::Down => (Pose { tilt: -1.35, ..rig.hurt }, 0.0),
+            Doing::Down => (
+                Pose {
+                    tilt: -1.35,
+                    ..rig.hurt
+                },
+                0.0,
+            ),
             Doing::Roll { k } => {
                 let tuck = (k * core::f32::consts::PI).sin();
                 (Pose::REST.mix(&rig.roll, tuck), k.min(1.0) * TAU)
@@ -115,11 +150,19 @@ impl Game {
         let tilt = (pose.tilt + spin) * f;
         let (c, sn) = (tilt.cos(), tilt.sin());
         // A spinning puppet turns about its middle, not its feet.
-        let pivot = if spin != 0.0 { rig.height() * 0.5 * s } else { 0.0 };
+        let pivot = if spin != 0.0 {
+            rig.height() * 0.5 * s
+        } else {
+            0.0
+        };
         let mut held = None;
         for (k, p) in rig.parts.iter().enumerate() {
             let tc = match look.tint {
-                Some(t) => [(p.color[0] + t[0]) * 0.5, (p.color[1] + t[1]) * 0.5, (p.color[2] + t[2]) * 0.5],
+                Some(t) => [
+                    (p.color[0] + t[0]) * 0.5,
+                    (p.color[1] + t[1]) * 0.5,
+                    (p.color[2] + t[2]) * 0.5,
+                ],
                 None => p.color,
             };
             let col = [tc[0], tc[1], tc[2], look.alpha];
@@ -127,8 +170,21 @@ impl Game {
             if p.held {
                 if let Some(a) = look.swing {
                     // Out in front and swinging, on top of the body.
-                    let (hx, hy) = (look.x + f * 12.0 * s + pose.dx * f, look.y - 42.0 * s + pose.dy);
-                    held = Some((hx, hy, p.hw * s * f, p.hh * s, a * f, p.part, look.flash, seed, col));
+                    let (hx, hy) = (
+                        look.x + f * 12.0 * s + pose.dx * f,
+                        look.y - 42.0 * s + pose.dy,
+                    );
+                    held = Some((
+                        hx,
+                        hy,
+                        p.hw * s * f,
+                        p.hh * s,
+                        a * f,
+                        p.part,
+                        look.flash,
+                        seed,
+                        col,
+                    ));
                     continue;
                 }
             }
@@ -136,7 +192,17 @@ impl Game {
             let (rx, ry) = (ox * c - oy * sn, ox * sn + oy * c);
             let x = look.x + rx + pose.dx * f;
             let y = look.y + ry - pivot + pose.dy;
-            self.put(x, y, p.hw * s * pose.sx * f, p.hh * s * pose.sy, p.rot * f + tilt, p.part, look.flash, seed, col);
+            self.put(
+                x,
+                y,
+                p.hw * s * pose.sx * f,
+                p.hh * s * pose.sy,
+                p.rot * f + tilt,
+                p.part,
+                look.flash,
+                seed,
+                col,
+            );
         }
         if let Some((x, y, hw, hh, rot, part, flash, seed, col)) = held {
             self.put(x, y, hw, hh, rot, part, flash, seed, col);

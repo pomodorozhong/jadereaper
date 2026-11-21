@@ -26,7 +26,11 @@ fn hit(g: &mut Game, i: usize, element: u8) {
     let (x, y) = (g.enemies[i].x, g.enemies[i].y);
     g.player.x = x - 120.0;
     g.player.y = y;
-    g.input = jadereaper_core::game::Input { ax: 120.0, buttons: B_SKILL2, ..Default::default() };
+    g.input = jadereaper_core::game::Input {
+        ax: 120.0,
+        buttons: B_SKILL2,
+        ..Default::default()
+    };
     g.update(STEP);
     g.input = Default::default();
     for _ in 0..40 {
@@ -42,12 +46,18 @@ fn hit(g: &mut Game, i: usize, element: u8) {
 }
 
 fn reactions(g: &Game) -> Vec<u8> {
-    g.events.iter().filter(|e| e[0] == EV_REACTION).map(|e| e[3] as u8).collect()
+    g.events
+        .iter()
+        .filter(|e| e[0] == EV_REACTION)
+        .map(|e| e[3] as u8)
+        .collect()
 }
 
 #[test]
 fn every_pair_has_its_reaction_and_same_elements_do_not_react() {
-    let names = [R_STEAM, R_OVERLOAD, R_COLLAPSE, R_SHATTER, R_STASIS, R_STARFALL];
+    let names = [
+        R_STEAM, R_OVERLOAD, R_COLLAPSE, R_SHATTER, R_STASIS, R_STARFALL,
+    ];
     let mut seen = vec![];
     for a in 0..4u8 {
         assert_eq!(reaction(a, a), 0);
@@ -76,7 +86,11 @@ fn a_hit_tags_and_a_second_element_reacts_using_the_tag_up() {
     let before = g.enemies[i].hp;
     let card = C_LIGHTNING;
     g.apply_card(card, 1);
-    g.input = jadereaper_core::game::Input { ax: 120.0, buttons: B_SKILL2, ..Default::default() };
+    g.input = jadereaper_core::game::Input {
+        ax: 120.0,
+        buttons: B_SKILL2,
+        ..Default::default()
+    };
     for _ in 0..60 {
         g.update(STEP);
         g.input = Default::default();
@@ -110,8 +124,16 @@ fn collapsing_star_pulls_enemies_in_but_not_bosses() {
     g.enemies[i].status.tag_t = TAG_TIME;
     let boss_at = (g.enemies[boss].x, g.enemies[boss].y);
     g.react_for_test(i, E_FIRE + 1);
-    assert!(g.enemies[small].y < 100.0, "the blot was not pulled in: {}", g.enemies[small].y);
-    assert_eq!((g.enemies[boss].x, g.enemies[boss].y), boss_at, "the boss was pulled");
+    assert!(
+        g.enemies[small].y < 100.0,
+        "the blot was not pulled in: {}",
+        g.enemies[small].y
+    );
+    assert_eq!(
+        (g.enemies[boss].x, g.enemies[boss].y),
+        boss_at,
+        "the boss was pulled"
+    );
     assert!(g.enemies[small].hp < 1e5, "the blast missed");
 }
 
@@ -131,13 +153,22 @@ fn stasis_freezes_enemies_and_staggers_bosses() {
 
 #[test]
 fn shatter_steam_and_starfall_hurt() {
-    for (tag, by, want) in [(E_ICE, E_LIGHTNING, R_SHATTER), (E_FIRE, E_ICE, R_STEAM), (E_LIGHTNING, E_CELESTIAL, R_STARFALL)] {
+    for (tag, by, want) in [
+        (E_ICE, E_LIGHTNING, R_SHATTER),
+        (E_FIRE, E_ICE, R_STEAM),
+        (E_LIGHTNING, E_CELESTIAL, R_STARFALL),
+    ] {
         let mut g = arena();
         let i = dummy(&mut g, K_BRUTE, 0.0, 0.0);
-        let others: Vec<usize> = (0..3).map(|k| dummy(&mut g, K_BLOT, 70.0 + 40.0 * k as f32, 30.0)).collect();
+        let others: Vec<usize> = (0..3)
+            .map(|k| dummy(&mut g, K_BLOT, 70.0 + 40.0 * k as f32, 30.0))
+            .collect();
         g.enemies[i].status.tag = tag + 1;
         g.enemies[i].status.tag_t = TAG_TIME;
         assert_eq!(g.react_for_test(i, by + 1), want);
-        assert!(g.enemies[i].hp < 1e5 || others.iter().any(|&j| g.enemies[j].hp < 1e5), "reaction {want} did nothing");
+        assert!(
+            g.enemies[i].hp < 1e5 || others.iter().any(|&j| g.enemies[j].hp < 1e5),
+            "reaction {want} did nothing"
+        );
     }
 }

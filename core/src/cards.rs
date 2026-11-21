@@ -77,7 +77,14 @@ pub struct SkillMods {
 
 impl Default for SkillMods {
     fn default() -> Self {
-        SkillMods { element: 0, recovery: 1.0, reach: 1.0, damage: 1.0, stagger: 1.0, cards: 0 }
+        SkillMods {
+            element: 0,
+            recovery: 1.0,
+            reach: 1.0,
+            damage: 1.0,
+            stagger: 1.0,
+            cards: 0,
+        }
     }
 }
 
@@ -95,7 +102,14 @@ pub struct Stats {
 
 impl Default for Stats {
     fn default() -> Self {
-        Stats { might: 1.0, speed: 1.0, regen: 0.0, armor: 0.0, roll: 1.0, trail: 0 }
+        Stats {
+            might: 1.0,
+            speed: 1.0,
+            regen: 0.0,
+            armor: 0.0,
+            roll: 1.0,
+            trail: 0,
+        }
     }
 }
 
@@ -127,7 +141,10 @@ impl Game {
 
     /// Offer the starting passive: three different character cards.
     pub fn offer_passive(&mut self) {
-        let mut pool: Vec<(usize, i32, f32)> = (0..N_CARDS).filter(|&c| CARDS[c].passive).map(|c| (c, NO_SLOT, 1.0)).collect();
+        let mut pool: Vec<(usize, i32, f32)> = (0..N_CARDS)
+            .filter(|&c| CARDS[c].passive)
+            .map(|c| (c, NO_SLOT, 1.0))
+            .collect();
         self.deal(&mut pool, Pick::Passive);
     }
 
@@ -146,7 +163,11 @@ impl Game {
                     _ => &[],
                 },
                 Target::Character | Target::Roll => {
-                    let w = if card.effect == Effect::Trail && self.stats.trail == card.element { 0.0 } else { 1.0 };
+                    let w = if card.effect == Effect::Trail && self.stats.trail == card.element {
+                        0.0
+                    } else {
+                        1.0
+                    };
                     pool.push((c, NO_SLOT, w));
                     &[]
                 }
@@ -180,7 +201,11 @@ impl Game {
     /// When an element is wanted (fire and ice before the final boss) and no offered card brings one, the last
     /// offer is swapped for the likeliest wanted element card.
     fn make_sure_of_wanted(&mut self, pool: &[(usize, i32, f32)]) {
-        let wanted = |c: i32| c >= 0 && CARDS[c as usize].element > 0 && self.want_element.contains(&CARDS[c as usize].element);
+        let wanted = |c: i32| {
+            c >= 0
+                && CARDS[c as usize].element > 0
+                && self.want_element.contains(&CARDS[c as usize].element)
+        };
         if self.want_element == [0, 0] || self.choices.iter().any(|&c| wanted(c)) {
             return;
         }

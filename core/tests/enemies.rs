@@ -15,7 +15,11 @@ fn arena() -> Game {
 #[test]
 fn every_move_is_warned_long_enough() {
     for (i, m) in MOVES.iter().enumerate() {
-        assert!(m.windup >= MIN_WARNING, "move {i} winds up for {}", m.windup);
+        assert!(
+            m.windup >= MIN_WARNING,
+            "move {i} winds up for {}",
+            m.windup
+        );
     }
 }
 
@@ -33,7 +37,11 @@ fn hits_on_an_idle_player_were_all_warned() {
         assert!(g.enemies.len() <= MAX_ENEMIES);
     }
     assert!(g.player.hp < 1e6, "nothing attacked");
-    assert!(g.min_warned >= MIN_WARNING - STEP, "a hit came {} s after its warning", g.min_warned);
+    assert!(
+        g.min_warned >= MIN_WARNING - STEP,
+        "a hit came {} s after its warning",
+        g.min_warned
+    );
 }
 
 /// Stand still and roll whenever an attack is about to land, through the attacker.
@@ -44,7 +52,12 @@ fn dodge(g: &mut Game, secs: f32) {
         let (dx, dy) = (e.x - g.player.x, e.y - g.player.y);
         let d = (dx * dx + dy * dy).sqrt().max(1e-3);
         let (mx, my) = if roll { (dx / d, dy / d) } else { (0.0, 0.0) };
-        g.input = Input { mx, my, buttons: if roll { B_ROLL } else { 0 }, ..Input::default() };
+        g.input = Input {
+            mx,
+            my,
+            buttons: if roll { B_ROLL } else { 0 },
+            ..Input::default()
+        };
         g.update(STEP);
         // Let go so the next threat is a fresh press.
         if roll {
@@ -74,7 +87,10 @@ fn enemies_do_attack() {
         for _ in 0..(60 * 15) {
             g.update(STEP);
         }
-        assert!(g.player.hp < g.player.max_hp, "kind {kind} never hit a still player");
+        assert!(
+            g.player.hp < g.player.max_hp,
+            "kind {kind} never hit a still player"
+        );
     }
 }
 
@@ -89,7 +105,11 @@ fn a_hit_interrupts_a_wind_up() {
         n += 1;
         assert!(n < 600);
     }
-    g.input = Input { ax: 100.0, buttons: B_SKILL1, ..Input::default() };
+    g.input = Input {
+        ax: 100.0,
+        buttons: B_SKILL1,
+        ..Input::default()
+    };
     for _ in 0..12 {
         g.update(STEP);
         g.input.buttons = 0;

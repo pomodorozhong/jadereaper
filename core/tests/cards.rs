@@ -20,7 +20,12 @@ fn dummy(g: &mut Game, kind: u8, x: f32, y: f32) -> usize {
 }
 
 fn swing(g: &mut Game, slot: usize, aim: (f32, f32)) {
-    g.input = Input { ax: aim.0, ay: aim.1, buttons: 1 << slot, ..Input::default() };
+    g.input = Input {
+        ax: aim.0,
+        ay: aim.1,
+        buttons: 1 << slot,
+        ..Input::default()
+    };
     g.update(STEP);
     g.input = Input::default();
     for _ in 0..40 {
@@ -38,7 +43,10 @@ fn starting_passive_offers_three_different_character_cards() {
     assert!(c[0] != c[1] && c[1] != c[2] && c[0] != c[2]);
     for &id in &c {
         assert!(CARDS[id as usize].passive);
-        assert!(matches!(CARDS[id as usize].target, Target::Character | Target::Roll));
+        assert!(matches!(
+            CARDS[id as usize].target,
+            Target::Character | Target::Roll
+        ));
     }
     g.choose(0);
     assert!(!g.choosing);
@@ -56,7 +64,11 @@ fn a_new_element_replaces_the_old_and_upgrades_stack() {
     g.apply_card(C_QUICK_HANDS, 0);
     g.apply_card(C_QUICK_HANDS, 0);
     assert!((g.def(0).recovery - base * 0.64).abs() < 1e-4);
-    assert_eq!(g.mods[1], SkillMods::default(), "other buttons are untouched");
+    assert_eq!(
+        g.mods[1],
+        SkillMods::default(),
+        "other buttons are untouched"
+    );
     let hp = g.player.max_hp;
     g.apply_card(C_VITALITY, NO_SLOT);
     assert_eq!(g.player.max_hp, hp + 25.0);
@@ -71,7 +83,10 @@ fn offers_never_repeat_an_element_a_skill_has_and_lean_towards_elements_in_use()
         g.offer_reward();
         for c in 0..3 {
             let (card, slot) = (g.choices[c], g.choice_slots[c]);
-            assert!(!(card == C_FIRE as i32 && slot == 0), "offered fire to the button that has it");
+            assert!(
+                !(card == C_FIRE as i32 && slot == 0),
+                "offered fire to the button that has it"
+            );
             if card == C_FIRE as i32 {
                 fire_elsewhere += 1;
             }
@@ -125,7 +140,10 @@ fn lightning_chains_to_the_nearest_other_enemy() {
     let far = dummy(&mut g, K_BLOT, 120.0, -260.0);
     swing(&mut g, 1, (100.0, 0.0));
     assert!(g.enemies[a].hp < 1e5);
-    assert!(g.enemies[near].hp < 1e5, "the chain did not reach the nearest");
+    assert!(
+        g.enemies[near].hp < 1e5,
+        "the chain did not reach the nearest"
+    );
     assert_eq!(g.enemies[far].hp, 1e5);
 }
 
@@ -143,7 +161,10 @@ fn celestial_marks_open_a_well_that_pulls_and_drops_a_star() {
     // The third mark opened a well; the swings since have let it pull and fall.
     let moved = ((g.enemies[other].x - 160.0).powi(2) + (g.enemies[other].y - 90.0).powi(2)).sqrt();
     assert!(moved > 20.0, "the well did not pull, moved {moved}");
-    assert!(g.enemies[other].hp < 1e5, "the star did not land on the pulled enemy");
+    assert!(
+        g.enemies[other].hp < 1e5,
+        "the star did not land on the pulled enemy"
+    );
 }
 
 #[test]
@@ -151,7 +172,11 @@ fn fire_trail_roll_lights_enemies() {
     let mut g = arena();
     g.apply_card(C_FIRE_TRAIL, NO_SLOT);
     let i = dummy(&mut g, K_BLOT, 60.0, 0.0);
-    g.input = Input { mx: 1.0, buttons: B_ROLL, ..Input::default() };
+    g.input = Input {
+        mx: 1.0,
+        buttons: B_ROLL,
+        ..Input::default()
+    };
     for _ in 0..40 {
         g.update(STEP);
         g.input.buttons = 0;
