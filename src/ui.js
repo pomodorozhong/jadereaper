@@ -33,6 +33,11 @@ export function createUI({ onAction }) {
 	// The screen button that last had focus, so the pad can take focus back after something outside the screen
 	// (a ?debug slider) took it.
 	let lastFocused = null;
+	// While the gamepad moves focus, show the highlight (style.css `.pad-focus`); the mouse turns it off again.
+	const padFocus = () => document.body.classList.add("pad-focus");
+	window.addEventListener("pointermove", () =>
+		document.body.classList.remove("pad-focus"),
+	);
 	document.addEventListener("focusin", (e) => {
 		if (current && $(current).contains(e.target)) lastFocused = e.target;
 	});
@@ -63,6 +68,7 @@ export function createUI({ onAction }) {
 	function navigate(dx, dy) {
 		const list = buttons();
 		if (!list.length) return false;
+		padFocus();
 		const i = list.indexOf(focusedButton());
 		const step = dx > 0 || dy > 0 ? 1 : -1;
 		const next = i < 0 ? 0 : (i + step + list.length) % list.length;
@@ -72,6 +78,7 @@ export function createUI({ onAction }) {
 
 	/** Click the focused button (gamepad confirm). */
 	function confirm() {
+		if (current) padFocus();
 		const el = current ? focusedButton() : null;
 		if (el instanceof HTMLButtonElement) {
 			el.click();
