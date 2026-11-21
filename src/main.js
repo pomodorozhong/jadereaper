@@ -83,7 +83,7 @@ function addDebugPanel(renderer, core) {
     if (which === 'waddle') {
       const kind = WADDLE_KINDS.findIndex((k) => key.startsWith(k));
       const name = WADDLE_KINDS[kind];
-      core.jr_set_waddle(kind, WADDLE[name + 'Tilt'] * Math.PI / 180, WADDLE[name + 'Rate']);
+      core.jr_set_waddle(kind, WADDLE[`${name}Tilt`] * Math.PI / 180, WADDLE[`${name}Rate`]);
     }
     if (which === 'bake' || which === 'size') rebake();
   };
@@ -113,7 +113,7 @@ async function boot() {
   // 'title' | 'pick' | 'playing' | 'levelup' | 'paused' | 'over'
   let mode = 'title';
   // Skills picked for the run, in button order (left, right, Q).
-  let picked = Array.isArray(save.loadout) ? save.loadout.filter((id) => SKILLS[id]).slice(0, 3) : [];
+  const picked = Array.isArray(save.loadout) ? save.loadout.filter((id) => SKILLS[id]).slice(0, 3) : [];
   let settingsFrom = 'title';
 
   const ui = createUI({ onAction });
@@ -133,7 +133,9 @@ async function boot() {
   // The core picks each traced part's line boil pose, so it needs the rate and the number of baked poses.
   core.jr_set_boil(LOOK.boilFps, BAKE.poses);
   core.jr_set_reduce_motion(save.reduceMotion ? 1 : 0);
-  SIZE_ORDER.forEach((who, i) => core.jr_set_draw_scale(i, SIZE[who]));
+  SIZE_ORDER.forEach((who, i) => {
+    core.jr_set_draw_scale(i, SIZE[who]);
+  });
   if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer, core);
 
   const seed = () => (Math.random() * 0xffffffff) >>> 0;

@@ -23,13 +23,15 @@ export function parseForm(text) {
     if (field?.required && field.label) form.required.push(field.label);
   };
   for (const line of text.split('\n')) {
-    let m;
-    if ((m = line.match(/^name:\s*(.+)$/))) form.name = unquote(m[1]);
-    else if ((m = line.match(/^labels:\s*(\[.*\])\s*$/))) form.labels = JSON.parse(m[1]);
+    const name = line.match(/^name:\s*(.+)$/);
+    const labels = line.match(/^labels:\s*(\[.*\])\s*$/);
+    const label = field && line.match(/^\s+label:\s*(.+)$/);
+    if (name) form.name = unquote(name[1]);
+    else if (labels) form.labels = JSON.parse(labels[1]);
     else if (/^\s*- type:/.test(line)) {
       finish();
       field = { label: '', required: false };
-    } else if (field && (m = line.match(/^\s+label:\s*(.+)$/))) field.label = unquote(m[1]);
+    } else if (label) field.label = unquote(label[1]);
     else if (field && /^\s+required:\s*true\s*$/.test(line)) field.required = true;
   }
   finish();

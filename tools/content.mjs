@@ -230,11 +230,15 @@ export function generate(content) {
   for (const p of content.parts) rs.push(`pub const P_${upper(p.name)}: f32 = ${f32(p.id)};`);
   rs.push(`/// Every defined part id.`, `pub const PARTS: [f32; ${content.parts.length}] = [${content.parts.map((p) => `P_${upper(p.name)}`).join(', ')}];`);
   rs.push('', '// Event types, read by the host for sound and damage numbers.');
-  content.events.forEach((e, i) => rs.push(`pub const EV_${upper(e)}: f32 = ${f32(i + 1)};`));
+  content.events.forEach((e, i) => {
+    rs.push(`pub const EV_${upper(e)}: f32 = ${f32(i + 1)};`);
+  });
   for (const [table, def] of Object.entries(TABLES)) {
     const list = content[table];
     rs.push('', `// ${table}`);
-    list.forEach((item, i) => rs.push(`pub const ${def.prefix}${upper(item.name)}: ${def.id} = ${i};`));
+    list.forEach((item, i) => {
+      rs.push(`pub const ${def.prefix}${upper(item.name)}: ${def.id} = ${i};`);
+    });
     rs.push(`pub const N_${upper(table)}: usize = ${list.length};`);
     rs.push(`pub const ${upper(table)}: [${def.rust}; ${list.length}] = [`);
     for (const item of list) {
@@ -274,7 +278,7 @@ async function main() {
     console.error(err.message);
     process.exit(1);
   }
-  let stale = [];
+  const stale = [];
   for (const [key, path] of Object.entries(OUT)) {
     const file = join(ROOT, path);
     const now = await readFile(file, 'utf8').catch(() => '');

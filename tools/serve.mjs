@@ -62,7 +62,7 @@ export function serve(port = 5173) {
     }
     const inside = file.startsWith(ROOT + sep);
     const rel = inside ? file.slice(ROOT.length + 1).split(sep).join('/') : '';
-    if (!inside || !isServed(rel) || !stat || !stat.isFile()) {
+    if (!inside || !isServed(rel) || !stat?.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }

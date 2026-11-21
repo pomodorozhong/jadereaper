@@ -75,7 +75,9 @@ export function createAudio() {
       tone({ dur: 0.09, type: 'triangle', f0: PENTATONIC[pickupStep], gain: 0.16 });
     },
     [EVENT.LEVELUP]: () => {
-      [0, 2, 4, 5].forEach((n, i) => tone({ dur: 0.3, type: 'triangle', f0: PENTATONIC[n], gain: 0.25, delay: i * 0.08 }));
+      [0, 2, 4, 5].forEach((n, i) => {
+        tone({ dur: 0.3, type: 'triangle', f0: PENTATONIC[n], gain: 0.25, delay: i * 0.08 });
+      });
     },
     [EVENT.HURT]: () => {
       tone({ dur: 0.2, type: 'sawtooth', f0: 170, f1: 70, gain: 0.3 });
@@ -83,10 +85,14 @@ export function createAudio() {
     },
     [EVENT.STRIKE]: () => noise({ dur: 0.12, type: 'lowpass', f0: 600, f1: 200, gain: 0.3 }),
     [EVENT.CLEAR]: () => {
-      [0, 2, 4].forEach((n, i) => tone({ dur: 0.35, type: 'triangle', f0: PENTATONIC[n + 2], gain: 0.22, delay: i * 0.1 }));
+      [0, 2, 4].forEach((n, i) => {
+        tone({ dur: 0.35, type: 'triangle', f0: PENTATONIC[n + 2], gain: 0.22, delay: i * 0.1 });
+      });
     },
     [EVENT.WIN]: () => {
-      [0, 2, 4, 5, 7].forEach((n, i) => tone({ dur: 0.6, type: 'triangle', f0: PENTATONIC[n], gain: 0.26, delay: i * 0.14 }));
+      [0, 2, 4, 5, 7].forEach((n, i) => {
+        tone({ dur: 0.6, type: 'triangle', f0: PENTATONIC[n], gain: 0.26, delay: i * 0.14 });
+      });
     },
     [EVENT.ENRAGE]: () => {
       noise({ dur: 0.6, type: 'lowpass', f0: 900, f1: 120, gain: 0.45 });
@@ -94,9 +100,13 @@ export function createAudio() {
     },
     [EVENT.BOSS_DOWN]: () => {
       noise({ dur: 0.35, type: 'lowpass', f0: 500, f1: 80, gain: 0.5 });
-      [4, 2].forEach((n, i) => tone({ dur: 0.3, type: 'triangle', f0: PENTATONIC[n], gain: 0.2, delay: 0.1 + i * 0.1 }));
+      [4, 2].forEach((n, i) => {
+        tone({ dur: 0.3, type: 'triangle', f0: PENTATONIC[n], gain: 0.2, delay: 0.1 + i * 0.1 });
+      });
     },
-    [EVENT.STANCE]: () => [5, 3].forEach((n, i) => tone({ dur: 0.4, type: 'sine', f0: PENTATONIC[n], gain: 0.2, delay: i * 0.12 })),
+    [EVENT.STANCE]: () => [5, 3].forEach((n, i) => {
+      tone({ dur: 0.4, type: 'sine', f0: PENTATONIC[n], gain: 0.2, delay: i * 0.12 });
+    }),
     [EVENT.FINISHER]: () => tone({ dur: 2.8, type: 'sawtooth', f0: 70, f1: 220, gain: 0.08 }),
     [EVENT.REACTION]: () => {
       noise({ dur: 0.25, type: 'bandpass', f0: 1800, f1: 400, q: 1.5, gain: 0.3 });
@@ -110,7 +120,9 @@ export function createAudio() {
       noise({ dur: 0.3, type: 'lowpass', f0: 900, f1: 120, gain: 0.25 });
     },
     [EVENT.DEATH]: () => {
-      [5, 3, 1, 0].forEach((n, i) => tone({ dur: 0.45, type: 'triangle', f0: PENTATONIC[n] / 2, gain: 0.3, delay: i * 0.16 }));
+      [5, 3, 1, 0].forEach((n, i) => {
+        tone({ dur: 0.45, type: 'triangle', f0: PENTATONIC[n] / 2, gain: 0.3, delay: i * 0.16 });
+      });
     },
     [EVENT.HEAL]: () => {
       tone({ dur: 0.25, f0: 660, f1: 990, gain: 0.25 });

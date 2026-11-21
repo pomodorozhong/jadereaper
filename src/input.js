@@ -90,11 +90,11 @@ export function createInput({ onKey, canvas }) {
     const out = { mx, my, buttons: 0, aim: null, nav: null, confirm: false, back: false, pause: false, pad: padName };
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const pad = Array.from(pads).find((p) => p && p.connected);
+    const pad = Array.from(pads).find((p) => p?.connected);
     if (pad) {
       let ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
       if (Math.hypot(ax, ay) < DEADZONE) { ax = 0; ay = 0; }
-      const b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
+      const b = (i) => !!(pad.buttons[i]?.pressed);
       const dx = (b(15) ? 1 : 0) - (b(14) ? 1 : 0);
       const dy = (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
       if (ax || ay || dx || dy) {

@@ -84,11 +84,15 @@ function bakePose(part, pi, pose, [boxW, boxH], bake) {
   const seed = (kind, i) => boilSeed(kind, i, pose, pi);
 
   ctx.beginPath();
-  part.paper.forEach((l, i) => curve(ctx, jitter(l, true, seed(1, i), amp * 0.6), true));
+  part.paper.forEach((l, i) => {
+    curve(ctx, jitter(l, true, seed(1, i), amp * 0.6), true);
+  });
   ctx.fillStyle = PAPER;
   ctx.fill('evenodd');
   ctx.beginPath();
-  part.solid.forEach((l, i) => curve(ctx, jitter(l, true, seed(2, i), amp * 0.6), true));
+  part.solid.forEach((l, i) => {
+    curve(ctx, jitter(l, true, seed(2, i), amp * 0.6), true);
+  });
   ctx.fillStyle = INK;
   ctx.fill('evenodd');
   ctx.strokeStyle = INK;
