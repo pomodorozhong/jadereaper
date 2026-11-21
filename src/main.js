@@ -18,6 +18,7 @@ import {
 import { pickLang, setLang, getLang, nextLang } from "./i18n.js";
 import { BAKE, SIZE, SIZE_ORDER } from "./characters.js";
 import { RIGS, SHEET_KEYS } from "./content.js";
+import { addGallery } from "./gallery.js";
 
 /** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
  * Tuned by the maintainer. Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends
@@ -289,8 +290,10 @@ async function boot() {
 	SIZE_ORDER.forEach((who, i) => {
 		core.jr_set_draw_scale(i, SIZE[who]);
 	});
-	if (new URLSearchParams(location.search).has("debug"))
-		addDebugPanel(renderer, core);
+	// ?gallery shows every rig in every pose instead of the game, with the ?debug panel to tune them.
+	const params = new URLSearchParams(location.search);
+	const gallery = params.has("gallery") ? addGallery(core, canvas) : null;
+	if (params.has("debug") || gallery) addDebugPanel(renderer, core);
 
 	const seed = () => (Math.random() * 0xffffffff) >>> 0;
 	// Views are rebuilt on every read because wasm memory can grow and detach them.
@@ -557,6 +560,7 @@ async function boot() {
 		} else {
 			core.jr_input(0, 0, 0, 0, 0);
 		}
+		gallery?.(dt);
 		core.jr_update(step);
 
 		const s = readState();
