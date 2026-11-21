@@ -1,8 +1,9 @@
-//! Shared definitions: the instance format sent to the renderer, part ids,
-//! tuning tables and a tiny RNG.
+//! Shared definitions: the instance format sent to the renderer, constants, and a tiny RNG.
 //!
-//! Part ids and upgrade ids are mirrored in `src/data.js` and `src/shader.wgsl`.
-//! If you add one here, add it there too.
+//! Part ids, event types, enemy kinds, skills and moves are generated into `content.rs` from `content/game.json`
+//! (see `tools/content.mjs`) and re-exported here, as are elements and cards.
+
+pub use crate::content::*;
 
 /// One paper cutout drawn by the renderer. 12 floats, 48 bytes.
 #[repr(C)]
@@ -32,56 +33,27 @@ pub const PART_SLOTS: f32 = 32.0;
 /// Most line boil poses a part can have; the rect table holds `PART_SLOTS * MAX_POSES` entries.
 pub const MAX_POSES: u32 = 8;
 
-// Part ids.
-pub const P_ELLIPSE: f32 = 0.0;
-pub const P_ROBE: f32 = 1.0;
-pub const P_HOOD: f32 = 2.0;
-pub const P_SCYTHE: f32 = 3.0;
-pub const P_BLOT: f32 = 4.0;
-pub const P_WISP: f32 = 5.0;
-pub const P_BRUTE: f32 = 6.0;
-pub const P_GEM: f32 = 7.0;
-pub const P_SLASH: f32 = 8.0;
-pub const P_TALISMAN: f32 = 9.0;
-pub const P_BEAD: f32 = 10.0;
-pub const P_SPLAT: f32 = 11.0;
-pub const P_GRASS: f32 = 12.0;
-pub const P_STONE: f32 = 13.0;
-pub const P_HEART: f32 = 14.0;
-pub const P_RING: f32 = 15.0;
-pub const P_SCRAP: f32 = 16.0;
-pub const P_SHADOW: f32 = 18.0;
-/// The elite is a big brute, with its own part so a traced drawing keeps its line width at that size.
-pub const P_ELITE: f32 = 19.0;
+pub const STATE_FLOATS: usize = 64;
 
-// Upgrade ids.
-pub const U_SCYTHE: usize = 0;
-pub const U_TALISMAN: usize = 1;
-pub const U_BEADS: usize = 2;
-pub const U_PULSE: usize = 3;
-pub const U_VITALITY: usize = 4;
-pub const U_SWIFT: usize = 5;
-pub const U_LURE: usize = 6;
-pub const U_MIGHT: usize = 7;
-pub const U_HASTE: usize = 8;
-pub const U_MENDING: usize = 9;
-pub const N_UPGRADES: usize = 10;
-pub const UPGRADE_MAX: [u8; N_UPGRADES] = [6, 6, 6, 6, 5, 5, 5, 5, 5, 5];
+// Button bits in `jr_input`.
+pub const B_SKILL1: u32 = 1;
+pub const B_SKILL2: u32 = 2;
+pub const B_SKILL3: u32 = 4;
+pub const B_ROLL: u32 = 8;
+pub const N_BUTTONS: usize = 4;
 
-// Event types, read by the host for sound.
-pub const EV_HIT: f32 = 1.0;
-pub const EV_KILL: f32 = 2.0;
-pub const EV_PICKUP: f32 = 3.0;
-pub const EV_LEVELUP: f32 = 4.0;
-pub const EV_HURT: f32 = 5.0;
-pub const EV_SLASH: f32 = 6.0;
-pub const EV_SHOOT: f32 = 7.0;
-pub const EV_PULSE: f32 = 8.0;
-pub const EV_DEATH: f32 = 9.0;
-pub const EV_HEAL: f32 = 10.0;
-pub const EV_ELITE: f32 = 11.0;
+/// How long a press is remembered, so one made just before an action can start still counts.
+pub const BUFFER: f32 = 0.12;
 
-pub const STATE_FLOATS: usize = 32;
+// The roll: every character's one fixed move.
+/// How long the roll moves.
+pub const ROLL_TIME: f32 = 0.30;
+/// Invulnerable from the start of the roll for this long.
+pub const ROLL_INVULN: f32 = 0.25;
+/// After the roll moves, the player recovers this long before acting or rolling again.
+pub const ROLL_RECOVER: f32 = 0.14;
+/// Distance covered by one roll.
+pub const ROLL_DIST: f32 = 130.0;
 
 pub const INK: [f32; 3] = [0.17, 0.15, 0.13];
 
@@ -91,29 +63,19 @@ pub struct Kind {
     pub speed: f32,
     /// Collision radius.
     pub r: f32,
-    pub dmg: f32,
-    pub xp: f32,
-    pub part: f32,
-    pub color: [f32; 3],
-    pub hw: f32,
-    pub hh: f32,
+    /// Its puppet (an id into `RIGS`).
+    pub rig: usize,
     /// Puppet pose changes per second.
     pub rate: f32,
     /// How far the puppet tilts each way as it waddles, in degrees.
     pub tilt: f32,
+    /// Stagger it takes before a hit interrupts it.
+    pub poise: f32,
+    /// A boss: never pulled by gravity wells, never frozen, and its hits always interrupt.
+    pub boss: bool,
+    /// Its attacks (ids into `MOVES`).
+    pub moves: &'static [usize],
 }
-
-pub const K_BLOT: u8 = 0;
-pub const K_WISP: u8 = 1;
-pub const K_BRUTE: u8 = 2;
-pub const K_ELITE: u8 = 3;
-
-pub const KINDS: [Kind; 4] = [
-    Kind { hp: 14.0, speed: 62.0, r: 16.0, dmg: 5.0, xp: 1.0, part: P_BLOT, color: [0.33, 0.31, 0.30], hw: 24.0, hh: 24.0, rate: 2.0, tilt: 2.25 },
-    Kind { hp: 7.0, speed: 118.0, r: 12.0, dmg: 4.0, xp: 1.0, part: P_WISP, color: [0.36, 0.40, 0.56], hw: 25.0, hh: 21.0, rate: 9.0, tilt: 3.75 },
-    Kind { hp: 70.0, speed: 44.0, r: 26.0, dmg: 12.0, xp: 5.0, part: P_BRUTE, color: [0.58, 0.31, 0.24], hw: 30.0, hh: 30.0, rate: 3.0, tilt: 7.5 },
-    Kind { hp: 600.0, speed: 56.0, r: 44.0, dmg: 20.0, xp: 40.0, part: P_ELITE, color: [0.74, 0.25, 0.18], hw: 52.0, hh: 52.0, rate: 2.5, tilt: 7.5 },
-];
 
 pub struct Rng(pub u32);
 

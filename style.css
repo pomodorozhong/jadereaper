@@ -261,6 +261,9 @@ button.card { font-family: var(--hand); }
 .card .name { font-family: var(--title); font-size: 21px; font-weight: 700; }
 .card .desc { font-weight: 400; color: var(--ink-soft); line-height: 1.3; }
 .card .rank { font-size: 15px; color: var(--vermilion); font-weight: 700; }
+.card .target { font-size: 14px; color: var(--jade-dark); }
+.card.armed { outline: 3px solid var(--vermilion); outline-offset: -6px; }
+.skills .chip .element { font-style: normal; font-family: var(--brush); font-size: 16px; margin-top: -4px; }
 .card .key {
   position: absolute;
   top: 8px;
@@ -268,6 +271,18 @@ button.card { font-family: var(--hand); }
   font-size: 14px;
   color: var(--ink-soft);
 }
+
+/* ------------------------------------------------------------- skill pick */
+
+.pick-wrap { display: grid; gap: 16px; justify-items: center; width: min(1000px, 100%); max-height: 100%; overflow: auto; padding: 8px; }
+.skill-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; width: 100%; }
+.skill-cards .card { max-width: none; padding: 14px 12px 12px; gap: 4px; font-size: 14px; }
+.skill-cards .card .glyph { font-size: 40px; }
+.skill-cards .card .name { font-size: 18px; }
+.skill-cards .card .weight { font-size: 13px; color: var(--ink-soft); }
+.skill-cards .card.picked { outline: 3px solid var(--vermilion); outline-offset: -6px; }
+.skill-cards .card.picked .key { color: var(--vermilion); font-weight: 700; }
+.pick-foot { display: flex; gap: 14px; align-items: center; }
 
 /* -------------------------------------------------------------- game over */
 
@@ -337,6 +352,41 @@ button.card { font-family: var(--hand); }
 .chip:nth-child(odd) { transform: rotate(-2deg); }
 .chip:nth-child(even) { transform: rotate(1.5deg); }
 .chip b { font-family: var(--brush); font-size: 20px; color: var(--jade-dark); font-weight: 400; }
+
+/* The three skill slots, bottom centre. */
+.skills { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 10px; }
+.skills .chip { flex-direction: column; align-items: center; gap: 0; padding: 4px 12px 2px; }
+.skills .chip b { font-size: 26px; }
+.skills .chip small { font-size: 12px; color: var(--ink-soft); }
+
+/* The boss's name, health and stagger meter, along the bottom. */
+.boss-bar { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); display: grid; gap: 3px; justify-items: center; }
+.boss-name { font-family: var(--title); font-size: 20px; font-weight: 700; text-shadow: 0 0 4px var(--paper); }
+.boss-name.enraged { color: var(--vermilion); }
+.boss-hp { width: 100%; height: 12px; border: 2px solid var(--ink); border-radius: 3px; overflow: hidden; background: var(--paper); }
+.boss-fill { height: 100%; width: 100%; background: var(--ink); transition: width 0.12s ease-out; }
+.boss-meter { width: 70%; height: 5px; border-radius: 2px; overflow: hidden; background: var(--paper-dark); }
+.boss-meter-fill { height: 100%; width: 0; background: var(--jade); }
+.boss-bar.down .boss-meter-fill { background: var(--vermilion); }
+.boss-weak { font-size: 15px; font-weight: 700; }
+.prompt.finisher { top: 26%; }
+.prompt { position: fixed; left: 50%; top: 38%; transform: translateX(-50%) rotate(-2deg); font-family: var(--title); font-size: 26px; font-weight: 700; color: var(--vermilion); text-shadow: 0 0 4px var(--paper), 0 0 4px var(--paper); animation: fade 0.2s; }
+
+/* Damage numbers float up from where a hit lands. */
+#numbers { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+#numbers span {
+  position: absolute;
+  font-family: var(--hand);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper);
+  transform: translate(-50%, -50%);
+  animation: rise 0.7s ease-out forwards;
+}
+#numbers span.big { font-size: 30px; color: var(--vermilion); }
+#numbers span.reaction { font-family: var(--title); font-size: 24px; color: var(--jade-dark); animation-duration: 1.1s; }
+@keyframes rise { to { opacity: 0; transform: translate(-50%, -150%); } }
 
 /* ------------------------------------------------------------- animations */
 

@@ -5,7 +5,7 @@ import { BAKE, bakeCharacters } from './characters.js';
 
 const INSTANCE_BYTES = 48;
 const MAX_INSTANCES = 4096;
-const WORLD_HEIGHT = 640; // world units across the shorter screen side
+const WORLD_HEIGHT = 460; // world units across the shorter screen side, before the core's zoom
 // The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.
 const PART_SLOTS = 32;
 const MAX_POSES = 8;
@@ -101,10 +101,13 @@ export async function createRenderer(canvas) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   ctx.configure({ device, format, alphaMode: 'opaque' });
 
-  let [code, parts] = await Promise.all([
+  // src/content.wgsl (generated from content/game.json) holds the part ids the shader uses, so it goes first.
+  let [ids, code, parts] = await Promise.all([
+    fetch('src/content.wgsl', { cache: 'no-cache' }).then((r) => r.text()),
     fetch('src/shader.wgsl', { cache: 'no-cache' }).then((r) => r.text()),
     loadPartImages(BAKE),
   ]);
+  code = `${ids}\n${code}`;
   const module = device.createShaderModule({ code });
   const info = await module.getCompilationInfo();
   const errors = info.messages.filter((m) => m.type === 'error');
@@ -195,8 +198,8 @@ export async function createRenderer(canvas) {
 
   const view = { w: 1280, h: 720, px: 1 };
 
-  /** Match the canvas to its CSS size. Returns the visible area in world units. */
-  function resize() {
+  /** Match the canvas to its CSS size. Returns the visible area in world units, widened by the core's zoom. */
+  function resize(zoom = 1) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
@@ -204,7 +207,7 @@ export async function createRenderer(canvas) {
       canvas.width = w;
       canvas.height = h;
     }
-    view.px = WORLD_HEIGHT / Math.min(w, h);
+    view.px = (WORLD_HEIGHT * Math.max(1, zoom || 1)) / Math.min(w, h);
     view.w = w * view.px;
     view.h = h * view.px;
     return view;

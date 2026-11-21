@@ -6,33 +6,32 @@ Step 1 is one large PR, by the maintainer's choice, built as ordered commits so 
 
 ## Current state
 
-The prototype is a survivor game of about 3,000 lines: a Rust simulation compiled to WebAssembly (`core/`), a WebGPU renderer that draws everything as paper cutouts (`src/renderer.js`, `src/shader.wgsl`), and a paper-style HTML UI over the canvas. Hand-traced characters are drawn with a per-stroke line boil ([0003](docs/decisions/0003-character-art-pipeline.md)). CI runs the smoke test and deploys `main` to GitHub Pages.
+Step 1 is built on `feat/room-action-game` (#43): Jade Reaper is now a room-based action game ([0005](docs/decisions/0005-room-based-action-game.md)). The Rust core (`core/`) runs in fixed 60 Hz steps and replays a seed exactly. The player aims, uses three skills chosen from eight, and rolls. Six rooms of waves end in two bosses, the Glutton and the Two-Element Dragon. Cards from one pool add the four elements and their reactions. Content lives in `content/game.json`, and a generator writes the ids for Rust, JavaScript and WGSL. The WebGPU renderer draws everything as flat paper cutouts. Characters are puppets of rigid paper parts, posed as a whole by a shift, a tilt in the screen plane and a squash. The traced characters have a line boil ([0003](docs/decisions/0003-character-art-pipeline.md)). The two bosses are flat placeholder ellipses. CI runs the font check and the smoke test, and deploys `main` to GitHub Pages; it does not run the core tests or rebuild the wasm yet (#39).
 
-What has to change for the new direction:
+What the maintainer found when they played it:
 
-- **Weapons fire on their own.** The scythe, talisman, beads and pulse run on timers in `Game::weapons` in `core/src/game.rs`. The player only moves, and the aim is the last direction moved.
-- **Input is one movement vector.** `jr_input(mx, my)` has no aim and no buttons.
-- **Enemies have no attacks.** Up to 500 walk straight at the player and hurt on contact. The elite is a big brute.
-- **Upgrades come from experience gems** and level-ups, in one endless arena with no win condition.
-- **The time step is variable,** so the same seed and inputs do not replay the same run.
-- **Content is hardcoded and ids are mirrored by hand** in `core/src/defs.rs`, `src/data.js` and `src/shader.wgsl`.
+- **The action game lacks juice.** A skill's direction is not clear enough, and changing it is not intuitive. The charging time and the recovery time do not read, and a hit's feedback is weak enough that the timing feels off, even though the collision works as intended.
+- **Balance and timings are placeholders,** tuned only against the scripted bot in `core/src/bot.rs`.
 
-The paper look, the traced characters, the UI, saves and sound stay.
+#43 fixes the first two points in part: a skill now follows the aim through its startup and locks when it hits, and the player's own skill shows as a wash that fills while it charges, with a ring at the feet through the recovery that marks the cancel point. The core also exports each character's animation state for the renderer. The rest is step 2.
 
 ## Summary
 
 | Step | What | Size |
 | --- | --- | --- |
-| 1 | The action-game rebuild: controls, combat, enemies, skills and cards, rooms, two bosses | One large PR |
-| 2 | Music and the low-health state | Small |
-| 3 | Meta progression | Medium |
-| 4 | More characters and stages | Medium, per character or stage |
-| 5 | Touch controls | Medium to high |
-| 6 | WebGL2 fallback | Medium to high |
+| 1 | The action-game rebuild: controls, combat, enemies, skills and cards, rooms, two bosses (#43) | One large PR |
+| 2 | Paper puppets in 3D: the new art direction, for charge, recovery and hit animations | Large |
+| 3 | Music and the low-health state | Small |
+| 4 | Meta progression | Medium |
+| 5 | More characters and stages | Medium, per character or stage |
+| 6 | Touch controls | Medium to high |
+| 7 | WebGL2 fallback | Medium to high |
 
-Land #39 (CI builds the wasm and checks the core) before step 1, so a stale committed wasm cannot slip into a change this large.
+#39 (CI builds the wasm and checks the core) did not land before step 1 and is still open. Land it before step 2, so a stale committed wasm cannot slip into another large change.
 
 ## 1. The action-game rebuild
+
+Built in #43. This section is the plan it was built from.
 
 ### Controls
 
@@ -48,6 +47,8 @@ Land #39 (CI builds the wasm and checks the core) before step 1, so a stale comm
 - **Hyper armor.** Heavy skills are not interrupted by normal enemies during their active window (the damage still lands). Boss hits always interrupt.
 - **Hitboxes** have a shape (circle, arc, line, ring) and a timed active window, and hit each target once per use.
 - **Hit feel:** hit-stop, knockback, stagger and damage numbers.
+- **Aiming a skill.** A skill follows the aim through its startup, so it can be turned while it charges, and locks when its active window starts. A leap's landing point follows the aim point the same way.
+- **The player's own skill is shown** like an enemy warning, in the skill's colour: a wash in the shape of the coming hit fills in through the startup. Through the recovery, a ring at the feet fills in ink until the cancel point, then turns to the skill's colour while a roll can cut the recovery short.
 - **No contact damage.** Damage comes from attacks, except charges.
 
 Starting skills (placeholder names), each defined in data by startup, active window, recovery, cancel point, damage, stagger, knockback, reach, hyper armor and movement:
@@ -122,7 +123,8 @@ The card offers make sure fire or ice cards appear before the final boss.
 
 - One content file (skills with their timing, cards, enemies, boss moves) and a Node generator, run by `./build.sh`, that writes the ids for Rust, JavaScript and WGSL, so nothing is mirrored by hand.
 - Puppet rigs posed from data: wind-up, attack, hurt and roll poses (the roll tucks and spins the cutout).
-- The bosses ship as flat placeholder parts; traced art follows through the Lightbox ([0003](docs/decisions/0003-character-art-pipeline.md)).
+- The bosses ship as flat placeholder parts. Their real art follows the new art direction in step 2.
+- Each character's animation state is exported to the host (`core/src/anim.rs`): phase, progress, cancel point, direction and the last hit. Nothing draws from it yet; step 2 poses characters from it.
 
 ### Commits
 
@@ -154,23 +156,41 @@ After commit 5 the branch goes up as a draft PR for the maintainer to play, befo
 
 Size. One PR touches nearly all of `core/` and much of `src/`. The ordered commits, the tests that come with each one and the draft PR after commit 5 are what keep it reviewable. Feel is the other risk: timing numbers start as placeholders and get tuned in play.
 
-## 2. Music and the low-health state
+## 2. Paper puppets in 3D
+
+The new art direction ([0006](docs/decisions/0006-paper-puppets-in-3d.md)). The game keeps its paper feel: characters stay flat paper cutouts with a white margin. But they move in 3D, the way a paper puppet held in the hand can turn, lean, lift and flip. Those movements carry the action game's timing, so the player can read it from the body:
+
+- **Charging:** the cutout turns and leans back towards the skill's direction as the startup runs, so the direction and the time left both show on the character, not only on the ground wash.
+- **Recovery:** the cutout sags or settles back out of the strike, and visibly comes back upright at the cancel point.
+- **Getting hit:** the cutout snaps away from the hit's direction, bending or flipping with the hit's strength, so a landed hit is felt at the moment the collision happens.
+- **The same for enemies and bosses,** whose wind-ups already have ground warnings.
+
+Built from the animation state the core exports in step 1, so the core keeps every timing and the replays stay exact. To settle in this step, with the maintainer:
+
+- What the art looks like beyond "paper that moves in 3D": references, palette, line style.
+- Whether the traced line art, the line boil, the shader's old outline wobble and the Lightbox stay, change or go.
+- Where 3D poses are computed: in the core, as today's 2D poses are, or on the drawing side from the exported state.
+- The renderer changes: a camera with perspective or a tilted orthographic view, a depth order for parts, and an instance format that carries a 3D rotation.
+- Real art for the two bosses.
+- A hit-feedback pass: impact marks at the point of contact, hurt poses aimed by the hit, and hit-stop tuned to the new animations.
+
+## 3. Music and the low-health state
 
 A generative pentatonic loop in WebAudio (guqin-like plucks and a low drone) with its own volume setting, ducked during card picks. Below 25% health the vignette tints vermilion and a heartbeat plays.
 
-## 3. Meta progression
+## 4. Meta progression
 
 Jade earned per run, spent in a paper "shrine" screen on small permanent bonuses (starting health, one reroll per card pick), stored in the save from `src/save.js` with a version bump.
 
-## 4. More characters and stages
+## 5. More characters and stages
 
 More reapers, each with a different starting set of skills and its own rig, and stages with different paper backgrounds (rice paper, indigo dyed paper, burnt edges) through the background shader's colours. Each one is its own PR.
 
-## 5. Touch controls
+## 6. Touch controls
 
 Aim plus three skills and a roll on a phone is a design question of its own; settle it before building. The HUD would also need a pass for notches and safe areas.
 
-## 6. WebGL2 fallback
+## 7. WebGL2 fallback
 
 Port `src/shader.wgsl` to GLSL ES 3.0 and add a second renderer behind the same `resize` and `draw` interface, so browsers without WebGPU can play. Detect WebGPU first and fall back automatically.
 

@@ -24,9 +24,9 @@
   <canvas id="game" aria-label="Game view" data-i18n-aria="game.view"></canvas>
 
   <div id="hud" hidden>
-    <div class="xp" title="Experience" data-i18n-title="hud.xp">
-      <div class="xp-fill" id="xpFill"></div>
-      <span class="xp-label" id="levelText">Lv 1</span>
+    <div class="xp" title="Progress through the run" data-i18n-title="hud.progress">
+      <div class="xp-fill" id="roomFill"></div>
+      <span class="xp-label" id="roomText">Room 1</span>
     </div>
     <div class="hud-row">
       <div class="tag hp-tag">
@@ -38,19 +38,29 @@
       <div class="tag kills-tag"><span class="seal-dot">斬</span> <span id="killsText">0</span></div>
     </div>
     <div class="chips" id="chips"></div>
+    <div class="skills" id="skills"></div>
+    <div class="boss-bar" id="bossBar" hidden>
+      <span class="boss-name" id="bossName"></span>
+      <span class="boss-weak" id="bossWeak" hidden></span>
+      <div class="boss-hp"><div class="boss-fill" id="bossFill"></div></div>
+      <div class="boss-meter"><div class="boss-meter-fill" id="bossMeter"></div></div>
+    </div>
+    <div class="prompt finisher" id="finisherPrompt" hidden></div>
+    <div class="prompt" id="grabPrompt" hidden data-i18n="hud.grabbed">Grabbed! Press roll to break free</div>
   </div>
+  <div id="numbers" aria-hidden="true"></div>
 
   <section class="screen" id="title" hidden>
     <div class="sheet title-sheet">
       <div class="stamp" aria-hidden="true">玉<br>鐮</div>
       <h1 data-i18n="title.name">Jade Reaper</h1>
-      <p class="sub" data-i18n="title.sub">Cut down the ink spirits. Last as long as you can.</p>
+      <p class="sub" data-i18n="title.sub">Cut your way through the ink spirits' halls and bring down what waits at the end.</p>
       <div class="buttons">
         <button data-action="start" data-i18n="title.begin">Begin</button>
         <button data-action="settings" data-i18n="title.settings">Settings</button>
       </div>
       <p class="records" id="records"></p>
-      <p class="hint" data-i18n="title.hint">Move with WASD, arrow keys or a gamepad stick. Attacks are automatic. Esc or Start pauses.</p>
+      <p class="hint" data-i18n="title.hint">Move with WASD or the left stick, aim with the mouse or the right stick. Mouse buttons and Q (X, Y, RB) use your three skills; Space (A) rolls. Esc or Start pauses.</p>
     </div>
   </section>
 
@@ -68,6 +78,7 @@
       <div class="buttons">
         <button data-action="lang" id="langBtn">Language: English</button>
         <button data-action="mute" id="muteBtn">Sound: on</button>
+        <button data-action="motion" id="motionBtn">Screen shake: on</button>
         <button data-action="clear-save" data-i18n="settings.erase">Erase records</button>
         <button data-action="back" data-i18n="settings.back">Back</button>
       </div>
@@ -76,8 +87,19 @@
 
   <section class="screen" id="levelup" hidden>
     <div class="levelup-wrap">
-      <h2 class="banner" data-i18n="levelup.banner">Level up — choose one</h2>
+      <h2 class="banner" id="cardsBanner">Choose a card</h2>
       <div class="cards" id="cards"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="skillpick" hidden>
+    <div class="pick-wrap">
+      <h2 class="banner" data-i18n="pick.banner">Choose three skills</h2>
+      <div class="skill-cards" id="skillCards"></div>
+      <div class="pick-foot">
+        <button data-action="pick-begin" id="pickBegin" data-i18n="pick.begin">Begin</button>
+        <button data-action="quit" data-i18n="pick.back">Back</button>
+      </div>
     </div>
   </section>
 
@@ -96,10 +118,10 @@
   <section class="screen" id="over" hidden>
     <div class="sheet">
       <div class="stamp record-stamp" id="recordStamp" data-i18n="over.record" hidden>New<br>record</div>
-      <h2 data-i18n="over.title">The ink closes in</h2>
+      <h2 id="overTitle">The ink closes in</h2>
       <dl class="stats" id="stats"></dl>
       <div class="buttons">
-        <button data-action="start" data-i18n="over.again">Try again</button>
+        <button data-action="again" data-i18n="over.again">Try again</button>
         <button data-action="quit" data-i18n="over.quit">Title</button>
       </div>
     </div>

@@ -1,11 +1,17 @@
-// Keyboard and gamepad input.
+// Keyboard, mouse and gamepad input.
 //
-// `poll()` is called once per frame and returns the movement vector plus
-// one-shot menu actions (navigate, confirm, back, pause) from the gamepad.
-// Keyboard menu actions are delivered through the `onKey` callback, because
-// Enter and Space already click the focused button natively.
+// `poll()` is called once per frame and returns the movement vector, the aim, the held action buttons, plus
+// one-shot menu actions (navigate, confirm, back, pause) from the gamepad. Keyboard menu actions are delivered
+// through the `onKey` callback, because Enter and Space already click the focused button natively.
+//
+// Actions: left mouse button, right mouse button and Q are the three skills, Space rolls. On a gamepad X, Y and RB
+// are the skills and A or B rolls; the right stick aims. A press is latched until the next poll, so a click that
+// starts and ends between two frames still reaches the core.
+
+import { BUTTON } from './data.js';
 
 const DEADZONE = 0.22;
+const AIM_DEADZONE = 0.3;
 const REPEAT_FIRST = 0.35;
 const REPEAT_NEXT = 0.14;
 
@@ -15,13 +21,25 @@ const MOVE_KEYS = {
   KeyA: [-1, 0], ArrowLeft: [-1, 0],
   KeyD: [1, 0], ArrowRight: [1, 0],
 };
+const ACTION_KEYS = { KeyQ: BUTTON.SKILL3, Space: BUTTON.ROLL };
+const MOUSE_BUTTONS = { 0: BUTTON.SKILL1, 2: BUTTON.SKILL2 };
+// Standard gamepad mapping: 0 A, 1 B, 2 X, 3 Y, 5 RB.
+const PAD_BUTTONS = [[2, BUTTON.SKILL1], [3, BUTTON.SKILL2], [5, BUTTON.SKILL3], [0, BUTTON.ROLL], [1, BUTTON.ROLL]];
 
-export function createInput({ onKey }) {
+export function createInput({ onKey, canvas }) {
   const held = new Set();
+  let actionKeys = 0;   // held action buttons from the keyboard and mouse
+  let latched = 0;      // pressed since the last poll
   let prevButtons = [];
   let navHeld = 0;
   let navDir = '';
   let padName = '';
+  // Where the aim comes from: the mouse (a screen point) or the right stick (a direction).
+  let aim = { kind: 'mouse', x: 0, y: 0 };
+  let mouse = null;
+
+  const press = (bit) => { actionKeys |= bit; latched |= bit; };
+  const release = (bit) => { actionKeys &= ~bit; };
 
   window.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -37,9 +55,27 @@ export function createInput({ onKey }) {
     } else if (e.code === 'KeyM' && !e.repeat) {
       onKey({ mute: true });
     }
+    // Space still clicks a focused menu button; it only rolls when nothing is focused.
+    if (e.code in ACTION_KEYS && !(e.code === 'Space' && e.target instanceof HTMLButtonElement)) {
+      if (!e.repeat) press(ACTION_KEYS[e.code]);
+      if (e.code === 'Space') e.preventDefault();
+    }
   });
-  window.addEventListener('keyup', (e) => held.delete(e.code));
-  window.addEventListener('blur', () => held.clear());
+  window.addEventListener('keyup', (e) => {
+    held.delete(e.code);
+    if (e.code in ACTION_KEYS) release(ACTION_KEYS[e.code]);
+  });
+  window.addEventListener('blur', () => { held.clear(); actionKeys = 0; });
+  if (canvas) {
+    canvas.addEventListener('pointermove', (e) => { mouse = [e.clientX, e.clientY]; aim = { kind: 'mouse' }; });
+    canvas.addEventListener('pointerdown', (e) => {
+      mouse = [e.clientX, e.clientY];
+      aim = { kind: 'mouse' };
+      if (e.button in MOUSE_BUTTONS) press(MOUSE_BUTTONS[e.button]);
+    });
+    window.addEventListener('pointerup', (e) => { if (e.button in MOUSE_BUTTONS) release(MOUSE_BUTTONS[e.button]); });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
   window.addEventListener('gamepadconnected', (e) => { padName = e.gamepad.id; });
   window.addEventListener('gamepaddisconnected', () => { padName = ''; });
 
@@ -49,7 +85,9 @@ export function createInput({ onKey }) {
       mx += MOVE_KEYS[code][0];
       my += MOVE_KEYS[code][1];
     }
-    const out = { mx, my, nav: null, confirm: false, back: false, pause: false, pad: padName };
+    let buttons = actionKeys | latched;
+    latched = 0;
+    const out = { mx, my, buttons: 0, aim: null, nav: null, confirm: false, back: false, pause: false, pad: padName };
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const pad = Array.from(pads).find((p) => p && p.connected);
@@ -67,6 +105,11 @@ export function createInput({ onKey }) {
       out.confirm = pressed(0);
       out.back = pressed(1);
       out.pause = pressed(9);
+      for (const [i, bit] of PAD_BUTTONS) if (b(i)) buttons |= bit;
+
+      const rx = pad.axes[2] || 0, ry = pad.axes[3] || 0;
+      if (Math.hypot(rx, ry) > AIM_DEADZONE) aim = { kind: 'stick', x: rx, y: ry };
+      else if (aim.kind === 'stick') aim = { kind: 'stick', x: 0, y: 0 };
 
       // Menu navigation from stick or d-pad, with key-repeat.
       const sx = ax + dx, sy = ay + dy;
@@ -93,6 +136,8 @@ export function createInput({ onKey }) {
     if (len > 1) { mx /= len; my /= len; }
     out.mx = mx;
     out.my = my;
+    out.buttons = buttons;
+    out.aim = aim.kind === 'mouse' ? (mouse ? { kind: 'mouse', x: mouse[0], y: mouse[1] } : null) : aim;
     return out;
   }
 

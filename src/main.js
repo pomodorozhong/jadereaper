@@ -5,11 +5,10 @@ import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { loadSave, writeSave, recordRun } from './save.js';
-import { EVENT, STATE, UPGRADES } from './data.js';
+import { ANIM, ANIM_FLOATS, EVENT, STATE, STATE_FLOATS, SKILLS, CARDS, ELEMENTS } from './data.js';
 import { pickLang, setLang, getLang, nextLang } from './i18n.js';
 import { BAKE, SIZE, SIZE_ORDER } from './characters.js';
 
-const STATE_FLOATS = 32;
 
 /** Each monster's waddle: how far it tilts each way (degrees) and how often it changes pose (per second).
  * Tuned by the maintainer. Mirrors KINDS in core/src/defs.rs, which the core starts from; the ?debug panel sends
@@ -18,6 +17,8 @@ const WADDLE = {
   blotTilt: 2.25, blotRate: 2, wispTilt: 3.75, wispRate: 9, bruteTilt: 7.5, bruteRate: 3, eliteTilt: 7.5, eliteRate: 2.5,
 };
 const WADDLE_KINDS = ['blot', 'wisp', 'brute', 'elite'];
+/** Reaction names by id (R_* in core/src/reactions.rs), for their text. */
+const REACTIONS = ['', 'steam', 'overload', 'collapse', 'shatter', 'stasis', 'starfall'];
 
 /** ?debug: sliders for every visual setting. Bake settings re-draw the traced characters; look settings apply live. */
 const DEBUG_SLIDERS = [
@@ -109,12 +110,14 @@ async function boot() {
   audio.setVolume(save.volume);
   audio.setMuted(save.muted);
 
-  // 'title' | 'playing' | 'levelup' | 'paused' | 'over'
+  // 'title' | 'pick' | 'playing' | 'levelup' | 'paused' | 'over'
   let mode = 'title';
+  // Skills picked for the run, in button order (left, right, Q).
+  let picked = Array.isArray(save.loadout) ? save.loadout.filter((id) => SKILLS[id]).slice(0, 3) : [];
   let settingsFrom = 'title';
 
   const ui = createUI({ onAction });
-  const input = createInput({ onKey });
+  const input = createInput({ onKey, canvas });
 
   let renderer, core;
   try {
@@ -129,13 +132,35 @@ async function boot() {
 
   // The core picks each traced part's line boil pose, so it needs the rate and the number of baked poses.
   core.jr_set_boil(LOOK.boilFps, BAKE.poses);
+  core.jr_set_reduce_motion(save.reduceMotion ? 1 : 0);
   SIZE_ORDER.forEach((who, i) => core.jr_set_draw_scale(i, SIZE[who]));
   if (new URLSearchParams(location.search).has('debug')) addDebugPanel(renderer, core);
 
   const seed = () => (Math.random() * 0xffffffff) >>> 0;
   // Views are rebuilt on every read because wasm memory can grow and detach them.
   const readState = () => new Float32Array(core.memory.buffer, core.jr_state_ptr(), STATE_FLOATS);
-  const upgradeLevels = (s) => Array.from(s.subarray(STATE.UPGRADE0, STATE.UPGRADE0 + UPGRADES.length));
+  /** Each character's animation state (core/src/anim.rs), as objects keyed by the ANIM field names. Nothing
+   * draws from it yet; it is the seam for posing characters on the drawing side. */
+  const readAnims = () => {
+    const n = core.jr_anim_count();
+    const a = new Float32Array(core.memory.buffer, core.jr_anims_ptr(), n * ANIM_FLOATS);
+    return Array.from({ length: n }, (_, i) => Object.fromEntries(Object.entries(ANIM).map(([k, at]) => [k, a[i * ANIM_FLOATS + at]])));
+  };
+  const three = (s, at) => Array.from(s.subarray(at, at + 3));
+  // A card offer waiting for a confirm: the slot of an element card that would replace another element.
+  let armed = -1;
+  const offer = (s) => ({
+    choices: three(s, STATE.CHOICE0), slots: three(s, STATE.CHOICE_SLOT0), kind: s[STATE.PICK],
+    loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0), armed,
+  });
+  /** True when taking offered card i would replace another element on its skill, so it needs a second pick. */
+  function needsConfirm(s, i) {
+    const card = CARDS[s[STATE.CHOICE0 + i]];
+    const slot = s[STATE.CHOICE_SLOT0 + i];
+    if (!card || card.element === 'none' || slot < 0) return false;
+    const old = s[STATE.ELEMENT0 + slot];
+    return old > 0 && ELEMENTS[old - 1].name !== card.element;
+  }
 
   function toTitle() {
     core.jr_reset(seed());
@@ -145,8 +170,19 @@ async function boot() {
     ui.show('title');
   }
 
+  function pickSkills() {
+    mode = 'pick';
+    ui.showHud(false);
+    ui.skillPick(picked);
+  }
+
   function startRun() {
+    if (picked.length !== 3) { pickSkills(); return; }
     core.jr_start(seed());
+    core.jr_set_loadout(...picked);
+    core.jr_offer_passive();
+    core.jr_update(0);
+    armed = -1;
     mode = 'playing';
     ui.showHud(true);
     ui.show(null);
@@ -173,7 +209,21 @@ async function boot() {
     audio.unlock();
     audio.play(action === 'choose' || action === 'start' ? 'confirm' : 'ui');
     switch (action) {
-      case 'start': startRun(); break;
+      case 'start': pickSkills(); break;
+      case 'pick-skill': {
+        const id = Number(value);
+        const at = picked.indexOf(id);
+        if (at >= 0) picked.splice(at, 1);
+        else if (picked.length < 3) picked.push(id);
+        ui.skillPick(picked);
+        break;
+      }
+      case 'pick-begin':
+        save.loadout = [...picked];
+        writeSave(save);
+        startRun();
+        break;
+      case 'again': startRun(); break;
       case 'resume': setPaused(false); break;
       case 'restart': startRun(); break;
       case 'quit': toTitle(); break;
@@ -186,16 +236,28 @@ async function boot() {
         ui.records(save);
         break;
       case 'mute': audio.setMuted(!audio.muted); saveSettings(); break;
+      case 'motion':
+        save.reduceMotion = !save.reduceMotion;
+        core.jr_set_reduce_motion(save.reduceMotion ? 1 : 0);
+        saveSettings();
+        break;
       case 'vol-up': audio.setVolume(audio.volume + 0.1); saveSettings(); audio.play('confirm'); break;
       case 'vol-down': audio.setVolume(audio.volume - 0.1); saveSettings(); audio.play('confirm'); break;
       case 'clear-save':
-        Object.assign(save, { bestTime: 0, bestKills: 0, bestLevel: 0, runs: 0, totalKills: 0 });
+        Object.assign(save, { bestRoom: 0, wins: 0, fastestWin: 0, runs: 0, totalKills: 0, legacy: null });
         writeSave(save);
         ui.records(save);
         break;
       case 'choose':
         if (mode === 'levelup') {
-          core.jr_choose(Number(value));
+          const i = Number(value);
+          if (needsConfirm(readState(), i) && armed !== i) {
+            armed = i;
+            ui.cards(offer(readState()));
+            break;
+          }
+          armed = -1;
+          core.jr_choose(i);
           afterChoice();
         }
         break;
@@ -207,7 +269,7 @@ async function boot() {
     core.jr_update(0);
     const s = readState();
     if (s[STATE.CHOOSING]) {
-      ui.levelUp(Array.from(s.subarray(STATE.CHOICE0, STATE.CHOICE0 + 3)), upgradeLevels(s));
+      ui.cards(offer(s));
     } else {
       mode = 'playing';
       ui.show(null);
@@ -242,6 +304,16 @@ async function boot() {
   ui.settings(save);
   toTitle();
 
+  /** The aim as an offset from the player in world units: the mouse's ground point, or the stick's direction. */
+  function aimOffset(aim, s, view) {
+    if (!aim) return [0, 0];
+    if (aim.kind === 'stick') return [aim.x * 200, aim.y * 200];
+    const r = canvas.getBoundingClientRect();
+    const wx = s[STATE.CAM_X] + ((aim.x - r.left) / r.width - 0.5) * view.w;
+    const wy = s[STATE.CAM_Y] + ((aim.y - r.top) / r.height - 0.5) * view.h;
+    return [wx - s[STATE.PLAYER_X], wy - s[STATE.PLAYER_Y]];
+  }
+
   let last = performance.now();
   let clock = 0;
 
@@ -249,7 +321,7 @@ async function boot() {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
 
-    const view = renderer.resize();
+    const view = renderer.resize(readState()[STATE.ZOOM]);
     core.jr_set_view(view.w, view.h);
 
     const pad = input.poll(dt);
@@ -263,7 +335,12 @@ async function boot() {
     // Paused freezes everything. Other menus keep the paper puppets moving.
     const step = mode === 'paused' ? 0 : dt;
     clock += step;
-    core.jr_input(mode === 'playing' ? pad.mx : 0, mode === 'playing' ? pad.my : 0);
+    if (mode === 'playing') {
+      const [ax, ay] = aimOffset(pad.aim, readState(), view);
+      core.jr_input(pad.mx, pad.my, ax, ay, pad.buttons);
+    } else {
+      core.jr_input(0, 0, 0, 0, 0);
+    }
     core.jr_update(step);
 
     const s = readState();
@@ -271,19 +348,39 @@ async function boot() {
       const count = core.jr_event_count();
       if (count) {
         const ev = new Float32Array(core.memory.buffer, core.jr_events_ptr(), count * 4);
-        for (let i = 0; i < count; i++) audio.play(ev[i * 4]);
+        const r = canvas.getBoundingClientRect();
+        for (let i = 0; i < count; i++) {
+          audio.play(ev[i * 4]);
+          if (ev[i * 4] === EVENT.HIT || ev[i * 4] === EVENT.REACTION) {
+            // Lift the number from the ground point to about chest height.
+            const sx = r.left + ((ev[i * 4 + 1] - s[STATE.CAM_X]) / view.w + 0.5) * r.width;
+            const sy = r.top + ((ev[i * 4 + 2] - 36 - s[STATE.CAM_Y]) / view.h + 0.5) * r.height;
+            if (ev[i * 4] === EVENT.HIT) ui.damage(sx, sy, ev[i * 4 + 3]);
+            else ui.reaction(sx, sy, REACTIONS[ev[i * 4 + 3]] ?? '');
+          }
+        }
       }
       ui.hud({
-        hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], xp: s[STATE.XP], xpNext: s[STATE.XP_NEXT],
-        level: s[STATE.LEVEL], time: s[STATE.TIME], kills: s[STATE.KILLS], upgrades: upgradeLevels(s),
+        hp: s[STATE.HP], maxHp: s[STATE.MAX_HP], room: s[STATE.ROOM], rooms: s[STATE.ROOMS], wave: s[STATE.WAVE],
+        waves: s[STATE.WAVES], boss: s[STATE.BOSS], time: s[STATE.TIME], kills: s[STATE.KILLS],
+        loadout: three(s, STATE.LOADOUT0), elements: three(s, STATE.ELEMENT0),
+        owned: Array.from(s.subarray(STATE.OWNED0, STATE.OWNED0 + CARDS.length)),
+        bossBar: s[STATE.BOSS_KIND] ? {
+          kind: s[STATE.BOSS_KIND] - 1, health: s[STATE.BOSS_HP], max: s[STATE.BOSS_MAX], meter: s[STATE.BOSS_METER], flags: s[STATE.BOSS_FLAGS],
+          stance: s[STATE.STANCE], finisher: s[STATE.FINISHER],
+        } : null,
+        grabbed: s[STATE.ACT] === 5,
       });
       if (s[STATE.OVER]) {
         mode = 'over';
-        const run = { time: s[STATE.TIME], kills: s[STATE.KILLS], level: s[STATE.LEVEL] };
+        const won = !!s[STATE.WON];
+        // Rooms cleared: the room reached, plus the last one when the run is won.
+        const run = { rooms: s[STATE.ROOM] + (won ? 1 : 0), kills: s[STATE.KILLS], time: s[STATE.TIME], won };
         ui.gameOver(run, save, recordRun(save, run));
       } else if (s[STATE.CHOOSING]) {
         mode = 'levelup';
-        ui.levelUp(Array.from(s.subarray(STATE.CHOICE0, STATE.CHOICE0 + 3)), upgradeLevels(s));
+        armed = -1;
+        ui.cards(offer(s));
       }
     }
 
@@ -292,8 +389,8 @@ async function boot() {
   }
   requestAnimationFrame(frame);
 
-  // Handy in the console: jadereaper.core, jadereaper.state().
-  window.jadereaper = { core, state: () => Array.from(readState()), get mode() { return mode; } };
+  // Handy in the console: jadereaper.core, jadereaper.state(), jadereaper.anims().
+  window.jadereaper = { core, state: () => Array.from(readState()), anims: readAnims, get mode() { return mode; } };
 }
 
 boot();

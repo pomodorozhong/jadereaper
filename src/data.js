@@ -1,51 +1,34 @@
-// Tables shared with the Rust core. Ids must match core/src/defs.rs.
+// Tables shared with the Rust core. Part ids, events, enemy kinds, skills and moves are generated from
+// content/game.json into src/content.js; the rest here must match core/src/defs.rs and core/src/game.rs by hand.
+export { PART_IDS, EVENT, SKILLS, KINDS, MOVES, CARDS, ELEMENTS } from './content.js';
 
-/** Part names you can override with an image in assets/parts.json. */
-export const PART_IDS = {
-  ellipse: 0,
-  player_body: 1,
-  player_head: 2,
-  scythe: 3,
-  blot: 4,
-  wisp: 5,
-  brute: 6,
-  gem: 7,
-  slash: 8,
-  talisman: 9,
-  bead: 10,
-  splat: 11,
-  grass: 12,
-  stone: 13,
-  heart: 14,
-  ring: 15,
-  scrap: 16,
-  ground_shadow: 18,
-  elite: 19,
-};
+/** Which input reaches each skill slot, for the HUD. */
+export const SLOT_KEYS = ['LMB', 'RMB', 'Q'];
 
-/** Upgrades, indexed by id. `glyph` is the brush mark shown on cards and HUD chips.
- * Names and descriptions are in src/i18n.js as upgrade.<id>.name and .desc. */
-export const UPGRADES = [
-  { glyph: '鐮', max: 6 },
-  { glyph: '符', max: 6 },
-  { glyph: '珠', max: 6 },
-  { glyph: '波', max: 6 },
-  { glyph: '命', max: 5 },
-  { glyph: '風', max: 5 },
-  { glyph: '引', max: 5 },
-  { glyph: '力', max: 5 },
-  { glyph: '速', max: 5 },
-  { glyph: '癒', max: 5 },
-];
+/** Button bits sent to jr_input. Match B_* in core/src/defs.rs. */
+export const BUTTON = { SKILL1: 1, SKILL2: 2, SKILL3: 4, ROLL: 8 };
 
-export const EVENT = {
-  HIT: 1, KILL: 2, PICKUP: 3, LEVELUP: 4, HURT: 5, SLASH: 6,
-  SHOOT: 7, PULSE: 8, DEATH: 9, HEAL: 10, ELITE: 11,
-};
+/** The state array's length (STATE_FLOATS in core/src/defs.rs). */
+export const STATE_FLOATS = 64;
 
 /** Indices into the state array written by the core. */
 export const STATE = {
-  HP: 0, MAX_HP: 1, XP: 2, XP_NEXT: 3, LEVEL: 4, TIME: 5, KILLS: 6,
+  HP: 0, MAX_HP: 1, ROOM: 2, ROOMS: 3, WAVE: 4, TIME: 5, KILLS: 6,
   CHOOSING: 7, CHOICE0: 8, OVER: 11, CAM_X: 12, CAM_Y: 13, ENEMIES: 14,
-  RUNNING: 15, UPGRADE0: 16,
+  RUNNING: 15, ELEMENT0: 16, PICK: 19, CHOICE_SLOT0: 20, WAVES: 23, WON: 24, BOSS: 25, PLAYER_X: 26, PLAYER_Y: 27, LOADOUT0: 28, ZOOM: 31,
+  OWNED0: 32, HITSTOP: 54, BOSS_HP: 56, BOSS_MAX: 57, BOSS_METER: 58, BOSS_FLAGS: 59, BOSS_KIND: 60, ACT: 61, STANCE: 62, FINISHER: 63,
+};
+
+/** Floats per character in the animation buffer (ANIM_FLOATS in core/src/anim.rs). */
+export const ANIM_FLOATS = 16;
+
+/** Field offsets in one animation record, as documented in core/src/anim.rs. */
+export const ANIM = {
+  WHO: 0, ID: 1, X: 2, Y: 3, FACE: 4, PHASE: 5, K: 6, LEN: 7, CANCEL: 8, DIR_X: 9, DIR_Y: 10, STEP: 11,
+  HIT_X: 12, HIT_Y: 13, HIT_DMG: 14, HIT_AGE: 15,
+};
+
+/** Animation phases (A_* in core/src/anim.rs). */
+export const ANIM_PHASE = {
+  IDLE: 0, WALK: 1, STARTUP: 2, ACTIVE: 3, RECOVERY: 4, ROLL: 5, HURT: 6, DOWN: 7, GRABBED: 8, STUNNED: 9,
 };

@@ -100,21 +100,21 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
   let m = min(h.x, h.y);
   var s = Shape(1e3, 0.0, 0.0);
   switch part {
-    case 1 { // robe: bell shape with a zigzag hem and a sash
+    case P_PLAYER_BODY { // robe: bell shape with a zigzag hem and a sash
       let t = q.y * 0.5 + 0.5;
       let w = mix(0.42, 0.95, t * (0.4 + 0.6 * t));
       let hem = 1.0 - 0.14 * abs(fract(q.x * 2.0 + 0.5) * 2.0 - 1.0);
       s.d = max(abs(q.x) - w, max(q.y - hem, -q.y - 1.0)) * m;
       s.ink = 0.55 * dab(abs(q.y + 0.2) - 0.07);
     }
-    case 2 { // hood: dark face opening with two pale eyes
+    case P_PLAYER_HEAD { // hood: dark face opening with two pale eyes
       s.d = (length(q) - 0.95) * m;
       let face = dab(length((q - vec2f(0.18, 0.12)) / vec2f(0.62, 0.6)) - 1.0);
       let eyes = dab(min(length(q - vec2f(0.02, 0.1)), length(q - vec2f(0.46, 0.1))) - 0.12);
       s.ink = 0.9 * face * (1.0 - eyes);
       s.light = eyes;
     }
-    case 3 { // scythe: handle and a crescent blade
+    case P_SCYTHE { // scythe: handle and a crescent blade
       let handle = sdSeg(q, vec2f(-0.35, 1.0), vec2f(-0.35, -0.85)) - 0.08;
       let a = length(q - vec2f(0.0, -0.35)) - 0.62;
       let b = length(q - vec2f(0.05, -0.1)) - 0.68;
@@ -122,21 +122,21 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
       s.d = min(handle, blade) * m;
       s.light = 0.5 * dab(blade);
     }
-    case 4 { // ink blot spirit
+    case P_BLOT { // ink blot spirit
       let ang = atan2(q.y, q.x);
       let r = 0.82 + 0.07 * sin(ang * 5.0 + seed * 40.0) + 0.05 * sin(ang * 3.0 - G.qtime * 2.0);
       s.d = (length(q) - r) * m;
       s.light = dab(min(length(q - vec2f(-0.2, -0.12)), length(q - vec2f(0.38, -0.12))) - 0.2);
       s.ink = dab(min(length(q - vec2f(-0.13, -0.1)), length(q - vec2f(0.45, -0.1))) - 0.09);
     }
-    case 5 { // wisp: small body with two wings
+    case P_WISP { // wisp: small body with two wings
       let body = (length(q / vec2f(0.42, 0.75)) - 1.0) * 0.42;
       let ax = abs(q.x);
       let wing = max(abs(q.y + 0.15) - (1.0 - ax) * 0.6, ax - 0.98);
       s.d = min(body, wing) * m;
       s.light = dab(min(length(q - vec2f(-0.14, -0.15)), length(q - vec2f(0.18, -0.15))) - 0.1);
     }
-    case 6, 19 { // brute (19: elite, the same shape drawn bigger): horned block
+    case P_BRUTE, P_ELITE { // brute (19: elite, the same shape drawn bigger): horned block
       let body = sdBox(q - vec2f(0.0, 0.15), vec2f(0.5, 0.45)) - 0.3;
       let a = vec2f(abs(q.x), q.y);
       let horn = sdSeg(a, vec2f(0.4, -0.5), vec2f(0.72, -0.93)) - 0.1;
@@ -144,50 +144,50 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
       s.light = dab(sdSeg(a, vec2f(0.14, -0.02), vec2f(0.44, -0.16)) - 0.075);
       s.ink = dab(sdSeg(q, vec2f(-0.3, 0.5), vec2f(0.3, 0.5)) - 0.045);
     }
-    case 7 { // jade gem
+    case P_GEM { // jade gem
       s.d = (abs(q.x) * 1.2 + abs(q.y) - 0.95) * 0.64 * m;
       s.light = 0.45 * smoothstep(0.05, -0.05, q.x + q.y + 0.1);
     }
-    case 8 { // slash arc, opening towards +x
+    case P_SLASH { // slash arc, opening towards +x
       let ang = atan2(q.y, q.x);
       let t = clamp(1.0 - abs(ang) / 1.6, 0.0, 1.0);
       s.d = (abs(length(q) - 0.78) - 0.19 * t) * m;
       if (t <= 0.0) { s.d = 1e3; }
     }
-    case 9 { // talisman slip with ink marks
+    case P_TALISMAN { // talisman slip with ink marks
       s.d = sdBox(q, vec2f(0.88, 0.92)) * m;
       s.ink = 0.75 * step(abs(q.x), 0.5) * step(fract(q.y * 2.2 + 0.2), 0.32);
     }
-    case 10 { // bead
+    case P_BEAD { // bead
       s.d = (length(q) - 0.9) * m;
       s.light = 0.7 * smoothstep(0.32, 0.2, length(q - vec2f(-0.3, -0.3)));
       s.ink = dab(length(q) - 0.13);
     }
-    case 11 { // ink splat
+    case P_SPLAT { // ink splat
       let ang = atan2(q.y, q.x);
       let r = 0.5 + 0.45 * vnoise(vec2f(ang * 1.6 + 5.0, seed * 50.0));
       s.d = (length(q) - r) * m;
     }
-    case 12 { // three brush strokes of grass
+    case P_GRASS { // three brush strokes of grass
       let a = sdSeg(q, vec2f(-0.45, 0.9), vec2f(-0.75, -0.2)) - 0.08;
       let b = sdSeg(q, vec2f(0.0, 0.9), vec2f(0.06, -0.8)) - 0.09;
       let c = sdSeg(q, vec2f(0.45, 0.9), vec2f(0.8, -0.35)) - 0.08;
       s.d = min(a, min(b, c)) * m;
     }
-    case 13 { // flat stone wash
+    case P_STONE { // flat stone wash
       s.d = (length(q / vec2f(0.95, 0.7)) - 1.0) * 0.7 * m;
     }
-    case 14 { // heart
+    case P_HEART { // heart
       s.d = sdHeart(vec2f(q.x * 0.62, (1.0 - q.y) * 0.52)) * m * 1.6;
       s.light = 0.4 * smoothstep(0.2, 0.1, length(q - vec2f(-0.4, -0.35)));
     }
-    case 15 { // ring
+    case P_RING { // ring
       s.d = (abs(length(q) - 0.9) - 0.05) * m;
     }
-    case 16 { // paper scrap
+    case P_SCRAP { // paper scrap
       s.d = sdBox(q, vec2f(0.9, 0.9)) * m;
     }
-    case 18 { // soft ground shadow
+    case P_GROUND_SHADOW { // soft ground shadow
       s.d = (length(q) - 0.6) * m;
     }
     default { // 0: ellipse
@@ -197,10 +197,34 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
   return s;
 }
 
-// Parts drawn as flat ink or wash: no outline, margin or shadow.
-fn isFlat(part: i32) -> bool {
-  return part == 8 || part == 11 || part == 12 || part == 13 || part == 15 || part == 16 || part == 18;
+// Ground warning for an enemy attack (parts P_WARN_CIRCLE to P_WARN_RING: circle, arc, line, ring), as an ink wash: a rough outline
+// of the whole hit area, a faint tint inside, and a darker fill growing from the attacker as `prog` goes 0 to 1.
+// `seed` holds an arc's half angle over pi, or a ring's inner radius over its outer one.
+fn warnAlpha(part: i32, p: vec2f, h: vec2f, seed: f32, prog: f32) -> f32 {
+  let r = length(p);
+  var d = 1e3;      // signed distance to the area's edge, world units
+  var grown = 0.0;  // 1 inside the part already filled
+  if (part == P_WARN_CIRCLE) {
+    d = r - h.x;
+    grown = step(r, prog * h.x);
+  } else if (part == P_WARN_ARC) {
+    let half = seed * 3.14159265;
+    let ang = abs(atan2(p.y, p.x));
+    d = max(r - h.x, (ang - half) * max(r, 1.0));
+    grown = step(r, prog * h.x);
+  } else if (part == P_WARN_LINE) {
+    d = sdBox(p, h);
+    grown = step(p.x, -h.x + 2.0 * h.x * prog);
+  } else {
+    let inner = seed * h.x;
+    d = max(r - h.x, inner - r);
+    grown = step(r, inner + (h.x - inner) * prog);
+  }
+  let inside = smoothstep(1.0, -1.0, d);
+  let edge = smoothstep(2.2, 0.6, abs(d + 1.2));
+  return max(edge * 0.9, inside * (0.16 + 0.5 * grown));
 }
+
 
 struct VOut {
   @builtin(position) pos: vec4f,
@@ -251,6 +275,13 @@ fn fs(i: VOut) -> @location(0) vec4f {
   let flash = i.misc.z;
   let h = i.half;
   let aa = G.px;
+  if (part >= P_WARN_CIRCLE && part <= P_WARN_RING) {
+    let wobble = vec2f(vnoise(i.p * 0.06 + seed * 4.0), vnoise(i.p * 0.06 + 17.0)) - 0.5;
+    let a = warnAlpha(part, i.p + wobble * 3.0, h, seed, flash) * i.color.a;
+    if (a < 0.004) { discard; }
+    let grain = vnoise(i.p * 0.4 + 3.0);
+    return vec4f(i.color.rgb, a * (0.8 + 0.2 * grain));
+  }
   let flat_part = isFlat(part);
 
   // Line boil: nudge the shape a little, changing only on stepped frames.
@@ -284,7 +315,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
     }
   } else {
     let s = shape(part, p, h, seed);
-    if (part == 18) {
+    if (part == P_GROUND_SHADOW) {
       fill = smoothstep(0.4 * min(h.x, h.y), -0.3 * min(h.x, h.y), s.d);
     } else {
       fill = smoothstep(aa, -aa, s.d);
