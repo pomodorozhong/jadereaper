@@ -21,6 +21,9 @@ struct Globals {
   margin: f32,   // white cutout margin, world units
   shadow_a: f32, // drop shadow darkness
   pad: f32,
+  fade: f32,       // how far paper fades into the ground at fade_dist away from the camera
+  fade_dist: f32,  // puppet heights away from the camera, from its ground point, for the full fade
+  pad2: vec2f,
 };
 
 // The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
@@ -53,6 +56,8 @@ const VIEW_DIR = vec3f(0.0, -0.4472136, 0.8944272);   // normalize(0, -PITCH, 1)
 const LIGHT_DIR = vec3f(-0.5773503, -0.5773503, 0.5773503);
 const SHADE = 0.2;         // how much darker a sheet gets turned fully away from the light
 const SHOW_THROUGH = 0.22; // how strongly the front's ink shows on the back
+// The ground's base colour (fs_bg), which far paper fades into, like distance haze over the floor.
+const GROUND = vec3f(0.925, 0.885, 0.79);
 
 fn hash21(p: vec2f) -> f32 {
   var q = fract(p * vec2f(123.34, 456.21));
@@ -249,6 +254,7 @@ struct VOut {
   @location(3) @interpolate(flat) color: vec4f,
   @location(4) side: vec2f,                      // facing (> 0 the front shows), brightness from the light
   @location(5) under: vec2f,                     // for a shadow: the sheet's own part-space point over this pixel
+  @location(6) depth: f32,                       // towards the camera from the puppet's ground point, in its heights
 };
 
 // Turn by `t` about the vertical axis, then lean by `l` about the horizontal one. core/src/defs.rs `orient`
@@ -287,13 +293,15 @@ fn sheetNormal(l: vec2f, top: f32, bend: f32, rot: f32, t: f32, lean: f32) -> ve
 
 // Each instance draws its ground shadow (the first SHEET_VERTS vertices), then the sheet, cut into STRIPS strips
 // across its height. a: x, y, half width (negative mirrors), half height. b: rot, part, flash, seed.
-// c: colour. d: turn, lean, lift, bend.
+// c: colour. d: turn, lean, lift, bend. e: the part's centre towards the camera from its puppet's ground point,
+// and the puppet's height, both in world units.
 @vertex
 fn vs(@builtin(vertex_index) vi: u32,
       @location(0) a: vec4f,
       @location(1) b: vec4f,
       @location(2) c: vec4f,
-      @location(3) d: vec4f) -> VOut {
+      @location(3) d: vec4f,
+      @location(4) e: vec2f) -> VOut {
   var corners = array<vec2f, 6>(
     vec2f(-1.0, 0.0), vec2f(1.0, 0.0), vec2f(-1.0, 1.0),
     vec2f(-1.0, 1.0), vec2f(1.0, 0.0), vec2f(1.0, 1.0));
@@ -347,6 +355,8 @@ fn vs(@builtin(vertex_index) vi: u32,
   o.misc = vec4f(select(0.0, 1.0, is_shadow), b.yzw);
   o.color = c;
   o.side = vec2f(facing, shade);
+  // Depth in puppet heights; a part outside any puppet (reach 0) stays at zero and never fades.
+  o.depth = select(0.0, (e.x + w3.z) / max(e.y, 1e-3), e.y > 0.0);
   return o;
 }
 
@@ -469,6 +479,9 @@ fn fs(i: VOut) -> @location(0) vec4f {
     rgb = mix(rgb, vec3f(1.0), flash * 0.85 * fill);
   }
   rgb *= i.side.y;
+  // Paper further from the camera than its puppet's ground point fades into the ground, so a sheet lying back
+  // or leaning away reads as going into the distance, not as squashed. At rest every part is at depth zero.
+  rgb = mix(rgb, GROUND, G.fade * clamp(-i.depth / G.fade_dist, 0.0, 1.0));
   if (margin < 0.004) { discard; }
   return vec4f(rgb, margin * i.color.a);
 }

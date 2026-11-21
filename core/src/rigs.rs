@@ -322,6 +322,8 @@ const MAX_RIG_PARTS: usize = 16;
 #[derive(Clone, Copy, Default)]
 struct Placed {
     depth: f32,
+    /// Towards the camera from the ground point, without the layer: what the shader fades by.
+    z: f32,
     x: f32,
     y: f32,
     hw: f32,
@@ -383,6 +385,7 @@ impl Game {
                     let (ox, oy) = (f * 12.0 * s + pose.dx * f, -42.0 * s + pose.dy);
                     held = Some(Placed {
                         depth: 0.0,
+                        z: 0.0,
                         x: ox,
                         y: oy,
                         hw: p.hw * s * f,
@@ -399,6 +402,7 @@ impl Game {
             let (rx, ry) = (ox * c - oy * sn, ox * sn + oy * c);
             placed[n] = Placed {
                 depth: k as f32,
+                z: 0.0,
                 x: rx + pose.dx * f,
                 y: ry + pose.dy,
                 hw: p.hw * s * pose.sx * f,
@@ -422,7 +426,8 @@ impl Game {
         // Turn the puppet about its ground point. A part's layer only counts towards its depth, so a puppet at
         // rest is drawn exactly where and in the order it always was.
         for q in placed[..n].iter_mut() {
-            let (x, y, _) = orient([q.x, q.y, 0.0], sheet.turn, sheet.lean);
+            let (x, y, z) = orient([q.x, q.y, 0.0], sheet.turn, sheet.lean);
+            q.z = z;
             q.depth = orient([q.x, q.y, q.depth * LAYER], sheet.turn, sheet.lean).2;
             q.x = x;
             q.y = y;
@@ -435,6 +440,7 @@ impl Game {
                 j -= 1;
             }
         }
+        let reach = rig.height() * s;
         for q in &placed[..n] {
             self.put_sheet(
                 look.x + q.x,
@@ -447,6 +453,7 @@ impl Game {
                 q.seed,
                 q.color,
                 sheet,
+                (q.z, reach),
             );
         }
     }
@@ -530,9 +537,26 @@ mod tests {
     }
 
     #[test]
-    fn instances_are_sixteen_floats() {
+    fn instances_are_eighteen_floats() {
         assert_eq!(core::mem::size_of::<Inst>(), INST_FLOATS * 4);
-        assert_eq!(INST_FLOATS, 16);
+        assert_eq!(INST_FLOATS, 18);
+    }
+
+    #[test]
+    fn far_parts_carry_their_depth() {
+        // At rest every part is at depth zero, so the look does not change.
+        assert!(drawn(Sheet::FLAT).iter().all(|i| i.depth == 0.0));
+        // Lying back, the head is further from the camera than the body.
+        let flat = drawn(Sheet {
+            lean: core::f32::consts::FRAC_PI_2,
+            ..Sheet::FLAT
+        });
+        let body = *flat
+            .iter()
+            .find(|i| i.part % PART_SLOTS == P_PLAYER_BODY)
+            .unwrap();
+        assert!(head(&flat).depth < body.depth && body.depth < 0.0);
+        assert!(flat.iter().all(|i| i.reach == RIGS[RG_PLAYER].height()));
     }
 
     #[test]

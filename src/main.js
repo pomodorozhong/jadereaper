@@ -58,6 +58,8 @@ const DEBUG_SLIDERS = [
 	["look", "shadowX", "Shadow x", -8, 8, 0.5],
 	["look", "shadowY", "Shadow y", -8, 8, 0.5],
 	["look", "shadowAlpha", "Shadow darkness", 0, 1, 0.05],
+	["look", "depthFade", "Depth fade", 0, 1, 0.05],
+	["look", "depthDist", "Depth distance", 0.2, 2, 0.05],
 	["Size (drawn only; re-draws the characters)"],
 	["size", "player", "Player", 0.5, 2, 0.05],
 	["size", "blot", "Blot", 0.5, 2, 0.05],

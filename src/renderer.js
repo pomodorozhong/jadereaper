@@ -3,9 +3,9 @@ import { t } from "./i18n.js";
 import { PART_IDS } from "./data.js";
 import { BAKE, bakeCharacters } from "./characters.js";
 
-// 16 floats per paper part (Inst in core/src/defs.rs): x, y, half width, half height | rot, part, flash, seed |
-// r, g, b, a | turn, lean, lift, bend.
-const INSTANCE_BYTES = 64;
+// 18 floats per paper part (Inst in core/src/defs.rs): x, y, half width, half height | rot, part, flash, seed |
+// r, g, b, a | turn, lean, lift, bend | depth, reach.
+const INSTANCE_BYTES = 72;
 // Vertices per instance: the ground shadow, then the sheet, each cut into 4 strips of 2 triangles (src/shader.wgsl).
 const INSTANCE_VERTS = 48;
 const MAX_INSTANCES = 4096;
@@ -22,6 +22,8 @@ export const LOOK = {
 	shadowX: 3.5,
 	shadowY: 6,
 	shadowAlpha: 0.5,
+	depthFade: 0.6, // how far paper fades into the ground at depthDist away from the camera (0 off, 1 gone)
+	depthDist: 1, // puppet heights away from the camera, from its ground point, for the full fade
 };
 
 /**
@@ -135,7 +137,7 @@ export async function createRenderer(canvas) {
 		throw new Error(t("error.shader", { detail }));
 	}
 
-	const globals = new Float32Array(12);
+	const globals = new Float32Array(16);
 	const globalsBuf = device.createBuffer({
 		size: globals.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -231,6 +233,7 @@ export async function createRenderer(canvas) {
 						{ shaderLocation: 1, offset: 16, format: "float32x4" },
 						{ shaderLocation: 2, offset: 32, format: "float32x4" },
 						{ shaderLocation: 3, offset: 48, format: "float32x4" },
+						{ shaderLocation: 4, offset: 64, format: "float32x2" },
 					],
 				},
 			],
@@ -275,7 +278,8 @@ export async function createRenderer(canvas) {
 	 * @param {number} count number of instances
 	 */
 	function draw(memory, ptr, count, camX, camY) {
-		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding.
+		// The shader's Globals: view, cam, res, shadow offset, px, margin, shadow darkness, padding, depth fade
+		// and distance, padding.
 		globals.set([
 			view.w,
 			view.h,
@@ -288,6 +292,10 @@ export async function createRenderer(canvas) {
 			view.px,
 			LOOK.margin,
 			LOOK.shadowAlpha,
+			0,
+			LOOK.depthFade,
+			Math.max(0.05, LOOK.depthDist),
+			0,
 			0,
 		]);
 		device.queue.writeBuffer(globalsBuf, 0, globals);
