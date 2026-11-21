@@ -69,6 +69,11 @@ impl Sheet {
 /// fraction of its height. `PITCH` in `src/shader.wgsl` must match.
 pub const PITCH: f32 = 0.5;
 
+/// How far the shader grows each part's quad past its half size, in world units, for the margin and shadow. A
+/// sheet's bend is the angle from its middle to the quad's edge, so bending a part by a curvature needs it.
+/// `PAD` in `src/shader.wgsl` must match.
+pub const SHEET_PAD: f32 = 10.0;
+
 /// Place a point given relative to a sheet's anchor (x right, y down, z towards the camera) by turning it by
 /// `turn` about the vertical axis and leaning it by `lean`, then project it onto the screen. Matches `orient` and
 /// `project` in `src/shader.wgsl`. Returns the screen offset and the depth towards the camera.

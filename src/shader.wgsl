@@ -43,15 +43,15 @@ struct PartRects {
 
 const INK = vec3f(0.17, 0.15, 0.13);
 const PAPER = vec3f(0.965, 0.94, 0.875);
-const PAD = 10.0;        // extra quad size for margin and shadow, world units
+const PAD = 10.0;        // extra quad size for margin and shadow, world units; SHEET_PAD in core/src/defs.rs matches
 // The cutout margin and the shadow's offset and darkness come from G, so the ?debug panel can tune them.
 
 // The camera looks down at the ground: a point one world unit further from it shows this much higher on
 // screen, so a sheet lying on its back shows at this fraction of its height. PITCH in core/src/defs.rs matches.
 const PITCH = 0.5;
 // Each sheet is cut into this many strips across its height, so it can bend.
-const STRIPS = 4u;
-const SHEET_VERTS = 24u;   // STRIPS * 6
+const STRIPS = 8u;
+const SHEET_VERTS = 48u;   // STRIPS * 6
 // Towards the camera, and towards the light (upper left, in front). x right, y down, z towards the camera.
 const VIEW_DIR = vec3f(0.0, -0.4472136, 0.8944272);   // normalize(0, -PITCH, 1)
 const LIGHT_DIR = vec3f(-0.5773503, -0.5773503, 0.5773503);
