@@ -214,8 +214,8 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
     case P_SCRAP { // paper scrap
       s.d = sdBox(q, vec2f(0.9, 0.9)) * m;
     }
-    case P_CHIP { // a chip of the ground's paper, torn off: four or five straight cut sides at uneven angles, a
-      // ragged torn edge, and on some chips a piece of a ground ink stroke
+    case P_CHIP { // a chip of the ground's paper, torn off: four or five straight cut sides at uneven angles and
+      // a ragged torn edge, plain paper with no marks
       var d = -1e3;
       let n = select(4, 5, fract(seed * 7.0) > 0.5);
       for (var k = 0; k < n; k++) {
@@ -225,10 +225,6 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
       }
       let torn = 0.05 * (vnoise(q * 9.0 + seed * 70.0) - 0.5);
       s.d = (d + torn) * m;
-      if (seed > 0.55) {
-        let a = vec2f(-1.0, (seed - 0.75) * 3.0);
-        s.ink = 0.85 * dab(sdSeg(q, a, vec2f(1.0, -a.y * 0.6)) - 0.12);
-      }
     }
     case P_GROUND_SHADOW { // soft ground shadow
       s.d = (length(q) - 0.6) * m;
