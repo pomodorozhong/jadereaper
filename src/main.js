@@ -605,9 +605,11 @@ async function boot() {
 
 		const pad = input.poll(dt);
 		ui.setDevice(pad.device);
-		if (pad.pause) onKey({ pause: true });
-		if (pad.back) back();
-		if (ui.screen) {
+		// While the pose gallery shows, the pad drives it, not the hidden menus behind it.
+		const inGallery = gallery?.(dt, pad) ?? false;
+		if (pad.pause && !inGallery) onKey({ pause: true });
+		if (pad.back && !inGallery) back();
+		if (ui.screen && !inGallery) {
 			if (pad.nav && ui.navigate(pad.nav[0], pad.nav[1])) audio.play("ui");
 			if (pad.confirm && !ui.locked) {
 				audio.unlock();
@@ -623,7 +625,6 @@ async function boot() {
 		} else {
 			core.jr_input(0, 0, 0, 0, 0);
 		}
-		gallery?.(dt);
 		core.jr_update(step);
 
 		const s = readState();

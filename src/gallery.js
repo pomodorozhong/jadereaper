@@ -72,12 +72,15 @@ export function addGallery(core, canvas) {
 	  ${row("progress", "Progress", 0, 1, 0.01)}
 	  ${row("damage", "Hit damage", 0, 80, 1)}
 	  ${row("angle", "Direction°", -180, 180, 5)}
-	  <div style="color:#7a6f5c;max-width:19em">Direction: where skills aim and hits push (0 right, 90 down the screen). Tune each rig's numbers under "Pose" in the Debug panel.</div>`;
+	  <div style="color:#7a6f5c;max-width:19em">Direction: where skills aim and hits push (0 right, 90 down the screen). Tune each rig's numbers under "Pose" in the Debug panel.</div>
+	  <div style="color:#7a6f5c;max-width:19em">Gamepad (or WASD and arrows): left and right scrub, up and down set the hit damage, the right stick points the direction, A starts or stops the loop.</div>`;
 	box.addEventListener("keydown", (e) => e.stopPropagation());
 	document.body.append(box);
 	const progress = box.querySelector("#gal_progress");
 	const show = (el) => {
-		el.nextElementSibling.textContent = view[el.dataset.key];
+		const v = view[el.dataset.key];
+		el.nextElementSibling.textContent =
+			el.dataset.key === "progress" ? v.toFixed(2) : v;
 	};
 	for (const el of box.querySelectorAll("input[type=range]")) {
 		el.oninput = () => {
@@ -105,9 +108,49 @@ export function addGallery(core, canvas) {
 		history.replaceState(null, "", "?debug");
 	};
 
-	/** Call every frame before the core's update. */
-	return function tick(dt) {
-		if (!on) return;
+	const sync = () => {
+		for (const el of box.querySelectorAll("input[type=range]")) {
+			el.value = view[el.dataset.key];
+			show(el);
+		}
+		box.querySelector("#galPlay").checked = view.play;
+	};
+
+	/** Drive the gallery from the gamepad, or WASD and the arrow keys (input.js `poll`): scrub, hit damage,
+	 * direction, and the loop. */
+	const usePad = (dt, pad) => {
+		if (!pad) return;
+		let moved = false;
+		if (Math.abs(pad.mx) > 0.2) {
+			view.play = false;
+			view.progress = Math.min(
+				1,
+				Math.max(0, view.progress + pad.mx * dt * 0.6),
+			);
+			moved = true;
+		}
+		if (Math.abs(pad.my) > 0.2) {
+			view.damage = Math.round(
+				Math.min(80, Math.max(0, view.damage - pad.my * dt * 40)),
+			);
+			moved = true;
+		}
+		if (pad.aim?.kind === "stick" && Math.hypot(pad.aim.x, pad.aim.y) > 0.5) {
+			view.angle =
+				Math.round((Math.atan2(pad.aim.y, pad.aim.x) * 180) / Math.PI / 5) * 5;
+			moved = true;
+		}
+		if (pad.confirm) {
+			view.play = !view.play;
+			moved = true;
+		}
+		if (moved) sync();
+	};
+
+	/** Call every frame before the core's update, with the polled input. Returns whether the gallery is showing. */
+	return function tick(dt, pad) {
+		if (!on) return false;
+		usePad(dt, pad);
 		if (view.play) {
 			view.progress = (view.progress + dt / PLAY_TIME) % 1;
 			progress.value = view.progress;
@@ -119,5 +162,6 @@ export function addGallery(core, canvas) {
 			view.damage,
 			(view.angle * Math.PI) / 180,
 		);
+		return true;
 	};
 }
