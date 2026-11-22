@@ -51,6 +51,8 @@ npm run smoke
 | Pick a card | 1, 2, 3 | Stick, then A |
 | Mute | M | |
 
+With no mouse (before it first moves over the game) and no right stick held, skills aim the way you move, or the way you last moved.
+
 Skills have no cooldowns: each has a startup, an active window and a recovery, and a roll can cut the recovery short after its cancel point. The roll is a short dodge with a moment of invulnerability; mash it to break a grab. Enemies warn every attack with an ink wash on the ground. The game pauses itself when the window loses focus.
 
 ## How the paper style works

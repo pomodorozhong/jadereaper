@@ -11,7 +11,8 @@ pub struct Input {
     /// Movement, each axis in -1..1.
     pub mx: f32,
     pub my: f32,
-    /// Aim, from the player towards the aim point in world units. Zero keeps the last aim.
+    /// Aim, from the player towards the aim point in world units. Zero (no mouse or right stick) aims the way it
+    /// moves, or the way it last moved.
     pub ax: f32,
     pub ay: f32,
     /// Held buttons, `B_*` bits.
@@ -80,6 +81,10 @@ pub const GRAB_DPS: f32 = 6.0;
 
 /// How long a hit knocks the player off balance.
 pub const HURT_TIME: f32 = 0.3;
+/// With no aim input, movement at least this strong (0..1) sets the aim, and a leap aims this far ahead (as far
+/// as a full right-stick tilt).
+const MOVE_AIM: f32 = 0.3;
+const MOVE_AIM_AT: f32 = 200.0;
 /// Invulnerable for this long after taking a hit.
 pub const HURT_IFRAME: f32 = 0.5;
 pub const WALK_SPEED: f32 = 190.0;
@@ -201,6 +206,13 @@ impl Game {
             mx /= len;
             my /= len;
             len = 1.0;
+        }
+        // No aim from the mouse or the right stick: skills aim the way it moves, or the way it last moved.
+        if !self.player.aim_new && len > MOVE_AIM {
+            let p = &mut self.player;
+            p.aim = (mx / len, my / len);
+            p.aim_at = (p.aim.0 * MOVE_AIM_AT, p.aim.1 * MOVE_AIM_AT);
+            p.aim_new = true;
         }
         let speed = WALK_SPEED
             * self.stats.speed
