@@ -64,15 +64,47 @@ export function createUI({ onAction }) {
 		}
 	}
 
-	/** Move focus through the open screen's buttons. Returns true if focus moved. */
+	/** The nearest button from `from` in direction (dx, dy) on screen, so the pad moves through a grid by rows
+	 * and columns. Null when there is none that way. */
+	function nearestToward(from, list, dx, dy) {
+		const centre = (el) => {
+			const r = el.getBoundingClientRect();
+			return [r.left + r.width / 2, r.top + r.height / 2];
+		};
+		const [fx, fy] = centre(from);
+		let best = null;
+		let bestScore = Infinity;
+		for (const el of list) {
+			if (el === from) continue;
+			const [x, y] = centre(el);
+			// Distance along the pressed direction, and across it; buttons off to the side count for less.
+			const along = (x - fx) * dx + (y - fy) * dy;
+			const across = Math.abs((x - fx) * dy - (y - fy) * dx);
+			if (along < 4) continue;
+			const score = along + across * 2;
+			if (score < bestScore) {
+				bestScore = score;
+				best = el;
+			}
+		}
+		return best;
+	}
+
+	/** Move focus through the open screen's buttons: to the nearest one in the pressed direction, or the next or
+	 * previous in order (wrapping round) when there is none that way. Disabled buttons are skipped. Returns true
+	 * if focus moved. */
 	function navigate(dx, dy) {
-		const list = buttons();
+		const list = buttons().filter((el) => !el.disabled);
 		if (!list.length) return false;
 		padFocus();
-		const i = list.indexOf(focusedButton());
-		const step = dx > 0 || dy > 0 ? 1 : -1;
-		const next = i < 0 ? 0 : (i + step + list.length) % list.length;
-		list[next].focus({ preventScroll: true });
+		const from = focusedButton();
+		const i = list.indexOf(from);
+		let next = i < 0 ? list[0] : nearestToward(from, list, dx, dy);
+		if (!next) {
+			const step = dx > 0 || dy > 0 ? 1 : -1;
+			next = list[(i + step + list.length) % list.length];
+		}
+		next.focus({ preventScroll: true });
 		return true;
 	}
 
