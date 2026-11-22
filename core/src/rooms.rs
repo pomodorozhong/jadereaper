@@ -154,15 +154,12 @@ impl Game {
             }
         }
         if self.add_enemy(kind, x, y).is_some() {
-            // A square of the ground's paper flips open like a lid, and the enemy is there.
+            // A square of the ground's paper lifts off and drifts away, and the enemy is there.
             let k = &KINDS[kind as usize];
             let seed = self.fx_rng.f();
-            let side = if self.fx_rng.f() < 0.5 { -1.0 } else { 1.0 };
             self.add_fx(Fx {
                 paper: true,
                 lean: core::f32::consts::FRAC_PI_2,
-                vlean: -7.0,
-                vturn: 2.0 * side,
                 vz: 220.0,
                 z: 0.5,
                 vy: -60.0,

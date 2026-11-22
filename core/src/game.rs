@@ -148,24 +148,19 @@ pub struct Fx {
     pub seed: f32,
     /// Drawn above characters instead of on the ground.
     pub top: bool,
-    /// A piece of paper in 3D (`crate::paper`): it falls under gravity, bounces once, tumbles about `turn` and
-    /// `lean`, and settles flat. Without it the effect is a flat mark that glides and fades.
+    /// A piece of paper with a height (`crate::paper`): it falls under gravity, bounces once and slides to a stop,
+    /// panning without turning. Without it the effect is a flat mark that glides and fades.
     pub paper: bool,
     /// Paper: gravity's share (1 falls, 0 floats, below 0 rises).
     pub fall: f32,
-    /// Paper: its curl (see `Sheet::bend`) and how fast that changes.
-    pub bend: f32,
-    pub vbend: f32,
     /// Paper: it stays solid and fades out over its last this many seconds.
     pub fade: f32,
     /// Height off the ground, and its speed, in world units.
     pub z: f32,
     pub vz: f32,
-    /// The paper's 3D orientation (see `Sheet`) and how fast it tumbles, in radians per second.
+    /// The paper's fixed 3D orientation (see `Sheet`); it never changes.
     pub turn: f32,
-    pub vturn: f32,
     pub lean: f32,
-    pub vlean: f32,
 }
 
 impl Fx {
@@ -189,15 +184,11 @@ impl Fx {
             top: true,
             paper: false,
             fall: 1.0,
-            bend: 0.0,
-            vbend: 0.0,
             fade: 0.35,
             z: 0.0,
             vz: 0.0,
             turn: 0.0,
-            vturn: 0.0,
             lean: 0.0,
-            vlean: 0.0,
         }
     }
 }

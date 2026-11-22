@@ -105,7 +105,6 @@ impl Game {
                         up: (60.0, 140.0),
                         life: (0.8, 1.1),
                         z: 20.0,
-                        spin: 6.0,
                         fall: -0.12,
                         ..Burst::of(P_SLIP, [0.95, 0.95, 0.93, 1.0], 14)
                     },
@@ -189,7 +188,7 @@ impl Game {
                 }
             }
             R_STASIS => {
-                // A ring of ice shards standing up and sliding out.
+                // A ring of ice shards sliding out.
                 paper(
                     self,
                     55.0,
@@ -198,8 +197,6 @@ impl Game {
                         up: (40.0, 90.0),
                         life: (0.7, 0.9),
                         from: 20.0,
-                        spin: 3.0,
-                        upright: true,
                         ..Burst::of(P_SHARD, rgba(color(E_ICE)), 16)
                     },
                 );

@@ -512,36 +512,23 @@ impl Game {
         let c = crate::elements::element_color(element);
         match d.kind {
             SkillKind::Melee if d.area != AreaKind::Arc => {
-                // Lunges and charges leave a torn strip of paper along their path, which curls up as it fades.
-                // The strip's height runs along the dash, so its curl peels the ends up.
+                // Lunges and charges leave a streak of ink along their path.
                 let len = dist + area.reach();
-                let seed = self.fx_rng.f();
+                let rot = dir.1.atan2(dir.0);
                 self.add_fx(Fx {
-                    paper: true,
-                    rot: dir.1.atan2(dir.0) - core::f32::consts::FRAC_PI_2,
-                    vbend: 1.4,
-                    fade: 0.25,
-                    seed,
+                    rot,
+                    seed: 0.2,
                     top: false,
                     ..Fx::at(
                         px + dir.0 * len * 0.5,
                         py + dir.1 * len * 0.5,
-                        P_STRIP,
-                        0.5,
-                        12.0,
+                        P_SLASH,
+                        0.3,
                         len * 0.5,
-                        [c[0], c[1], c[2], 1.0],
+                        14.0,
+                        [c[0], c[1], c[2], 0.9],
                     )
                 });
-                // A heavy charge also tears up the ground where it stops.
-                if d.weight >= 2 {
-                    self.ground_burst(
-                        px + dir.0 * dist,
-                        py + dir.1 * dist,
-                        area.reach() * 1.5,
-                        0.5,
-                    );
-                }
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Melee => {
@@ -584,7 +571,7 @@ impl Game {
                 self.event(EV_SHOOT, px, py, 0.0);
             }
             SkillKind::Nova => {
-                // A ring of paper talismans blown outward, standing up and spinning.
+                // A ring of paper talismans blown outward.
                 let reach = area.reach();
                 self.paper_burst(
                     px,
@@ -596,9 +583,7 @@ impl Game {
                         life: (0.4, 0.5),
                         from: 16.0,
                         z: 10.0,
-                        spin: 10.0,
                         fall: 0.4,
-                        upright: true,
                         ..crate::paper::Burst::of(P_TALISMAN, [c[0], c[1], c[2], 1.0], 14)
                     },
                 );

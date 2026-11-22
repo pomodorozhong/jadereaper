@@ -561,7 +561,7 @@ impl Game {
                 turn: f.turn,
                 lean: f.lean,
                 lift: f.z,
-                bend: f.bend,
+                bend: 0.0,
             };
             self.put_sheet(x, y, hw, hh, rot, part, 0.0, seed, c, sheet, (0.0, 0.0));
         } else {
@@ -832,23 +832,17 @@ impl Game {
             let q = (self.anim * 8.0 + e.seed * 9.0).floor();
             for k in 0..2 {
                 let j = ((q + k as f32 * 3.1) * 1.7).sin();
-                // Paper flames that flicker by turning in 3D.
-                let sheet = Sheet {
-                    turn: j * 0.6,
-                    ..Sheet::FLAT
-                };
-                self.put_sheet(
+                // Paper flames that flicker by shifting and stretching.
+                self.put(
                     e.x + (k as f32 - 0.5) * 14.0 + j * 3.0,
                     e.y - top * 0.4,
                     7.0,
                     11.0 + j * 2.0,
-                    j * 0.15,
+                    0.0,
                     P_FLAME,
                     0.0,
                     0.3 + k as f32 * 0.2,
                     [c[0], c[1], c[2], 1.0],
-                    sheet,
-                    (0.0, 0.0),
                 );
             }
         }

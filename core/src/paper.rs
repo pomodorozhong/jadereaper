@@ -1,12 +1,12 @@
-//! Paper effects: pieces of paper that fly, tumble and settle as sheets in 3D, for impacts, kills, hits,
-//! elements and reactions. A paper effect is an `Fx` with `paper` set: it has a height, falls under gravity
-//! (scaled by `fall`, so a curl of steam can rise), bounces once, tumbles about `turn` and `lean`, and once down
-//! for good lies flat under the characters. Looks only: every random number comes from `fx_rng`, never the run's
-//! `rng`, so effects never change the run.
+//! Paper effects: pieces of paper that fly and settle, for impacts, kills, hits, elements and reactions. A paper
+//! effect is an `Fx` with `paper` set: a sheet facing the camera at a fixed angle, with a height. It falls under
+//! gravity (scaled by `fall`, so a curl of steam can rise), bounces once, and once down for good slides to a stop
+//! under the characters. It only pans: it never turns, leans or spins. Looks only: every random number comes from
+//! `fx_rng`, never the run's `rng`, so effects never change the run.
 
 use crate::content::{P_BOLT, P_CHIP, P_CRACK, P_SHRED, P_SPLAT};
 use crate::game::{Fx, Game};
-use core::f32::consts::{FRAC_PI_2, PI, TAU};
+use core::f32::consts::TAU;
 
 /// Downward pull on flying paper, in world units per second squared.
 const GRAVITY: f32 = 1100.0;
@@ -37,19 +37,15 @@ pub struct Burst {
     /// Pieces start this far from the spot (as a ring), and this high.
     pub from: f32,
     pub z: f32,
-    /// How hard the pieces tumble, in radians per second at most.
-    pub spin: f32,
     /// Gravity's share: 1 falls, 0 floats, below 0 rises.
     pub fall: f32,
-    /// Stand the pieces upright (true) or let them start at any lean.
-    pub upright: bool,
     /// Pieces fade out over their last this many seconds.
     pub fade: f32,
 }
 
 impl Burst {
     /// A burst of `count` pieces of `part` in `color`, with defaults for a small knock: pieces 4 to 7 units, out
-    /// 60 to 160, up 160 to 300, living 0.9 to 1.3 s, falling and tumbling freely.
+    /// 60 to 160, up 160 to 300, living 0.9 to 1.3 s, falling.
     pub fn of(part: f32, color: [f32; 4], count: usize) -> Burst {
         Burst {
             part,
@@ -61,9 +57,7 @@ impl Burst {
             life: (0.9, 1.3),
             from: 0.0,
             z: 0.0,
-            spin: 12.0,
             fall: 1.0,
-            upright: false,
             fade: 0.35,
         }
     }
@@ -78,7 +72,6 @@ impl Game {
             let (ca, sa) = (a.cos(), a.sin());
             let out = r.range(b.out.0, b.out.1);
             let size = r.range(b.size.0, b.size.1);
-            let lean = if b.upright { 0.0 } else { r.range(-0.6, 0.6) };
             let fx = Fx {
                 paper: true,
                 fall: b.fall,
@@ -87,16 +80,7 @@ impl Game {
                 vy: sa * out,
                 vz: r.range(b.up.0, b.up.1),
                 z: b.z + r.range(0.0, 6.0),
-                rot: r.range(-0.5, 0.5) + if b.upright { 0.0 } else { a },
-                vr: r.range(-0.6, 0.6) * b.spin,
-                turn: r.range(-PI, PI),
-                vturn: r.range(-1.0, 1.0) * b.spin,
-                lean,
-                vlean: if b.upright {
-                    0.0
-                } else {
-                    r.range(-1.0, 1.0) * b.spin
-                },
+                rot: r.range(-0.6, 0.6),
                 seed: r.f(),
                 ..Fx::at(
                     x + ca * b.from,
@@ -126,7 +110,6 @@ impl Game {
                 life: (1.4, 2.0),
                 from: reach * 0.2,
                 z: 2.0,
-                spin: 14.0,
                 ..Burst::of(P_CHIP, GROUND_CHIP, (14.0 * power).round() as usize)
             },
         );
@@ -139,7 +122,6 @@ impl Game {
                 out: (180.0, 420.0),
                 up: (40.0, 140.0),
                 life: (0.4, 0.7),
-                spin: 20.0,
                 ..Burst::of(P_CHIP, DUST, (10.0 * power).round() as usize)
             },
         );
@@ -239,12 +221,7 @@ impl Game {
                 vy: a.sin() * rg.range(40.0, 110.0),
                 vz: rg.range(140.0, 280.0),
                 z: 1.0,
-                rot: rg.range(0.0, TAU),
-                vr: rg.range(-6.0, 6.0),
-                turn: rg.range(-PI, PI),
-                vturn: rg.range(-12.0, 12.0),
-                lean: rg.range(-0.6, 0.6),
-                vlean: rg.range(-12.0, 12.0),
+                rot: rg.range(-0.6, 0.6),
                 seed: rg.f(),
                 ..Fx::at(
                     x + a.cos() * r,
@@ -261,20 +238,17 @@ impl Game {
     }
 }
 
-/// Move one piece of paper by `dt`: fall (or float, or rise), bounce once, tumble, and settle flat on the
-/// ground. A piece that starts on the ground and is not thrown up (a strip left by a dash) just lies there.
+/// Move one piece of paper by `dt`: fall (or float, or rise), bounce once, and slide to a stop on the ground.
+/// Its angle only changes by `vr`, which pieces leave at zero (a scythe's crescent sweeps round with it).
 pub(crate) fn fly(f: &mut Fx, dt: f32) {
     f.x += f.vx * dt;
     f.y += f.vy * dt;
     f.rot += f.vr * dt;
     f.hw += f.grow * dt;
     f.hh += f.grow * dt;
-    f.bend += f.vbend * dt;
     if f.z > 0.0 || f.vz > 0.0 {
         f.vz -= GRAVITY * f.fall * dt;
         f.z += f.vz * dt;
-        f.turn += f.vturn * dt;
-        f.lean += f.vlean * dt;
         // Paper catches the air: it slows quickly sideways.
         let air = (-1.6 * dt).exp();
         f.vx *= air;
@@ -285,37 +259,24 @@ pub(crate) fn fly(f: &mut Fx, dt: f32) {
                 f.vz = -f.vz * 0.3;
                 f.vx *= 0.5;
                 f.vy *= 0.5;
-                f.vturn *= 0.5;
-                f.vlean *= 0.5;
             } else {
                 f.vz = 0.0;
                 // Down for good: drawn under the characters, like the ground's own marks.
                 f.top = false;
             }
         }
-    } else if f.vturn != 0.0 || f.vlean != 0.0 {
-        // On the ground: it slides to a stop and lies flat, face up or face down, whichever is nearer.
+    } else {
+        // On the ground: it slides to a stop.
         let rest = (-10.0 * dt).exp();
         f.vx *= rest;
         f.vy *= rest;
-        f.vr *= rest;
-        let flat = ((f.lean - FRAC_PI_2) / PI).round() * PI + FRAC_PI_2;
-        let settle = 1.0 - (-14.0 * dt).exp();
-        f.lean += (flat - f.lean) * settle;
-        f.turn += (turn_rest(f.turn) - f.turn) * settle;
     }
-}
-
-/// The nearest turn that shows the paper square on: a whole number of half turns.
-fn turn_rest(turn: f32) -> f32 {
-    (turn / PI).round() * PI
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::content::P_SCRAP;
-    use crate::defs::Rng;
 
     fn burst() -> Game {
         let mut g = Game::new(7);
@@ -335,24 +296,29 @@ mod tests {
     }
 
     #[test]
-    fn chips_fly_up_then_land_and_lie_flat() {
+    fn chips_fly_up_then_land_and_stop_without_turning() {
         let mut g = burst();
         let mut highest: f32 = 0.0;
         for _ in 0..84 {
             g.move_fx(1.0 / 60.0);
             for f in g.fx.iter().filter(|f| f.paper) {
                 highest = highest.max(f.z);
+                // Paper only pans: it never turns, leans or spins.
+                assert_eq!((f.turn, f.lean, f.vr), (0.0, 0.0, 0.0));
             }
         }
         assert!(highest > 40.0, "chips should rise, highest {highest}");
-        // By 1.4 s, when the first chips fade out, every chip is down and lying flat.
+        // By 1.4 s, when the first chips fade out, every chip is down and nearly still.
         let paper: Vec<&Fx> = g.fx.iter().filter(|f| f.paper).collect();
         assert!(!paper.is_empty());
         for f in paper {
             assert_eq!(f.z, 0.0);
             assert!(!f.top, "a chip lying down is drawn under the characters");
-            let off = ((f.lean - FRAC_PI_2) / PI).fract().abs();
-            assert!(off < 0.05 || off > 0.95, "lean {} is not flat", f.lean);
+            assert!(
+                f.vx.hypot(f.vy) < 20.0,
+                "still sliding at {}",
+                f.vx.hypot(f.vy)
+            );
         }
     }
 
@@ -460,17 +426,6 @@ mod tests {
                 i.x, i.y, i.hw, i.hh, i.rot, i.turn, i.lean, i.lift, i.bend, i.color[3],
             ];
             assert!(v.iter().all(|f| f.is_finite()), "part {} has {v:?}", i.part);
-        }
-    }
-
-    #[test]
-    fn rest_turn_is_a_whole_number_of_half_turns() {
-        let mut r = Rng(5);
-        for _ in 0..20 {
-            let t = r.range(-10.0, 10.0);
-            let rest = turn_rest(t);
-            assert!((rest / PI - (rest / PI).round()).abs() < 1e-5);
-            assert!((rest - t).abs() <= PI / 2.0 + 1e-5);
         }
     }
 }
