@@ -31,13 +31,24 @@ const P_GLUTTON_TAIL: i32 = 26;
 const P_DRAGON_BODY: i32 = 27;
 const P_DRAGON_HEAD: i32 = 28;
 const P_DRAGON_WING: i32 = 29;
+const P_CUT: i32 = 30;
+const P_STRIP: i32 = 31;
+const P_SHRED: i32 = 32;
+const P_SLIP: i32 = 33;
+const P_BOLT: i32 = 34;
+const P_CRACK: i32 = 35;
+const P_SCORCH: i32 = 36;
+const P_FLAME: i32 = 37;
+const P_PEBBLE: i32 = 38;
+const P_TUFT: i32 = 39;
+const P_SHARD: i32 = 40;
 
 // Parts drawn as flat ink or wash: no outline, margin or shadow.
 fn isFlat(part: i32) -> bool {
-  return part == P_SLASH || part == P_SPLAT || part == P_GRASS || part == P_STONE || part == P_RING || part == P_SCRAP || part == P_GROUND_SHADOW || part == P_WARN_CIRCLE || part == P_WARN_ARC || part == P_WARN_LINE || part == P_WARN_RING;
+  return part == P_SLASH || part == P_SPLAT || part == P_GRASS || part == P_STONE || part == P_RING || part == P_SCRAP || part == P_GROUND_SHADOW || part == P_WARN_CIRCLE || part == P_WARN_ARC || part == P_WARN_LINE || part == P_WARN_RING || part == P_CRACK || part == P_SCORCH;
 }
 
 // Parts cut from coloured paper: the margin and back are the part's own colour, not white, and the outline is faint.
 fn isTinted(part: i32) -> bool {
-  return part == P_CHIP;
+  return part == P_CHIP || part == P_SLIP || part == P_PEBBLE || part == P_TUFT;
 }

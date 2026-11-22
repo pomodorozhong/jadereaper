@@ -140,19 +140,7 @@ impl Game {
                     let (tx, ty) = (self.enemies[j].x, self.enemies[j].y);
                     let rot = (ty - y).atan2(tx - x);
                     let c = element_color(element);
-                    self.add_fx(Fx {
-                        rot,
-                        seed: 0.9,
-                        ..Fx::at(
-                            (x + tx) * 0.5,
-                            (y + ty) * 0.5 - 24.0,
-                            P_SLASH,
-                            0.15,
-                            d * 0.5,
-                            6.0,
-                            [c[0], c[1], c[2], 0.95],
-                        )
-                    });
+                    self.paper_bolt((x, y), (tx, ty), rot, d, c, 0.15);
                     // The chain hit carries no element, so it does not chain on.
                     self.hurt_enemy(j, dmg * CHAIN_SHARE, stagger * CHAIN_SHARE, 0.0, 0.0);
                 }
@@ -235,20 +223,7 @@ impl Game {
                         self.hurt_enemy(i, well.dmg, 30.0, 0.0, 0.0);
                     }
                 }
-                let c = element_color(E_CELESTIAL + 1);
-                self.add_fx(Fx {
-                    grow: 200.0,
-                    top: false,
-                    ..Fx::at(
-                        well.x,
-                        well.y,
-                        P_RING,
-                        0.3,
-                        20.0,
-                        20.0,
-                        [c[0], c[1], c[2], 0.9],
-                    )
-                });
+                self.ground_burst(well.x, well.y, STAR_RADIUS, 0.6);
                 self.add_fx(Fx {
                     vy: 0.0,
                     ..Fx::at(

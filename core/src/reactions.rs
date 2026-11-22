@@ -13,8 +13,9 @@
 //! Bosses are never pulled or frozen by a reaction; they take extra stagger instead.
 
 use crate::defs::*;
-use crate::game::{Fx, Game};
+use crate::game::Game;
 use crate::geom::{dir_to, dist};
+use crate::paper::Burst;
 
 /// How long an element tag lasts.
 pub const TAG_TIME: f32 = 4.0;
@@ -77,27 +78,61 @@ impl Game {
         }
     }
 
-    fn react(&mut self, i: usize, r: u8, dmg: f32) {
+    pub(crate) fn react(&mut self, i: usize, r: u8, dmg: f32) {
         let (x, y) = (self.enemies[i].x, self.enemies[i].y);
         let boss = self.is_boss(i);
         let color = |e: u8| crate::elements::element_color(e + 1);
-        let ring = |g: &mut Game, radius: f32, c: [f32; 3]| {
-            g.add_fx(Fx {
-                grow: radius / 0.25,
-                top: false,
-                ..Fx::at(x, y, P_RING, 0.25, 10.0, 10.0, [c[0], c[1], c[2], 0.9])
-            });
+        // Each reaction throws its own paper across its radius.
+        let paper = |g: &mut Game, radius: f32, b: Burst| {
+            g.paper_burst(
+                x,
+                y,
+                Burst {
+                    out: (radius * 1.6, radius * 2.6),
+                    ..b
+                },
+            );
         };
+        let rgba = |c: [f32; 3]| [c[0], c[1], c[2], 1.0];
         match r {
             R_STEAM => {
-                ring(self, 90.0, [0.92, 0.92, 0.9]);
+                // White curls of steam paper that drift up.
+                paper(
+                    self,
+                    90.0,
+                    Burst {
+                        size: (5.0, 9.0),
+                        up: (60.0, 140.0),
+                        life: (0.8, 1.1),
+                        z: 20.0,
+                        spin: 6.0,
+                        fall: -0.12,
+                        ..Burst::of(P_SLIP, [0.95, 0.95, 0.93, 1.0], 14)
+                    },
+                );
                 self.blast(x, y, 90.0, dmg * 1.2 + 14.0, 20.0, 200.0);
                 let s = &mut self.enemies[i].status;
                 s.burn = 0.0;
                 s.chill = 0;
             }
             R_OVERLOAD => {
-                ring(self, 110.0, color(E_FIRE));
+                // Charred scraps and burning ones, blown out hard.
+                let burn = Burst {
+                    size: (5.0, 9.0),
+                    up: (260.0, 460.0),
+                    z: 20.0,
+                    ..Burst::of(P_SHRED, [0.24, 0.17, 0.13, 1.0], 12)
+                };
+                paper(self, 110.0, burn);
+                paper(
+                    self,
+                    110.0,
+                    Burst {
+                        count: 6,
+                        color: rgba(color(E_FIRE)),
+                        ..burn
+                    },
+                );
                 self.blast(x, y, 110.0, dmg + 18.0, 30.0, 520.0);
                 self.shake = self.shake.max(0.6);
             }
@@ -116,12 +151,36 @@ impl Game {
                         e.y += dy * pull;
                     }
                 }
-                ring(self, 130.0, color(E_CELESTIAL));
+                // Star paper sucked in from all round, then dropped.
+                self.paper_burst(
+                    x,
+                    y,
+                    Burst {
+                        size: (5.0, 8.0),
+                        out: (-300.0, -240.0),
+                        up: (80.0, 160.0),
+                        life: (0.5, 0.7),
+                        from: 130.0,
+                        z: 20.0,
+                        fade: 0.2,
+                        ..Burst::of(P_SHRED, rgba(color(E_CELESTIAL)), 16)
+                    },
+                );
                 self.blast(x, y, 130.0, dmg * 1.5 + 30.0, 40.0, 120.0);
                 self.shake = self.shake.max(0.8);
             }
             R_SHATTER => {
-                ring(self, 40.0, color(E_ICE));
+                // Ice shards flying off the frozen one.
+                paper(
+                    self,
+                    40.0,
+                    Burst {
+                        size: (5.0, 9.0),
+                        up: (200.0, 380.0),
+                        z: 30.0,
+                        ..Burst::of(P_SHARD, rgba(color(E_ICE)), 10)
+                    },
+                );
                 if i < self.enemies.len() {
                     self.hurt_enemy(i, dmg * 2.0 + 10.0, 50.0, 0.0, 0.0);
                     if !boss {
@@ -130,7 +189,20 @@ impl Game {
                 }
             }
             R_STASIS => {
-                ring(self, 120.0, color(E_ICE));
+                // A ring of ice shards standing up and sliding out.
+                paper(
+                    self,
+                    55.0,
+                    Burst {
+                        size: (7.0, 11.0),
+                        up: (40.0, 90.0),
+                        life: (0.7, 0.9),
+                        from: 20.0,
+                        spin: 3.0,
+                        upright: true,
+                        ..Burst::of(P_SHARD, rgba(color(E_ICE)), 16)
+                    },
+                );
                 for j in 0..self.enemies.len() {
                     let e = &self.enemies[j];
                     if dist(e.x, e.y, x, y) < 120.0 + KINDS[e.kind as usize].r {
@@ -153,19 +225,7 @@ impl Game {
                 for &(j, d) in near.iter().take(3) {
                     let (tx, ty) = (self.enemies[j].x, self.enemies[j].y);
                     let rot = (ty - y).atan2(tx - x);
-                    self.add_fx(Fx {
-                        rot,
-                        seed: 0.9,
-                        ..Fx::at(
-                            (x + tx) * 0.5,
-                            (y + ty) * 0.5 - 24.0,
-                            P_SLASH,
-                            0.2,
-                            d * 0.5,
-                            6.0,
-                            [c[0], c[1], c[2], 0.95],
-                        )
-                    });
+                    self.paper_bolt((x, y), (tx, ty), rot, d, c, 0.2);
                     self.hurt_enemy(j, dmg * 0.6 + 12.0, 20.0, 0.0, 0.0);
                 }
             }

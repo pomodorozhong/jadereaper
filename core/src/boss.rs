@@ -7,7 +7,7 @@
 //! three moves in a row, adding an ink breath and a grab.
 
 use crate::defs::*;
-use crate::game::{Act, Enemy, Fx, Game, Hazard, Phase};
+use crate::game::{Act, Enemy, Game, Hazard, Phase};
 use crate::geom::{dir_to, dist, Area, Shape};
 use crate::moves::*;
 use crate::player::PLAYER_R;
@@ -174,11 +174,21 @@ impl Game {
             let (x, y) = (self.enemies[i].x, self.enemies[i].y);
             self.shake = self.shake.max(1.0);
             self.event(EV_ENRAGE, x, y, 0.0);
-            self.add_fx(Fx {
-                grow: 400.0,
-                top: false,
-                ..Fx::at(x, y, P_RING, 0.4, 30.0, 30.0, [0.74, 0.18, 0.14, 0.8])
-            });
+            // A burst of red paper flung up off its body.
+            let h = KINDS[self.enemies[i].kind as usize].r;
+            self.paper_burst(
+                x,
+                y,
+                crate::paper::Burst {
+                    size: (6.0, 11.0),
+                    out: (120.0, 320.0),
+                    up: (300.0, 520.0),
+                    life: (1.2, 1.7),
+                    from: h * 0.5,
+                    z: h,
+                    ..crate::paper::Burst::of(P_SHRED, [0.74, 0.18, 0.14, 1.0], 18)
+                },
+            );
         }
 
         // Knocked down by a full meter.

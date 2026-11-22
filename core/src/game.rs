@@ -15,7 +15,7 @@ use crate::rooms::Stage;
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
 pub const MAX_ENEMIES: usize = 10;
-pub(crate) const MAX_FX: usize = 500;
+pub(crate) const MAX_FX: usize = 900;
 pub(crate) const MAX_SHOTS: usize = 200;
 pub(crate) const CELL: f32 = 96.0;
 pub(crate) const BUCKETS: usize = 4096;
@@ -148,9 +148,16 @@ pub struct Fx {
     pub seed: f32,
     /// Drawn above characters instead of on the ground.
     pub top: bool,
-    /// A piece of paper flying in 3D (`crate::debris`): it falls under gravity, bounces once, tumbles about
-    /// `turn` and `lean`, and settles flat. Without it the effect is a flat mark that glides and fades.
+    /// A piece of paper in 3D (`crate::paper`): it falls under gravity, bounces once, tumbles about `turn` and
+    /// `lean`, and settles flat. Without it the effect is a flat mark that glides and fades.
     pub paper: bool,
+    /// Paper: gravity's share (1 falls, 0 floats, below 0 rises).
+    pub fall: f32,
+    /// Paper: its curl (see `Sheet::bend`) and how fast that changes.
+    pub bend: f32,
+    pub vbend: f32,
+    /// Paper: it stays solid and fades out over its last this many seconds.
+    pub fade: f32,
     /// Height off the ground, and its speed, in world units.
     pub z: f32,
     pub vz: f32,
@@ -181,6 +188,10 @@ impl Fx {
             seed: 0.5,
             top: true,
             paper: false,
+            fall: 1.0,
+            bend: 0.0,
+            vbend: 0.0,
+            fade: 0.35,
             z: 0.0,
             vz: 0.0,
             turn: 0.0,
@@ -536,7 +547,7 @@ impl Game {
                 continue;
             }
             if f.paper {
-                crate::debris::fly(f, dt);
+                crate::paper::fly(f, dt);
                 i += 1;
                 continue;
             }
