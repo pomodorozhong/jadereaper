@@ -27,10 +27,10 @@ struct Globals {
   fade_curve: f32, // the ramp's shape: the shift grows as (distance / fade_dist) to this power
 };
 
-// The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
+// The instance's part is id + 64 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
 // line boil pose. Parts without poses have the same rect in every pose slot.
-const PART_SLOTS = 32;
-const RECTS = 256;      // PART_SLOTS * MAX_POSES
+const PART_SLOTS = 64;
+const RECTS = 512;      // PART_SLOTS * MAX_POSES
 
 struct PartRects {
   uv: array<vec4f, RECTS>,   // atlas rect per part id and pose (x, y, w, h); w = 0 means no image
@@ -213,6 +213,84 @@ fn shape(part: i32, p: vec2f, h: vec2f, seed: f32) -> Shape {
     }
     case P_SCRAP { // paper scrap
       s.d = sdBox(q, vec2f(0.9, 0.9)) * m;
+    }
+    case P_CHIP, P_SHRED { // a torn-off piece of paper (chip: the ground's, tinted; shred: a puppet's or an
+      // element's, with a white margin): four or five straight cut sides at uneven angles and a ragged torn edge
+      var d = -1e3;
+      let n = select(4, 5, fract(seed * 7.0) > 0.5);
+      for (var k = 0; k < n; k++) {
+        let a = (f32(k) + 0.35 * (fract(seed * f32(k * 13 + 5)) - 0.5)) * 6.2831853 / f32(n) + seed * 6.0;
+        let off = 0.6 + 0.3 * fract(seed * f32(k * 29 + 11));
+        d = max(d, dot(q, vec2f(cos(a), sin(a))) - off);
+      }
+      let torn = 0.05 * (vnoise(q * 9.0 + seed * 70.0) - 0.5);
+      s.d = (d + torn) * m;
+    }
+    case P_CUT { // a crescent cut from paper, opening towards +x
+      let ang = atan2(q.y, q.x);
+      let t = clamp(1.0 - abs(ang) / 1.7, 0.0, 1.0);
+      s.d = (abs(length(q) - 0.8) - 0.11 * sqrt(t)) * m;
+      if (t <= 0.0) { s.d = 1e3; }
+    }
+    case P_STRIP { // a torn strip of paper along its height, ragged along both long sides and both ends
+      let side = 0.62 + 0.12 * (vnoise(vec2f(q.y * 6.0, seed * 30.0 + sign(q.x) * 7.0)) - 0.5);
+      let end = 0.9 + 0.1 * (vnoise(vec2f(q.x * 5.0, seed * 30.0 + sign(q.y) * 3.0)) - 0.5);
+      s.d = max((abs(q.x) - side) * h.x, (abs(q.y) - end) * h.y);
+    }
+    case P_SLIP { // a plain slip of paper with slightly torn ends
+      let end = 0.9 + 0.08 * (vnoise(vec2f(q.x * 6.0, seed * 20.0 + sign(q.y) * 5.0)) - 0.5);
+      s.d = max((abs(q.x) - 0.85) * h.x, (abs(q.y) - end) * h.y);
+    }
+    case P_BOLT { // a lightning bolt cut from a paper strip: a zigzag along x, in world units
+      let a = h.y * 0.55;
+      let w = h.x;
+      var d = sdSeg(p, vec2f(-w, 0.0), vec2f(-w * 0.5, -a));
+      d = min(d, sdSeg(p, vec2f(-w * 0.5, -a), vec2f(0.0, a)));
+      d = min(d, sdSeg(p, vec2f(0.0, a), vec2f(w * 0.5, -a)));
+      d = min(d, sdSeg(p, vec2f(w * 0.5, -a), vec2f(w, 0.0)));
+      s.d = d - h.y * 0.3;
+    }
+    case P_CRACK { // ink cracks torn in the ground: jagged lines running out from a small hole
+      var d = length(q) - 0.12;
+      for (var k = 0; k < 6; k++) {
+        let a = (f32(k) + 0.6 * fract(seed * f32(k * 7 + 3))) * 1.0471976 + seed * 6.0;
+        let len = 0.55 + 0.4 * fract(seed * f32(k * 11 + 5));
+        let kink = a + 0.5 * (fract(seed * f32(k * 13 + 1)) - 0.5);
+        let mid = vec2f(cos(kink), sin(kink)) * len * 0.5;
+        let tip = vec2f(cos(a), sin(a)) * len;
+        let width = 0.05 * (1.0 - 0.6 * clamp(length(q) / len, 0.0, 1.0));
+        d = min(d, min(sdSeg(q, vec2f(0.0), mid), sdSeg(q, mid, tip)) - width);
+      }
+      s.d = d * m;
+    }
+    case P_SCORCH { // scorched paper: a burnt patch in the instance's colour with a charred, ragged rim
+      let ang = atan2(q.y, q.x);
+      let r = 0.78 + 0.18 * vnoise(vec2f(ang * 1.8 + 5.0, seed * 50.0));
+      let e = length(q) - r;
+      s.d = e * m;
+      s.ink = 0.85 * smoothstep(-0.22, -0.04, e);
+    }
+    case P_FLAME { // a paper flame: a teardrop pointing up, with a pale core
+      let t = clamp((0.4 - q.y) / 1.35, 0.0, 1.0);
+      s.d = (sdSeg(q, vec2f(0.0, 0.4), vec2f(0.0, -0.95)) - mix(0.55, 0.03, t)) * m;
+      s.light = 0.75 * dab(length((q - vec2f(0.0, 0.42)) / vec2f(0.7, 1.0)) - 0.24);
+    }
+    case P_PEBBLE { // a paper pebble
+      let ang = atan2(q.y, q.x);
+      let r = 0.86 + 0.1 * vnoise(vec2f(ang * 1.5, seed * 40.0));
+      s.d = (length(q) - r) * m;
+    }
+    case P_TUFT { // grass cut from paper: three blades from a common base
+      let a = sdSeg(q, vec2f(-0.3, 0.95), vec2f(-0.72, -0.25)) - mix(0.24, 0.05, clamp((0.95 - q.y) / 1.2, 0.0, 1.0));
+      let b = sdSeg(q, vec2f(0.0, 0.95), vec2f(0.05, -0.85)) - mix(0.27, 0.05, clamp((0.95 - q.y) / 1.8, 0.0, 1.0));
+      let c = sdSeg(q, vec2f(0.3, 0.95), vec2f(0.78, -0.4)) - mix(0.24, 0.05, clamp((0.95 - q.y) / 1.35, 0.0, 1.0));
+      s.d = min(a, min(b, c)) * m;
+    }
+    case P_SHARD { // an ice shard: a tall point
+      let ax = abs(q.x);
+      let n = normalize(vec2f(1.92, -0.7));   // outward normal of the side from the tip (0, -1) to (0.7, 0.92)
+      s.d = max(q.y - 0.92, dot(vec2f(ax, q.y + 1.0), n)) * m;
+      s.light = 0.55 * dab(sdSeg(q, vec2f(-0.12, 0.6), vec2f(-0.04, -0.55)) - 0.07);
     }
     case P_GROUND_SHADOW { // soft ground shadow
       s.d = (length(q) - 0.6) * m;
@@ -476,7 +554,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
     }
     if (!flat_part) {
       margin = smoothstep(aa, -aa, s.d - G.margin);
-      let outline = smoothstep(-3.2, -1.2, s.d) * 0.7;
+      let outline = smoothstep(-3.2, -1.2, s.d) * select(0.7, 0.15, isTinted(part));
       col = col * (0.9 + 0.2 * grain);
       col = mix(col, INK, outline);   // ink outline
       col = mix(col, PAPER, s.light);
@@ -484,6 +562,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
       ink = max(outline, s.ink) * fill;
     } else {
       col = col * (0.92 + 0.16 * grain);
+      col = mix(col, INK, s.ink);   // a flat part's own ink, such as a scorch's charred rim
     }
   }
 
@@ -494,7 +573,8 @@ fn fs(i: VOut) -> @location(0) vec4f {
     return vec4f(col, a);
   }
 
-  let paper = PAPER * (0.95 + 0.07 * grain);
+  // White paper, or for a tinted part (a chip of the ground) paper of its own colour, front margin and back alike.
+  let paper = select(PAPER, i.color.rgb, isTinted(part)) * (0.95 + 0.07 * grain);
   var rgb = mix(paper, mix(col, vec3f(1.0), flash * 0.85), fill);
   if (i.side.x < 0.0) {
     // The back: plain paper, with the front's ink showing through. The sheet is seen from behind, so it shows

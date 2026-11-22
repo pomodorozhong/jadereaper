@@ -12,7 +12,7 @@
 
 use crate::boss::BossState;
 use crate::defs::*;
-use crate::game::{Enemy, Fx, Game, Hazard, Phase};
+use crate::game::{Enemy, Game, Hazard, Phase};
 use crate::geom::{dir_to, Area, Shape};
 use crate::moves::*;
 
@@ -201,11 +201,7 @@ impl Game {
                 en.x = e.ox;
                 en.y = e.oy;
                 self.shake = self.shake.max(0.8);
-                self.add_fx(Fx {
-                    grow: 300.0,
-                    top: false,
-                    ..Fx::at(e.ox, e.oy, P_RING, 0.3, 30.0, 30.0, [0.86, 0.36, 0.16, 0.8])
-                });
+                self.ground_burst(e.ox, e.oy, KINDS[e.kind as usize].r * 1.6, 1.3);
             }
             Special::Pools => {
                 for &(x, y) in b.spots.iter().take(b.nspots as usize) {

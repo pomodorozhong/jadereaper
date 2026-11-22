@@ -17,6 +17,7 @@
     { "name": "heart", "id": 14 },
     { "name": "ring", "id": 15, "flat": true },
     { "name": "scrap", "id": 16, "flat": true },
+    { "name": "chip", "id": 17, "tinted": true },
     { "name": "ground_shadow", "id": 18, "flat": true },
     { "name": "elite", "id": 19 },
     { "name": "warn_circle", "id": 20, "flat": true },
@@ -28,7 +29,18 @@
     { "name": "glutton_tail", "id": 26 },
     { "name": "dragon_body", "id": 27 },
     { "name": "dragon_head", "id": 28 },
-    { "name": "dragon_wing", "id": 29 }
+    { "name": "dragon_wing", "id": 29 },
+    { "name": "cut", "id": 30 },
+    { "name": "strip", "id": 31 },
+    { "name": "shred", "id": 32 },
+    { "name": "slip", "id": 33, "tinted": true },
+    { "name": "bolt", "id": 34 },
+    { "name": "crack", "id": 35, "flat": true },
+    { "name": "scorch", "id": 36, "flat": true },
+    { "name": "flame", "id": 37 },
+    { "name": "pebble", "id": 38, "tinted": true },
+    { "name": "tuft", "id": 39, "tinted": true },
+    { "name": "shard", "id": 40 }
   ],
 
   "events": ["hit", "kill", "pickup", "levelup", "hurt", "slash", "shoot", "pulse", "death", "heal", "elite", "strike", "clear", "win", "enrage", "boss_down", "grab", "stance", "finisher", "reaction"],

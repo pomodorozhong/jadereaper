@@ -7,7 +7,6 @@ use crate::geom::{dir_to, dist, Area, Shape};
 use crate::moves::*;
 use crate::player::PLAYER_R;
 use crate::skills::AreaKind;
-use core::f32::consts::TAU;
 
 /// How long an enemy is interrupted when its stagger passes its poise.
 pub const STUN_TIME: f32 = 0.45;
@@ -436,6 +435,7 @@ impl Game {
             h.y += h.vy * dt;
             h.r = (h.r + h.grow * dt).min(h.to.max(h.r));
             h.life -= dt;
+            let ring = (h.band > 0.0).then_some((h.x, h.y, h.r));
             h.warned += dt;
             let d = dist(h.x, h.y, px, py);
             let hit = if h.band > 0.0 {
@@ -445,6 +445,10 @@ impl Game {
             };
             h.cool = (h.cool - dt).max(0.0);
             let h = *h;
+            // A shock ring runs through the ground's paper, lifting chips along its edge.
+            if let Some((x, y, r)) = ring {
+                self.ring_chips(x, y, r, dt);
+            }
             let mut gone = h.life <= 0.0;
             if h.rehit > 0.0 {
                 // A lingering pool: hurts whoever stands in it, again every `rehit` seconds.
@@ -608,30 +612,22 @@ impl Game {
             }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
-            let n = if e.kind >= K_BRUTE { 9 } else { 4 };
-            for _ in 0..n {
-                let a = self.rng.range(0.0, TAU);
-                let s = self.rng.range(20.0, 150.0);
-                let size = self.rng.range(0.25, 0.6) * k.r;
-                let seed = self.rng.f();
-                self.add_fx(Fx {
-                    vx: a.cos() * s,
-                    vy: a.sin() * s * 0.6,
-                    rot: a,
-                    grow: 8.0,
-                    seed,
-                    top: false,
-                    ..Fx::at(
-                        e.x,
-                        e.y - k.r * 0.5,
-                        P_SPLAT,
-                        0.55,
-                        size,
-                        size * 0.8,
-                        [INK[0], INK[1], INK[2], 0.7],
-                    )
-                });
-            }
+            // An ink stain left where it stood.
+            let seed = self.fx_rng.f();
+            self.add_fx(Fx {
+                grow: 8.0,
+                seed,
+                top: false,
+                ..Fx::at(
+                    e.x,
+                    e.y,
+                    P_SPLAT,
+                    0.8,
+                    k.r * 0.7,
+                    k.r * 0.45,
+                    [INK[0], INK[1], INK[2], 0.45],
+                )
+            });
         }
     }
 }

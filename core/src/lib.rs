@@ -24,6 +24,7 @@ pub mod gallery;
 pub mod game;
 pub mod geom;
 pub mod moves;
+pub mod paper;
 pub mod player;
 pub mod reactions;
 pub mod rigs;

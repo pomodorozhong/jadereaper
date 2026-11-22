@@ -23,6 +23,7 @@ The code keeps the types and behaviour: `SkillDef` and `SkillKind` in `skills.rs
 | `cards.rs` | The card pool, offers, picks, and the per-button and character modifiers |
 | `rooms.rs` | Rooms, waves, clearing, winning, the arena walls |
 | `rigs.rs`, `draw.rs` | Puppet posing (`pose` turns a rig and an animation record into a flat pose and a 3D sheet) and the instance list for the renderer, including the player's own skill wash and recovery ring |
+| `paper.rs` | Paper effects: pieces of paper that fly facing the camera, bounce once and slide to a stop, only panning, never turning or spinning (`fly`), thrown in bursts (`paper_burst`) for skills, kills, hits, reactions and boss moves; ground chips, dust, a torn patch and cracks for heavy landings (`ground_burst`); chips lifted by passing shock rings; paper lightning bolts. Looks only: it draws from its own `fx_rng`, never the run's `rng`, so it does not change the replay hash |
 | `anim.rs` | Each character's animation state for the host: phase, progress, cancel point, direction, last hit |
 | `bot.rs` | The scripted player used by the tests |
 

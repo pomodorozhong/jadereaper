@@ -510,7 +510,6 @@ impl Game {
         let area = self.skill_area(slot, step, dir);
         let element = self.mods[slot].element;
         let c = crate::elements::element_color(element);
-        let jade = [c[0], c[1], c[2], 0.9];
         match d.kind {
             SkillKind::Melee if d.area != AreaKind::Arc => {
                 // Lunges and charges leave a streak of ink along their path.
@@ -527,44 +526,41 @@ impl Game {
                         0.3,
                         len * 0.5,
                         14.0,
-                        jade,
+                        [c[0], c[1], c[2], 0.9],
                     )
                 });
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Melee => {
+                // A crescent cut from paper, tipped back towards the ground, sweeping round as it grows.
+                let seed = self.fx_rng.f();
                 self.add_fx(Fx {
+                    paper: true,
+                    fall: 0.0,
+                    z: 24.0,
+                    lean: 0.9,
                     rot: dir.1.atan2(dir.0),
                     vr: 5.0 * self.player.face,
                     grow: 60.0,
-                    seed: 0.3,
+                    fade: 0.1,
+                    seed,
                     ..Fx::at(
                         px,
-                        py - 24.0,
-                        P_SLASH,
+                        py,
+                        P_CUT,
                         0.22,
                         area.reach(),
                         area.reach(),
-                        jade,
+                        [c[0], c[1], c[2], 1.0],
                     )
                 });
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Leap => {
-                self.add_fx(Fx {
-                    grow: (area.reach() - 30.0) / 0.25,
-                    seed: 0.4,
-                    top: false,
-                    ..Fx::at(
-                        px,
-                        py,
-                        P_RING,
-                        0.25,
-                        30.0,
-                        30.0,
-                        [INK[0], INK[1], INK[2], 0.6],
-                    )
-                });
+                // White paper shreds burst up from the landing, and the ground is torn and cracked.
+                let (n, size, z) = crate::paper::LEAP_SHREDS;
+                self.shred_burst(px, py, z, crate::paper::PUPPET, n, size);
+                self.ground_marks(px, py, area.reach(), 1.0);
                 self.shake = self.shake.max(0.6);
                 self.event(EV_PULSE, px, py, 0.0);
             }
@@ -578,12 +574,22 @@ impl Game {
                 self.event(EV_SHOOT, px, py, 0.0);
             }
             SkillKind::Nova => {
-                let life = 0.3;
-                self.add_fx(Fx {
-                    grow: (area.reach() - 20.0) / life,
-                    seed: 0.7,
-                    ..Fx::at(px, py - 10.0, P_RING, life, 20.0, 20.0, jade)
-                });
+                // A ring of paper talismans blown outward.
+                let reach = area.reach();
+                self.paper_burst(
+                    px,
+                    py,
+                    crate::paper::Burst {
+                        size: (5.0, 7.0),
+                        out: (reach * 2.4, reach * 2.9),
+                        up: (60.0, 120.0),
+                        life: (0.4, 0.5),
+                        from: 16.0,
+                        z: 10.0,
+                        fall: 0.4,
+                        ..crate::paper::Burst::of(P_TALISMAN, [c[0], c[1], c[2], 1.0], 14)
+                    },
+                );
                 self.event(EV_PULSE, px, py, 0.0);
             }
             SkillKind::Shot => {
@@ -710,27 +716,8 @@ impl Game {
         }
         self.shake = 1.0;
         self.event(EV_HURT, px, py, dmg);
-        for _ in 0..6 {
-            let a = self.rng.range(0.0, core::f32::consts::TAU);
-            let s = self.rng.range(80.0, 220.0);
-            let seed = self.rng.f();
-            self.add_fx(Fx {
-                vx: a.cos() * s,
-                vy: a.sin() * s - 60.0,
-                rot: a,
-                vr: 9.0,
-                seed,
-                ..Fx::at(
-                    px,
-                    py - 30.0,
-                    P_SCRAP,
-                    0.5,
-                    4.0,
-                    4.0,
-                    [0.20, 0.42, 0.36, 1.0],
-                )
-            });
-        }
+        // Torn bits of the robe's paper.
+        self.shred_burst(px, py, 30.0, crate::paper::PUPPET, 6, 7.0);
         if self.player.hp <= 0.0 {
             self.player.hp = 0.0;
             self.over = true;

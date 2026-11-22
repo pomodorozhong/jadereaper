@@ -15,7 +15,7 @@ use crate::rooms::Stage;
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
 pub const MAX_ENEMIES: usize = 10;
-pub(crate) const MAX_FX: usize = 500;
+pub(crate) const MAX_FX: usize = 900;
 pub(crate) const MAX_SHOTS: usize = 200;
 pub(crate) const CELL: f32 = 96.0;
 pub(crate) const BUCKETS: usize = 4096;
@@ -148,6 +148,19 @@ pub struct Fx {
     pub seed: f32,
     /// Drawn above characters instead of on the ground.
     pub top: bool,
+    /// A piece of paper with a height (`crate::paper`): it falls under gravity, bounces once and slides to a stop,
+    /// panning without turning. Without it the effect is a flat mark that glides and fades.
+    pub paper: bool,
+    /// Paper: gravity's share (1 falls, 0 floats, below 0 rises).
+    pub fall: f32,
+    /// Paper: it stays solid and fades out over its last this many seconds.
+    pub fade: f32,
+    /// Height off the ground, and its speed, in world units.
+    pub z: f32,
+    pub vz: f32,
+    /// The paper's fixed 3D orientation (see `Sheet`); it never changes.
+    pub turn: f32,
+    pub lean: f32,
 }
 
 impl Fx {
@@ -169,12 +182,21 @@ impl Fx {
             color,
             seed: 0.5,
             top: true,
+            paper: false,
+            fall: 1.0,
+            fade: 0.35,
+            z: 0.0,
+            vz: 0.0,
+            turn: 0.0,
+            lean: 0.0,
         }
     }
 }
 
 pub struct Game {
     pub rng: Rng,
+    /// Random numbers for looks only (flying paper), kept apart from `rng` so effects never change the run.
+    pub(crate) fx_rng: Rng,
     pub running: bool,
     pub choosing: bool,
     pub over: bool,
@@ -285,6 +307,7 @@ impl Game {
     pub fn new(seed: u32) -> Game {
         Game {
             rng: Rng(seed | 1),
+            fx_rng: Rng((seed ^ 0x9e37_79b9) | 1),
             running: false,
             choosing: false,
             over: false,
@@ -505,13 +528,18 @@ impl Game {
         }
     }
 
-    fn move_fx(&mut self, dt: f32) {
+    pub(crate) fn move_fx(&mut self, dt: f32) {
         let mut i = 0;
         while i < self.fx.len() {
             let f = &mut self.fx[i];
             f.life -= dt;
             if f.life <= 0.0 {
                 self.fx.swap_remove(i);
+                continue;
+            }
+            if f.paper {
+                crate::paper::fly(f, dt);
+                i += 1;
                 continue;
             }
             f.x += f.vx * dt;

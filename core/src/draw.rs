@@ -15,6 +15,8 @@ use core::f32::consts::TAU;
 const FLIP_TIME: f32 = 0.12;
 const WARN: [f32; 4] = [0.17, 0.15, 0.13, 0.55];
 const WARN_BOSS: [f32; 4] = [0.62, 0.16, 0.12, 0.6];
+/// The paper stones along the arena's edge.
+const WALL_STONE: [f32; 4] = [0.66, 0.62, 0.55, 1.0];
 
 impl Game {
     // ---------------------------------------------------------------- draw
@@ -243,14 +245,14 @@ impl Game {
         for i in 0..self.patches.len() {
             let p = self.patches[i];
             let c = element_color(p.element);
-            let a = (p.t / TRAIL_TIME).min(1.0) * 0.6;
+            let a = (p.t / TRAIL_TIME).min(1.0) * 0.8;
             self.put(
                 p.x,
                 p.y,
                 24.0,
                 14.0,
                 0.0,
-                P_SPLAT,
+                P_SCORCH,
                 0.0,
                 (i as f32 * 0.37).fract(),
                 [c[0], c[1], c[2], a],
@@ -295,10 +297,10 @@ impl Game {
                     h.r,
                     h.r * 0.8,
                     0.0,
-                    P_SPLAT,
+                    P_SCORCH,
                     0.0,
                     (h.x * 0.01).fract(),
-                    [c[0], c[1], c[2], flick * (h.life / 4.0).min(1.0) + 0.2],
+                    [c[0], c[1], c[2], flick * (h.life / 4.0).min(1.0) + 0.3],
                 );
                 continue;
             }
@@ -547,9 +549,24 @@ impl Game {
         let f = &self.fx[i];
         let t = (f.life / f.max).clamp(0.0, 1.0);
         let mut c = f.color;
-        c[3] *= t.sqrt();
+        // Flying paper stays solid and fades only at the end; flat marks fade all along.
+        c[3] *= if f.paper {
+            (f.life / f.fade.max(1e-3)).min(1.0)
+        } else {
+            t.sqrt()
+        };
         let (x, y, hw, hh, rot, part, seed) = (f.x, f.y, f.hw, f.hh, f.rot, f.part, f.seed);
-        self.put(x, y, hw, hh, rot, part, 0.0, seed, c);
+        if f.paper {
+            let sheet = Sheet {
+                turn: f.turn,
+                lean: f.lean,
+                lift: f.z,
+                bend: 0.0,
+            };
+            self.put_sheet(x, y, hw, hh, rot, part, 0.0, seed, c, sheet, (0.0, 0.0));
+        } else {
+            self.put(x, y, hw, hh, rot, part, 0.0, seed, c);
+        }
     }
 
     /// Sparse ink strokes and stones so movement reads against the paper.
@@ -571,29 +588,39 @@ impl Game {
                 let y = (cy as f32 + fy) * G;
                 let seed = (h & 255) as f32 / 255.0;
                 if (h >> 24).is_multiple_of(4) {
-                    self.put(
+                    // A paper pebble lying on the ground.
+                    let sheet = Sheet {
+                        lean: 1.25,
+                        ..Sheet::FLAT
+                    };
+                    let r = 13.0 + seed * 9.0;
+                    self.put_sheet(
                         x,
                         y,
-                        16.0 + seed * 12.0,
-                        8.0 + seed * 5.0,
-                        0.0,
-                        P_STONE,
+                        r,
+                        r * 0.8,
+                        seed * 3.0,
+                        P_PEBBLE,
                         0.0,
                         seed,
-                        [INK[0], INK[1], INK[2], 0.16],
+                        [0.8, 0.76, 0.68, 1.0],
+                        sheet,
+                        (0.0, 0.0),
                     );
                 } else {
+                    // A tuft of grass cut from paper, standing on the ground.
                     let flip = if h & 1 == 0 { 1.0 } else { -1.0 };
+                    let hh = 9.0 + seed * 7.0;
                     self.put(
                         x,
-                        y,
-                        (10.0 + seed * 6.0) * flip,
-                        10.0 + seed * 8.0,
+                        y - hh,
+                        (9.0 + seed * 5.0) * flip,
+                        hh,
                         0.0,
-                        P_GRASS,
+                        P_TUFT,
                         0.0,
                         seed,
-                        [0.22, 0.36, 0.30, 0.45],
+                        [0.5, 0.6, 0.5, 1.0],
                     );
                 }
             }
@@ -636,14 +663,14 @@ impl Game {
                 let seed = (hash2(k, o) & 255) as f32 / 255.0;
                 self.put(
                     x,
-                    y,
+                    y - 9.0 - seed * 4.0,
                     16.0 + seed * 8.0,
                     9.0 + seed * 4.0,
-                    0.0,
-                    P_STONE,
+                    seed - 0.5,
+                    P_PEBBLE,
                     0.0,
                     seed,
-                    [INK[0], INK[1], INK[2], 0.3],
+                    WALL_STONE,
                 );
             }
         }
@@ -653,14 +680,14 @@ impl Game {
                 let seed = (hash2(k, o) & 255) as f32 / 255.0;
                 self.put(
                     x,
-                    y,
+                    y - 12.0 - seed * 6.0,
                     12.0 + seed * 6.0,
                     12.0 + seed * 6.0,
-                    0.0,
-                    P_STONE,
+                    seed - 0.5,
+                    P_PEBBLE,
                     0.0,
                     seed,
-                    [INK[0], INK[1], INK[2], 0.3],
+                    WALL_STONE,
                 );
             }
         }
@@ -757,16 +784,17 @@ impl Game {
             for k in 0..4 {
                 let a = (k as f32 * 1.3 + e.seed * 5.0).sin();
                 let (vx, vy) = (x + a * h * 0.35, y - h * (0.3 + 0.12 * k as f32));
+                // Red paper strips pasted across the body.
                 self.put(
                     vx,
                     vy,
+                    4.0,
                     h * 0.18,
-                    3.0,
-                    a * 0.8 + 0.4,
-                    P_SLASH,
+                    a * 0.8 + 0.4 + core::f32::consts::FRAC_PI_2,
+                    P_STRIP,
                     0.0,
                     0.1 * k as f32,
-                    [0.74, 0.12, 0.10, 0.85],
+                    [0.74, 0.12, 0.10, 1.0],
                 );
             }
         }
@@ -778,34 +806,43 @@ impl Game {
         let st = e.status;
         let (x, y) = (e.x, e.y - top - 8.0);
         if st.frozen > 0.0 {
+            // Ice shards of paper standing round its feet.
             let c = element_color(E_ICE + 1);
-            self.put(
-                e.x,
-                e.y - top * 0.5,
-                top * 0.6,
-                top * 0.6,
-                0.0,
-                P_STONE,
-                0.0,
-                e.seed,
-                [c[0], c[1], c[2], 0.55],
-            );
+            let h = (top * 0.28).clamp(10.0, 40.0);
+            for (k, (dx, tilt)) in [(-0.42, -0.35), (0.0, 0.05), (0.4, 0.3)]
+                .into_iter()
+                .enumerate()
+            {
+                let hk = h * if k == 1 { 1.2 } else { 0.9 };
+                self.put(
+                    e.x + dx * top * 0.6,
+                    e.y + 2.0 - hk,
+                    hk * 0.45,
+                    hk,
+                    tilt,
+                    P_SHARD,
+                    0.0,
+                    e.seed + k as f32 * 0.3,
+                    [c[0], c[1], c[2], 1.0],
+                );
+            }
         }
         if st.burn > 0.0 {
             let c = element_color(E_FIRE + 1);
             let q = (self.anim * 8.0 + e.seed * 9.0).floor();
             for k in 0..2 {
                 let j = ((q + k as f32 * 3.1) * 1.7).sin();
+                // Paper flames that flicker by shifting and stretching.
                 self.put(
                     e.x + (k as f32 - 0.5) * 14.0 + j * 3.0,
                     e.y - top * 0.4,
-                    6.0,
-                    9.0 + j * 2.0,
-                    j * 0.3,
-                    P_SPLAT,
+                    7.0,
+                    11.0 + j * 2.0,
+                    0.0,
+                    P_FLAME,
                     0.0,
                     0.3 + k as f32 * 0.2,
-                    [c[0], c[1], c[2], 0.85],
+                    [c[0], c[1], c[2], 1.0],
                 );
             }
         }

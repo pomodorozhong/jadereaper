@@ -27,6 +27,7 @@ pub const P_STONE: f32 = 13.0;
 pub const P_HEART: f32 = 14.0;
 pub const P_RING: f32 = 15.0;
 pub const P_SCRAP: f32 = 16.0;
+pub const P_CHIP: f32 = 17.0;
 pub const P_GROUND_SHADOW: f32 = 18.0;
 pub const P_ELITE: f32 = 19.0;
 pub const P_WARN_CIRCLE: f32 = 20.0;
@@ -39,8 +40,19 @@ pub const P_GLUTTON_TAIL: f32 = 26.0;
 pub const P_DRAGON_BODY: f32 = 27.0;
 pub const P_DRAGON_HEAD: f32 = 28.0;
 pub const P_DRAGON_WING: f32 = 29.0;
+pub const P_CUT: f32 = 30.0;
+pub const P_STRIP: f32 = 31.0;
+pub const P_SHRED: f32 = 32.0;
+pub const P_SLIP: f32 = 33.0;
+pub const P_BOLT: f32 = 34.0;
+pub const P_CRACK: f32 = 35.0;
+pub const P_SCORCH: f32 = 36.0;
+pub const P_FLAME: f32 = 37.0;
+pub const P_PEBBLE: f32 = 38.0;
+pub const P_TUFT: f32 = 39.0;
+pub const P_SHARD: f32 = 40.0;
 /// Every defined part id.
-pub const PARTS: [f32; 29] = [P_ELLIPSE, P_PLAYER_BODY, P_PLAYER_HEAD, P_SCYTHE, P_BLOT, P_WISP, P_BRUTE, P_GEM, P_SLASH, P_TALISMAN, P_BEAD, P_SPLAT, P_GRASS, P_STONE, P_HEART, P_RING, P_SCRAP, P_GROUND_SHADOW, P_ELITE, P_WARN_CIRCLE, P_WARN_ARC, P_WARN_LINE, P_WARN_RING, P_GLUTTON_BODY, P_GLUTTON_HEAD, P_GLUTTON_TAIL, P_DRAGON_BODY, P_DRAGON_HEAD, P_DRAGON_WING];
+pub const PARTS: [f32; 41] = [P_ELLIPSE, P_PLAYER_BODY, P_PLAYER_HEAD, P_SCYTHE, P_BLOT, P_WISP, P_BRUTE, P_GEM, P_SLASH, P_TALISMAN, P_BEAD, P_SPLAT, P_GRASS, P_STONE, P_HEART, P_RING, P_SCRAP, P_CHIP, P_GROUND_SHADOW, P_ELITE, P_WARN_CIRCLE, P_WARN_ARC, P_WARN_LINE, P_WARN_RING, P_GLUTTON_BODY, P_GLUTTON_HEAD, P_GLUTTON_TAIL, P_DRAGON_BODY, P_DRAGON_HEAD, P_DRAGON_WING, P_CUT, P_STRIP, P_SHRED, P_SLIP, P_BOLT, P_CRACK, P_SCORCH, P_FLAME, P_PEBBLE, P_TUFT, P_SHARD];
 
 /// A rig's 3D pose numbers by name, in the order `jr_set_pose` numbers them.
 pub const SHEET_KEYS: [&str; 20] = ["aim", "charge", "tremble", "strike", "sag", "sag_bend", "pop", "hit", "hit_bend", "hit_max", "down", "grab", "shake", "roll", "wobble", "wobble_rate", "bob", "sway", "flex", "walk_curl"];

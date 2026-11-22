@@ -19,6 +19,7 @@ export const PART_IDS = {
   "heart": 14,
   "ring": 15,
   "scrap": 16,
+  "chip": 17,
   "ground_shadow": 18,
   "elite": 19,
   "warn_circle": 20,
@@ -30,7 +31,18 @@ export const PART_IDS = {
   "glutton_tail": 26,
   "dragon_body": 27,
   "dragon_head": 28,
-  "dragon_wing": 29
+  "dragon_wing": 29,
+  "cut": 30,
+  "strip": 31,
+  "shred": 32,
+  "slip": 33,
+  "bolt": 34,
+  "crack": 35,
+  "scorch": 36,
+  "flame": 37,
+  "pebble": 38,
+  "tuft": 39,
+  "shard": 40
 };
 
 export const EVENT = {
