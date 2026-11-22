@@ -183,7 +183,7 @@ Poses are built from the animation record the core exports (`core/src/anim.rs`):
 | Grabbed | Pinned flat and shaking |
 | Roll | Spins once about its vertical axis while tucking low, instead of turning in the screen plane |
 | Stunned | A broken poise or a shatter spins it one whole turn, locked the same way |
-| Dying | Spins for a second with the same motion, then is gone: one turn, plus one per further fifth of max HP of overkill, so harder kills spin faster |
+| Dying | Spins for a second with the same motion, then is gone. It carries on at the speed it was already spinning, plus a turn's worth of speed per fifth of max HP of overkill, so the spin never jumps at death and harder kills spin faster |
 
 Turning to face left or right becomes a quick turn through edge-on instead of an instant mirror. It is drawing only and never delays an action.
 

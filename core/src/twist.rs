@@ -5,7 +5,7 @@
 //! fixed hurt, stun and knockdown times. It is part of the simulation, stepped at the fixed rate, so a run still
 //! replays the same.
 
-use core::f32::consts::TAU;
+use core::f32::consts::{PI, TAU};
 
 /// The most whole turns a hit sends it round.
 pub const MAX_TURNS: f32 = 3.0;
@@ -183,7 +183,8 @@ impl Twist {
 pub const DEATH_TIME: f32 = 1.0;
 
 /// A death spin: the same motion as a hit's spin (fast at first, slowing evenly, ending facing front), but always
-/// `DEATH_TIME` long, so the overkill sets how fast it spins rather than for how long. Looks only.
+/// `DEATH_TIME` long. It starts at the speed the character was already spinning, plus speed for the overkill, so
+/// the spin carries straight on at death and harder kills spin faster. Looks only.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DeathSpin {
     /// The drawn angle when it died, and the signed angle it turns through to end facing front.
@@ -192,17 +193,43 @@ pub struct DeathSpin {
 }
 
 impl DeathSpin {
-    /// For a character drawn at `from` when it died, `overkill` damage past its last HP of `max_hp`, pushed in
-    /// `sign`'s direction: one turn, and one more for each further `spin_share` of max HP, the hit's rule.
-    pub fn new(from: f32, overkill: f32, max_hp: f32, sign: f32, tune: &Tune) -> DeathSpin {
+    /// For a character drawn at `from` and spinning at `speed` (radians per second) when it died, with
+    /// `overkill` damage past its last HP of `max_hp`, pushed in `sign`'s direction. Each `spin_share` of max HP
+    /// of overkill adds a whole turn's worth of speed, the way it adds a turn to a hit's spin; it turns at least
+    /// once, and the turn is rounded so it ends facing front.
+    pub fn new(
+        from: f32,
+        speed: f32,
+        overkill: f32,
+        max_hp: f32,
+        sign: f32,
+        tune: &Tune,
+    ) -> DeathSpin {
         let sign = if sign < 0.0 { -1.0 } else { 1.0 };
         let at = tune.spin_share.max(1e-3);
-        let turns = 1.0 + (share(overkill.max(0.0), max_hp) / at).floor().min(8.0);
-        let end = ((from + sign * turns * TAU) / TAU).round() * TAU;
-        DeathSpin {
-            from,
-            turn: end - from,
+        // Slowing evenly to a stop over DEATH_TIME from speed v covers v · DEATH_TIME / 2.
+        let per_turn = 2.0 * TAU / DEATH_TIME;
+        let extra = (share(overkill.max(0.0), max_hp) / at).min(8.0) * per_turn;
+        let start = if speed.is_finite() { speed } else { 0.0 } + sign * extra;
+        let dir = if start.abs() > 1e-3 {
+            start.signum()
+        } else {
+            sign
+        };
+        let mut angle = start * DEATH_TIME / 2.0;
+        if angle.abs() < TAU {
+            angle = dir * TAU;
         }
+        let mut turn = ((from + angle) / TAU).round() * TAU - from;
+        if turn * dir < PI {
+            turn += dir * TAU;
+        }
+        DeathSpin { from, turn }
+    }
+
+    /// Its speed `t` seconds after it died, in radians per second.
+    pub fn speed(&self, t: f32) -> f32 {
+        2.0 * self.turn / DEATH_TIME * (1.0 - (t / DEATH_TIME).clamp(0.0, 1.0))
     }
 
     /// The angle to draw `t` seconds after it died.
@@ -392,22 +419,44 @@ mod tests {
 
     #[test]
     fn a_death_spin_takes_a_second_and_spins_faster_for_more_overkill() {
-        let slow = DeathSpin::new(0.0, 0.0, 30.0, 1.0, &T);
-        let fast = DeathSpin::new(0.0, 30.0, 30.0, 1.0, &T);
-        // One turn for a bare kill; a whole max HP of overkill adds five more at the default spin share.
+        let slow = DeathSpin::new(0.0, 0.0, 0.0, 30.0, 1.0, &T);
+        let fast = DeathSpin::new(0.0, 0.0, 30.0, 30.0, 1.0, &T);
+        // At least one turn; a whole max HP of overkill is five turns' worth of speed at the default spin share.
         assert!((slow.turn - TAU).abs() < 1e-4);
-        assert!((fast.turn - 6.0 * TAU).abs() < 1e-4);
+        assert!((fast.turn - 5.0 * TAU).abs() < 1e-3);
         // Both start where they were, end facing front a second later, and slow down evenly.
         for d in [slow, fast] {
             assert_eq!(d.at(0.0), 0.0);
             assert!((d.at(DEATH_TIME) / TAU).fract().abs() < 1e-4);
             assert!(d.at(0.25) - d.at(0.0) > d.at(1.0) - d.at(0.75));
+            assert_eq!(d.speed(DEATH_TIME), 0.0);
         }
         assert!(fast.at(0.1) > slow.at(0.1));
         // Mid-swing from a hit, it carries on from that angle and still ends facing front.
-        let mid = DeathSpin::new(0.7, 5.0, 30.0, -1.0, &T);
+        let mid = DeathSpin::new(0.7, 0.0, 5.0, 30.0, -1.0, &T);
         assert_eq!(mid.at(0.0), 0.7);
         assert!(mid.turn < 0.0 && ((mid.from + mid.turn) / TAU).fract().abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_death_spin_carries_on_at_the_speed_it_was_spinning() {
+        // Spinning at 30 rad/s with no overkill: it starts within a rounding of that speed, not from scratch.
+        let d = DeathSpin::new(0.0, 30.0, 0.0, 30.0, 1.0, &T);
+        assert!(
+            (d.speed(0.0) - 30.0).abs() <= 2.0 * PI + 1e-3,
+            "{}",
+            d.speed(0.0)
+        );
+        // Spinning the other way, it keeps that way.
+        let back = DeathSpin::new(0.0, -30.0, 0.0, 30.0, 1.0, &T);
+        assert!(back.turn < 0.0);
+        // A faster spin dies faster, and overkill adds to the speed it had.
+        let faster = DeathSpin::new(0.0, 50.0, 0.0, 30.0, 1.0, &T);
+        let more = DeathSpin::new(0.0, 30.0, 15.0, 30.0, 1.0, &T);
+        assert!(faster.speed(0.0) > d.speed(0.0) && more.speed(0.0) > d.speed(0.0));
+        // A swing back against the push and a little overkill still turns at least once.
+        let small = DeathSpin::new(0.3, -3.0, 2.0, 30.0, 1.0, &T);
+        assert!(small.turn.abs() >= PI && ((small.from + small.turn) / TAU).fract().abs() < 1e-4);
     }
 
     #[test]

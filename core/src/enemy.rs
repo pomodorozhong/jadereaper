@@ -621,8 +621,8 @@ impl Game {
             }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
-            // It spins for a second before it is gone, faster for more overkill: the damage past its last HP,
-            // which its HP below zero now holds.
+            // It spins for a second before it is gone, carrying on at the speed it was spinning and faster for
+            // more overkill: the damage past its last HP, which its HP below zero now holds.
             let overkill = if e.hp.is_finite() { -e.hp } else { 0.0 };
             let sign = if e.hit.dx.abs() > 0.1 {
                 e.hit.dx
@@ -631,6 +631,7 @@ impl Game {
             };
             let spin = crate::twist::DeathSpin::new(
                 e.twist.drawn(),
+                e.twist.speed,
                 overkill,
                 k.hp,
                 sign,
