@@ -23,7 +23,7 @@ const OUT = {
 	wgsl: "src/content.wgsl",
 };
 /** Part ids must stay below core's PART_SLOTS. */
-const PART_SLOTS = 32;
+const PART_SLOTS = 64;
 
 /** Enum values in game.json, mapped to their Rust names. `weight` is stored as a number. */
 const ENUMS = {

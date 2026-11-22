@@ -27,10 +27,10 @@ struct Globals {
   fade_curve: f32, // the ramp's shape: the shift grows as (distance / fade_dist) to this power
 };
 
-// The instance's part is id + 32 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
+// The instance's part is id + 64 * pose (core/src/defs.rs, PART_SLOTS), so traced parts show their own
 // line boil pose. Parts without poses have the same rect in every pose slot.
-const PART_SLOTS = 32;
-const RECTS = 256;      // PART_SLOTS * MAX_POSES
+const PART_SLOTS = 64;
+const RECTS = 512;      // PART_SLOTS * MAX_POSES
 
 struct PartRects {
   uv: array<vec4f, RECTS>,   // atlas rect per part id and pose (x, y, w, h); w = 0 means no image

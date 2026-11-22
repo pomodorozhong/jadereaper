@@ -12,7 +12,7 @@ const INSTANCE_VERTS = 192;
 const MAX_INSTANCES = 4096;
 const WORLD_HEIGHT = 460; // world units across the shorter screen side, before the core's zoom
 // The core sends part id + PART_SLOTS * pose (core/src/defs.rs), and the rect table has a row for each.
-const PART_SLOTS = 32;
+const PART_SLOTS = 64;
 const MAX_POSES = 8;
 
 /** Look settings sent to the shader each frame. The ?debug panel changes them at run time. */

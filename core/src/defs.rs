@@ -88,7 +88,7 @@ pub const MAX_INST: usize = 4096;
 
 /// Part ids run below this. The instance's part is `id + PART_SLOTS * pose`, so the renderer can pick each
 /// pose's image of a traced part while the shader still finds the shape from `part % PART_SLOTS`.
-pub const PART_SLOTS: f32 = 32.0;
+pub const PART_SLOTS: f32 = 64.0;
 /// Most line boil poses a part can have; the rect table holds `PART_SLOTS * MAX_POSES` entries.
 pub const MAX_POSES: u32 = 8;
 
