@@ -113,7 +113,7 @@ pub extern "C" fn jr_set_waddle(kind: u32, tilt: f32, rate: f32) {
 }
 
 /// Input for the next steps: movement (each axis in -1..1), the aim point as an offset from the player in world
-/// units (zero keeps the last aim), and the held buttons (`B_*` bits: skill 1, 2, 3, roll).
+/// units (zero: skills aim the way it moves, or the way it last moved), and the held buttons (`B_*` bits: skill 1, 2, 3, roll).
 #[no_mangle]
 pub extern "C" fn jr_input(mx: f32, my: f32, aim_x: f32, aim_y: f32, buttons: u32) {
     g().input = game::Input {

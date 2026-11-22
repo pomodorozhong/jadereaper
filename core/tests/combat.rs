@@ -167,6 +167,50 @@ fn hits_stagger_and_freeze() {
 }
 
 #[test]
+fn with_no_aim_skills_go_the_way_it_moves_or_last_moved() {
+    let mut g = arena();
+    // Aim right with the mouse or stick, then let go of it.
+    run(
+        &mut g,
+        1,
+        Input {
+            ax: 100.0,
+            ..Input::default()
+        },
+    );
+    assert_eq!(g.player.aim, (1.0, 0.0));
+    // Moving down with no aim input turns the aim down.
+    run(
+        &mut g,
+        3,
+        Input {
+            my: 1.0,
+            ..Input::default()
+        },
+    );
+    assert!(g.player.aim.1 > 0.99, "{:?}", g.player.aim);
+    // Standing still, a skill goes the way it last moved.
+    run(&mut g, 20, Input::default());
+    run(&mut g, 1, press(0));
+    match g.player.act {
+        Act::Skill { dy, .. } => assert!(dy > 0.99, "skill aimed {dy}"),
+        _ => panic!("no skill"),
+    }
+    // An aim input still wins over the movement.
+    let mut g = arena();
+    run(
+        &mut g,
+        3,
+        Input {
+            my: 1.0,
+            ax: -100.0,
+            ..Input::default()
+        },
+    );
+    assert_eq!(g.player.aim, (-1.0, 0.0));
+}
+
+#[test]
 fn dash_skills_move_their_set_distance() {
     for skill in [SK_LUNGE, SK_CHARGE] {
         let mut g = arena();
