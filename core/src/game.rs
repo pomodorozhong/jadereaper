@@ -68,6 +68,8 @@ pub struct Enemy {
     pub status: Status,
     /// The last hit it took.
     pub hit: crate::anim::Hit,
+    /// The spin hits put on its sheet; it cannot move or act while this is locked.
+    pub twist: crate::twist::Twist,
 }
 
 /// An enemy's attack cycle.
@@ -129,6 +131,20 @@ pub struct Shot {
     pub last: u32,
     /// The element of the skill that threw it (0 for none, or element id + 1).
     pub element: u8,
+}
+
+/// An enemy that has just died, spinning for `twist::DEATH_TIME` before it is gone. Looks only: it has left the
+/// fight, so nothing hits it, it hits nothing, and the room does not wait for it.
+#[derive(Clone, Copy, Debug)]
+pub struct Corpse {
+    pub kind: u8,
+    pub x: f32,
+    pub y: f32,
+    pub face: f32,
+    pub seed: f32,
+    pub spin: crate::twist::DeathSpin,
+    /// Seconds since it died.
+    pub t: f32,
 }
 
 pub struct Fx {
@@ -195,6 +211,8 @@ impl Fx {
 
 pub struct Game {
     pub rng: Rng,
+    /// The hit spin's numbers (`crate::twist::Tune`), tuned live from ?debug.
+    pub spin_tune: crate::twist::Tune,
     /// Random numbers for looks only (flying paper), kept apart from `rng` so effects never change the run.
     pub(crate) fx_rng: Rng,
     pub running: bool,
@@ -238,6 +256,7 @@ pub struct Game {
     /// The shortest warning any hit on the player has had, for tests.
     pub min_warned: f32,
     pub fx: Vec<Fx>,
+    pub corpses: Vec<Corpse>,
     pub choices: [i32; 3],
     pub kills: u32,
     /// The room being fought (an index into `ROOMS`), its current wave, and where it stands.
@@ -308,6 +327,7 @@ impl Game {
         Game {
             rng: Rng(seed | 1),
             fx_rng: Rng((seed ^ 0x9e37_79b9) | 1),
+            spin_tune: crate::twist::Tune::DEFAULT,
             running: false,
             choosing: false,
             over: false,
@@ -344,6 +364,7 @@ impl Game {
             hazards: Vec::with_capacity(64),
             min_warned: f32::INFINITY,
             fx: Vec::with_capacity(MAX_FX),
+            corpses: Vec::with_capacity(16),
             mods: [SkillMods::default(); 3],
             stats: Stats::default(),
             owned: [0; N_CARDS],
@@ -520,6 +541,10 @@ impl Game {
         self.move_elements(dt);
         self.reap();
         self.move_fx(dt);
+        for c in self.corpses.iter_mut() {
+            c.t += dt;
+        }
+        self.corpses.retain(|c| c.t < crate::twist::DEATH_TIME);
     }
 
     pub(crate) fn add_fx(&mut self, f: Fx) {

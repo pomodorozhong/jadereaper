@@ -73,20 +73,11 @@ pub struct SheetPose {
     pub sag_bend: f32,
     /// Recovery: how high it hops as it pops upright at the cancel point.
     pub pop: f32,
-    /// Hit: lean and bend per point of damage, and the most of either.
-    pub hit: f32,
-    pub hit_bend: f32,
-    pub hit_max: f32,
-    /// Down: how far it falls back (a quarter turn is flat on the ground).
-    pub down: f32,
     /// Grabbed: how far it is pinned back, and how hard it shakes.
     pub grab: f32,
     pub shake: f32,
     /// Roll: whole spins in its own plane, about its middle.
     pub roll: f32,
-    /// Stunned: how far it wobbles each way towards edge-on, and wobbles per second.
-    pub wobble: f32,
-    pub wobble_rate: f32,
     /// Walking: how high it bobs each step, and how far it sways (turns) each way.
     pub bob: f32,
     pub sway: f32,
@@ -108,15 +99,9 @@ impl SheetPose {
             "sag" => &mut self.sag,
             "sag_bend" => &mut self.sag_bend,
             "pop" => &mut self.pop,
-            "hit" => &mut self.hit,
-            "hit_bend" => &mut self.hit_bend,
-            "hit_max" => &mut self.hit_max,
-            "down" => &mut self.down,
             "grab" => &mut self.grab,
             "shake" => &mut self.shake,
             "roll" => &mut self.roll,
-            "wobble" => &mut self.wobble,
-            "wobble_rate" => &mut self.wobble_rate,
             "bob" => &mut self.bob,
             "sway" => &mut self.sway,
             "flex" => &mut self.flex,
@@ -168,16 +153,10 @@ pub struct Gait {
     pub hop: f32,
 }
 
-/// How long a hit flinch takes to snap out, and until it has settled back, in seconds.
-const FLINCH_IN: f32 = 0.04;
-const FLINCH_OUT: f32 = 0.35;
 /// How long the pop upright at the cancel point takes, in seconds.
 const POP_TIME: f32 = 0.12;
 /// Where an enemy's recovery, which nothing cancels, starts to straighten up, as a share of it.
 const ENEMY_RISE: f32 = 0.7;
-/// Down: the share of the time it takes to fall, and the share at the end it takes to get up.
-const FALL: f32 = 0.25;
-const RISE: f32 = 0.15;
 
 fn smooth(k: f32) -> f32 {
     let k = k.clamp(0.0, 1.0);
@@ -214,7 +193,7 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
         dy: if off_step { g.hop } else { 0.0 },
         ..Pose::REST
     };
-    let mut flat = match a.phase {
+    let flat = match a.phase {
         A_WALK => {
             let s = (g.steps * PI).sin();
             sheet.lift = n.bob * s.abs();
@@ -273,38 +252,20 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
             spin = n.roll * TAU * m;
             Pose::REST.mix(&rig.roll, (m * PI).sin())
         }
-        A_DOWN => {
-            sheet.lean = n.down * smooth(k / FALL).min(smooth((1.0 - k) / RISE));
-            rig.hurt
-        }
+        // Hit, knocked down or stunned: the hit's spin (`a.twist`, below) shows it.
+        // Only the spin: no lean, shift or squash.
+        A_DOWN | A_STUNNED | A_HURT => Pose::REST,
         A_GRABBED => {
             sheet.lean = n.grab * smooth(t / 0.1);
             sheet.turn = n.shake * jitter(g.clock, 30.0);
             sheet.bend = n.shake * jitter(g.clock + 0.5, 30.0);
             rig.hurt
         }
-        A_STUNNED => {
-            sheet.turn = n.wobble * (g.clock * n.wobble_rate * TAU).sin();
-            rig.hurt
-        }
-        A_HURT => rig.hurt,
         _ => walk,
     };
-    // A hit snaps the puppet away from it and lets it settle back, on top of whatever it is doing. Lying down or
-    // pinned, it already shows the hit.
-    if a.phase != A_DOWN && a.phase != A_GRABBED && (0.0..FLINCH_OUT).contains(&a.hit_age) {
-        let e = if a.hit_age < FLINCH_IN {
-            a.hit_age / FLINCH_IN
-        } else {
-            1.0 - smooth((a.hit_age - FLINCH_IN) / (FLINCH_OUT - FLINCH_IN))
-        };
-        let lean = (a.hit_dmg * n.hit).min(n.hit_max) * e;
-        let bend = (a.hit_dmg * n.hit_bend).min(n.hit_max) * e;
-        // Pushed up the screen (away from the camera) the top goes back; pushed sideways it tilts with the push.
-        sheet.lean -= a.hit_dy * lean;
-        flat.tilt += a.hit_dx * a.face * lean;
-        sheet.bend += bend;
-    }
+    // A hit spins the sheet round about its vertical axis (`crate::twist`): a swing back and forth that dies away,
+    // or whole turns for a heavy hit. The twist is in the world, so it is mirrored back for a puppet facing left.
+    sheet.turn += a.twist * a.face;
     // Bend the paper: turn part of the lean into a bow from the feet. A bow whose top reaches angle C ends about
     // as high as a rigid lean of C / 2, so the lean's share is doubled. Lying down and being pinned stay rigid.
     if a.phase != A_DOWN && a.phase != A_GRABBED {
@@ -594,6 +555,7 @@ mod tests {
             hit_dy: 0.0,
             hit_dmg: 0.0,
             hit_age: 1e6,
+            twist: 0.0,
         }
     }
 
@@ -746,43 +708,34 @@ mod tests {
     }
 
     #[test]
-    fn the_hit_pose_leans_away_from_the_hit_and_more_for_more_damage() {
-        let hit = |hdx, hdy, dmg| {
+    fn a_hit_turns_the_sheet_by_its_twist_and_nothing_else() {
+        let twisted = |twist, face| {
             posed(&Anim {
-                hit_dx: hdx,
-                hit_dy: hdy,
-                hit_dmg: dmg,
+                twist,
+                face,
+                hit_dmg: 30.0,
                 hit_age: 0.05,
-                ..rec(A_HURT, 0.2, 0.3)
+                ..rec(A_HURT, 0.0, 0.0)
             })
         };
-        let rest = posed(&rec(A_HURT, 0.2, 0.3));
-        // Pushed up the screen (hit from the camera's side) it leans back; pushed down the screen, forward.
-        assert!(tip(hit(0.0, -1.0, 20.0)) > 0.0);
-        assert!(tip(hit(0.0, 1.0, 20.0)) < 0.0);
-        // Pushed right, its top goes right, facing either way.
-        assert!(hit(1.0, 0.0, 20.0).flat.tilt > rest.flat.tilt);
-        let left = posed(&Anim {
-            face: -1.0,
-            hit_dx: 1.0,
-            hit_dmg: 20.0,
-            hit_age: 0.05,
-            ..rec(A_HURT, 0.2, 0.3)
-        });
-        // Facing left, the drawn tilt is the pose's tilt mirrored.
-        assert!(-left.flat.tilt > -rest.flat.tilt);
-        // More damage leans and bends it more.
-        let (small, big) = (hit(0.0, -1.0, 10.0), hit(0.0, -1.0, 30.0));
-        assert!(tip(big) > tip(small));
-        assert!(big.sheet.bend > small.sheet.bend);
-        // And it settles back.
-        let late = posed(&Anim {
-            hit_dy: -1.0,
-            hit_dmg: 30.0,
-            hit_age: 0.5,
-            ..rec(A_HURT, 0.2, 0.3)
-        });
-        assert_eq!(tip(late), 0.0);
+        let rest = twisted(0.0, 1.0);
+        // The twist turns the sheet about its vertical axis; it does not lean, bend or tilt it.
+        let t = twisted(1.2, 1.0);
+        assert!((t.sheet.turn - rest.sheet.turn - 1.2).abs() < 1e-5);
+        assert_eq!(
+            (t.sheet.lean, t.sheet.bend, t.flat),
+            (rest.sheet.lean, rest.sheet.bend, rest.flat)
+        );
+        // The twist is in the world: facing left, the pose's turn is mirrored so it draws the same way round.
+        assert!((twisted(1.2, -1.0).sheet.turn + 1.2).abs() < 1e-5);
+        // Knocked down or stunned, the twist shows the same way.
+        for phase in [A_DOWN, A_STUNNED] {
+            let p = posed(&Anim {
+                twist: 2.0,
+                ..rec(phase, 0.0, 0.0)
+            });
+            assert!((p.sheet.turn - 2.0).abs() < 1e-5 && p.sheet.lean == 0.0);
+        }
     }
 
     #[test]
@@ -829,22 +782,7 @@ mod tests {
     }
 
     #[test]
-    fn the_down_pose_lies_flat() {
-        let down = posed(&rec(A_DOWN, 0.5, 0.9));
-        assert!((down.sheet.lean - FRAC_PI_2).abs() < 0.01);
-        // Drawn lying on its back, it shows at `PITCH` of its height.
-        let upright = drawn(Sheet::FLAT);
-        let flat = drawn_pose(
-            Pose3 {
-                flat: Pose::REST,
-                ..down
-            },
-            Sheet::FLAT,
-        );
-        assert!((head(&flat).y - head(&upright).y * PITCH).abs() < 0.1);
-        // It gets up at the end.
-        assert_eq!(posed(&rec(A_DOWN, 1.0, 0.9)).sheet.lean, 0.0);
-        // Pinned flat when grabbed.
+    fn grabbed_is_pinned_flat() {
         assert!(posed(&rec(A_GRABBED, 0.5, 3.0)).sheet.lean > 1.3);
     }
 

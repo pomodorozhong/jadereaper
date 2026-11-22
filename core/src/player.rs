@@ -69,8 +69,6 @@ pub enum Act {
     },
 }
 
-/// Lying down this long after a knockdown, unless a roll gets up sooner.
-pub const DOWN_TIME: f32 = 0.9;
 /// A roll can get up from a knockdown after this long.
 pub const DOWN_EARLY: f32 = 0.3;
 /// Roll presses that break a grab, and the longest a grab holds.
@@ -79,12 +77,12 @@ pub const GRAB_MAX: f32 = 3.0;
 /// Damage per second while grabbed.
 pub const GRAB_DPS: f32 = 6.0;
 
-/// How long a hit knocks the player off balance.
-pub const HURT_TIME: f32 = 0.3;
 /// With no aim input, movement at least this strong (0..1) sets the aim, and a leap aims this far ahead (as far
 /// as a full right-stick tilt).
 const MOVE_AIM: f32 = 0.3;
 const MOVE_AIM_AT: f32 = 200.0;
+/// The robe's green, for the paper torn from it when hit (the player rig's body colour).
+const ROBE: [f32; 4] = [0.20, 0.42, 0.36, 1.0];
 /// Invulnerable for this long after taking a hit.
 pub const HURT_IFRAME: f32 = 0.5;
 pub const WALK_SPEED: f32 = 190.0;
@@ -118,6 +116,8 @@ pub struct Player {
     pub slow: f32,
     /// The last hit taken.
     pub hit: crate::anim::Hit,
+    /// The spin the last hits put on the sheet; it cannot move or act while this is locked.
+    pub twist: crate::twist::Twist,
 }
 
 /// How far a leap aimed at this offset goes: to the aim point, at least 40 units and at most its reach.
@@ -146,6 +146,7 @@ impl Player {
             hits: Vec::with_capacity(64),
             slow: 0.0,
             hit: crate::anim::Hit::NONE,
+            twist: crate::twist::Twist::default(),
         }
     }
 
@@ -180,7 +181,9 @@ impl Game {
         let inp = self.input;
         let pressed = inp.buttons & !self.prev_buttons;
         self.prev_buttons = inp.buttons;
+        let tune = self.spin_tune;
         let p = &mut self.player;
+        p.twist.step(dt, &tune);
         for (b, t) in p.buffer.iter_mut().enumerate() {
             *t = if pressed & (1 << b) != 0 {
                 BUFFER
@@ -247,20 +250,22 @@ impl Game {
                 };
             }
             Act::Skill { .. } => walk = self.run_skill(dt),
+            // Hit or knocked down: held while the hit's spin is strong (whole turns, or a wide swing). A gentler
+            // swing lets it move and act at once, still spinning.
             Act::Hurt { t } => {
                 let t = t + dt;
-                self.player.act = if t >= HURT_TIME {
-                    Act::Free
-                } else {
+                self.player.act = if self.player.twist.holds_player(&tune) {
                     Act::Hurt { t }
+                } else {
+                    Act::Free
                 };
             }
             Act::Down { t } => {
                 let t = t + dt;
-                self.player.act = if t >= DOWN_TIME {
-                    Act::Free
-                } else {
+                self.player.act = if self.player.twist.holds_player(&tune) {
                     Act::Down { t }
+                } else {
+                    Act::Free
                 };
             }
             Act::Grabbed { t, mash } => {
@@ -321,6 +326,7 @@ impl Game {
             }
             Act::Down { t } if p.buffer[3] > 0.0 && t >= DOWN_EARLY => {
                 // Roll out of a knockdown, getting up sooner.
+                self.player.twist.settle();
                 self.start_roll(roll_dir);
             }
             Act::Skill { slot, t, step, .. } => {
@@ -698,6 +704,7 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         let (kx, ky) = dir_to(from.0, from.1, px, py);
         let armored = self.player.armored() && !boss;
+        let tune = self.spin_tune;
         let dmg = dmg * (1.0 - self.stats.armor);
         let now = self.time;
         let p = &mut self.player;
@@ -710,14 +717,29 @@ impl Game {
             at: now,
         };
         if !armored {
+            // The hit spins the sheet round, away from the push; a heavy one sends it spinning.
+            let sign = if kx.abs() > 0.1 { kx } else { p.face };
+            p.twist.hit(crate::twist::share(dmg, p.max_hp), sign, &tune);
             p.act = Act::Hurt { t: 0.0 };
             p.kx = kx * 260.0;
             p.ky = ky * 260.0;
         }
         self.shake = 1.0;
         self.event(EV_HURT, px, py, dmg);
-        // Torn bits of the robe's paper.
-        self.shred_burst(px, py, 30.0, crate::paper::PUPPET, 6, 7.0);
+        // Thin slivers of the robe's green paper, flung the way the hit pushed.
+        self.paper_burst(
+            px,
+            py,
+            crate::paper::Burst {
+                size: (5.0, 8.0),
+                out: (30.0, 90.0),
+                up: (120.0, 240.0),
+                life: (0.6, 0.9),
+                z: 30.0,
+                push: (kx * 240.0, ky * 240.0),
+                ..crate::paper::Burst::of(P_STRIP, ROBE, 6)
+            },
+        );
         if self.player.hp <= 0.0 {
             self.player.hp = 0.0;
             self.over = true;

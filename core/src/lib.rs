@@ -30,6 +30,7 @@ pub mod reactions;
 pub mod rigs;
 pub mod rooms;
 pub mod skills;
+pub mod twist;
 
 use game::Game;
 
@@ -44,7 +45,7 @@ fn g() -> &'static mut Game {
 #[no_mangle]
 pub extern "C" fn jr_reset(seed: u32) {
     let (w, h) = (g().view_w, g().view_h);
-    let (fps, poses, scale, waddle, calm, spin, sheet) = (
+    let (fps, poses, scale, waddle, calm, spin, sheet, tune) = (
         g().boil_fps,
         g().boil_poses,
         g().draw_scale,
@@ -52,6 +53,7 @@ pub extern "C" fn jr_reset(seed: u32) {
         g().reduce_motion,
         g().debug_spin,
         g().sheet_pose,
+        g().spin_tune,
     );
     *g() = Game::new(seed);
     g().set_view(w, h);
@@ -61,6 +63,7 @@ pub extern "C" fn jr_reset(seed: u32) {
     g().reduce_motion = calm;
     g().debug_spin = spin;
     g().sheet_pose = sheet;
+    g().spin_tune = tune;
 }
 
 /// Start a new run.
@@ -106,6 +109,17 @@ pub extern "C" fn jr_set_debug_spin(on: u32) {
 #[no_mangle]
 pub extern "C" fn jr_set_pose(rig: u32, field: u32, value: f32) {
     g().set_pose(rig as usize, field as usize, value);
+}
+
+/// Tune the hit spin from ?debug: set the `field`th number of `twist::Tune` (in `twist::TUNE_KEYS` order). Unlike
+/// the pose numbers this changes the run, since the spin decides how long a hit stops a character.
+#[no_mangle]
+pub extern "C" fn jr_set_spin(field: u32, value: f32) {
+    if let Some(v) = g().spin_tune.field_mut(field as usize) {
+        if value.is_finite() {
+            *v = value;
+        }
+    }
 }
 
 /// The pose gallery: show every rig in every pose instead of the run (which is frozen while it shows), how far

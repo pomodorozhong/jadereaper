@@ -6,6 +6,7 @@ use crate::anim::*;
 use crate::defs::*;
 use crate::game::Game;
 use crate::rigs::{pose, Gait, Look};
+use crate::twist::{self, Twist};
 use core::f32::consts::FRAC_PI_2;
 
 /// The gallery's columns, in order. `GALLERY_POSES` in `src/main.js` names them the same way.
@@ -49,6 +50,7 @@ impl Game {
     /// The record, gait, held part's swing and extra turn for one rig in one gallery column.
     fn gallery_cell(&self, rig: usize, col: usize) -> (Anim, Gait, Option<f32>, f32) {
         let v = self.gallery_view;
+        let tune = self.spin_tune;
         let k = v.progress.clamp(0.0, 1.0);
         let (dx, dy) = (v.angle.cos(), v.angle.sin());
         let mut a = Anim {
@@ -68,6 +70,7 @@ impl Game {
             hit_dy: 0.0,
             hit_dmg: 0.0,
             hit_age: 1e6,
+            twist: 0.0,
         };
         let player = rig == RG_PLAYER;
         // The walk tilt each rig uses in play: the player's, or its enemy kind's waddle.
@@ -116,17 +119,28 @@ impl Game {
                 swing = Some(1.3);
             }
             5 => {
-                // A hit pushing along the gallery's direction, settling back as it plays.
-                if player {
-                    (a.phase, a.len) = (A_HURT, 0.3);
-                }
+                // A hit pushing along the gallery's direction, as a share of 100 HP (the player's): it swings
+                // back and forth, or spins whole turns, as it plays.
+                a.phase = A_HURT;
                 (a.hit_dx, a.hit_dy, a.hit_dmg) = (dx, dy, v.damage);
-                a.hit_age = k * 0.35;
+                let mut t = Twist::default();
+                t.hit(v.damage / 100.0, dx, &tune);
+                a.twist = twist::through(t, k, &tune);
             }
-            6 => (a.phase, a.len) = (A_DOWN, 0.9),
+            6 => {
+                a.phase = A_DOWN;
+                let mut t = Twist::default();
+                t.spin(twist::DOWN_TURNS, 1.0, &tune);
+                a.twist = twist::through(t, k, &tune);
+            }
             7 => (a.phase, a.len) = (A_GRABBED, 3.0),
             8 => (a.phase, a.len) = (A_ROLL, ROLL_TIME + ROLL_RECOVER),
-            9 => (a.phase, a.len) = (A_STUNNED, 0.5),
+            9 => {
+                a.phase = A_STUNNED;
+                let mut t = Twist::default();
+                t.spin(twist::STUN_TURNS, 1.0, &tune);
+                a.twist = twist::through(t, k, &tune);
+            }
             _ => {
                 // Turning round from facing right to facing left, through edge-on.
                 let w = 1.0 - 2.0 * k;

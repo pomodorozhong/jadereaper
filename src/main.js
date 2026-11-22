@@ -33,6 +33,20 @@ const WADDLE = {
 	eliteTilt: 7.5,
 	eliteRate: 2.5,
 };
+/** The hit spin's numbers (core/src/twist.rs `Tune::DEFAULT`, in `TUNE_KEYS` order): the ?debug panel sends
+ * changes with jr_set_spin. They change the run, since the spin decides how long a hit stops a character. */
+const SPIN = {
+	spin_share: 0.2,
+	kick: 2,
+	rate: 16,
+	damping: 0.2,
+	decel: 38,
+	overshoot: 0.5,
+	settle: 0.15,
+	player_hold: 1,
+	curve: 0.5,
+};
+const SPIN_KEYS = Object.keys(SPIN);
 const WADDLE_KINDS = ["blot", "wisp", "brute", "elite"];
 /** Reaction names by id (R_* in core/src/reactions.rs), for their text. */
 const REACTIONS = [
@@ -78,6 +92,16 @@ const DEBUG_SLIDERS = [
 	["waddle", "bruteRate", "Brute rate", 0, 15, 0.5],
 	["waddle", "eliteTilt", "Elite tilt", 0, 30, 0.25],
 	["waddle", "eliteRate", "Elite rate", 0, 15, 0.5],
+	["Hit spin (live; changes how long a hit stops someone)"],
+	["spin", "spin_share", "Spin at (share of max HP)", 0.05, 1, 0.01],
+	["spin", "kick", "Swing just under a spin (rad)", 0, 3, 0.05],
+	["spin", "rate", "Swing speed (rad/s)", 2, 40, 0.5],
+	["spin", "damping", "Swing damping", 0.02, 1, 0.01],
+	["spin", "decel", "Spin slowdown (rad/s²)", 5, 120, 1],
+	["spin", "overshoot", "Spin overshoot (rad)", 0, 2, 0.05],
+	["spin", "settle", "Moves again within (rad)", 0.02, 0.8, 0.01],
+	["spin", "player_hold", "Player held past (rad)", 0, 3, 0.05],
+	["spin", "curve", "Small-hit curve (1 = in proportion)", 0.1, 1, 0.05],
 ];
 /** ?debug pose sliders: each rig's 3D pose numbers (`sheet` in content/game.json), sent with jr_set_pose. Each
  * slider is [min, max, step]; angles are in radians, lifts in world units. */
@@ -89,15 +113,9 @@ const POSE_SLIDERS = {
 	sag: [-0.8, 0.4, 0.01],
 	sag_bend: [-1.2, 1.2, 0.01],
 	pop: [0, 20, 0.5],
-	hit: [0, 0.05, 0.001],
-	hit_bend: [0, 0.08, 0.001],
-	hit_max: [0, 1.2, 0.05],
-	down: [0, 1.6, 0.01],
 	grab: [0, 1.6, 0.01],
 	shake: [0, 0.5, 0.01],
 	roll: [0, 3, 1],
-	wobble: [0, 1.5, 0.05],
-	wobble_rate: [0, 8, 0.1],
 	bob: [0, 12, 0.5],
 	sway: [0, 0.6, 0.01],
 	flex: [0, 1, 0.05],
@@ -190,12 +208,19 @@ function addPoseSliders(panel, core, saved, changed) {
 }
 
 function addDebugPanel(renderer, core) {
-	const sets = { bake: BAKE, look: LOOK, size: SIZE, waddle: WADDLE };
+	const sets = {
+		bake: BAKE,
+		look: LOOK,
+		size: SIZE,
+		waddle: WADDLE,
+		spin: SPIN,
+	};
 	const defaults = {
 		bake: { ...BAKE },
 		look: { ...LOOK },
 		size: { ...SIZE },
 		waddle: { ...WADDLE },
+		spin: { ...SPIN },
 	};
 	const panel = document.createElement("div");
 	panel.style.cssText =
@@ -231,6 +256,7 @@ function addDebugPanel(renderer, core) {
 			look: LOOK,
 			size: SIZE,
 			waddle: WADDLE,
+			spin: SPIN,
 			pose: poses?.values,
 		});
 	poses = addPoseSliders(panel, core, saved.pose, store);
@@ -267,6 +293,7 @@ function addDebugPanel(renderer, core) {
 				WADDLE[`${name}Rate`],
 			);
 		}
+		if (which === "spin") core.jr_set_spin(SPIN_KEYS.indexOf(key), v);
 		if (which === "bake" || which === "size") rebake();
 	};
 	const sliders = [...panel.querySelectorAll("input[data-set]")];
@@ -302,6 +329,7 @@ function addDebugPanel(renderer, core) {
 					look: LOOK,
 					size: SIZE,
 					waddle: WADDLE,
+					spin: SPIN,
 					pose: poses.values,
 				},
 				null,

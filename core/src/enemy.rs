@@ -8,9 +8,6 @@ use crate::moves::*;
 use crate::player::PLAYER_R;
 use crate::skills::AreaKind;
 
-/// How long an enemy is interrupted when its stagger passes its poise.
-pub const STUN_TIME: f32 = 0.45;
-
 fn cell_key(cx: i32, cy: i32) -> usize {
     (((cy & 63) as usize) << 6) | ((cx & 63) as usize)
 }
@@ -21,6 +18,7 @@ impl Game {
         let dmg = self.boss_hit(i, dmg, stagger);
         let boss = KINDS[self.enemies[i].kind as usize].boss;
         let now = self.time;
+        let tune = self.spin_tune;
         let e = &mut self.enemies[i];
         let k = &KINDS[e.kind as usize];
         e.hp -= dmg;
@@ -40,10 +38,17 @@ impl Game {
         let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
         e.kx += kx * heavy;
         e.ky += ky * heavy;
+        // The hit spins the sheet round, away from the push; a heavy one, or breaking its poise, sends it spinning.
+        let sign = if hx.abs() > 0.1 { hx } else { e.face };
+        let resist = if boss { crate::twist::BOSS_RESIST } else { 1.0 };
+        e.twist
+            .hit(crate::twist::share(dmg, k.hp) / resist, sign, &tune);
         e.stagger += if boss { 0.0 } else { stagger };
         if !boss && e.stagger >= k.poise {
             e.stagger = 0.0;
-            e.stun = STUN_TIME;
+            if !e.twist.spinning {
+                e.twist.spin(crate::twist::STUN_TURNS, sign, &tune);
+            }
         }
         let (x, y) = (e.x, e.y);
         self.event(EV_HIT, x, y, dmg);
@@ -86,6 +91,7 @@ impl Game {
             age: 0.0,
             status: Status::default(),
             hit: crate::anim::Hit::NONE,
+            twist: crate::twist::Twist::default(),
         });
         if k.boss {
             self.boss = Some(crate::boss::BossState::new(id));
@@ -160,6 +166,7 @@ impl Game {
 
     pub(crate) fn move_enemies(&mut self, dt: f32) {
         let (px, py) = (self.player.x, self.player.y);
+        let tune = self.spin_tune;
         let decay = (-8.0 * dt).exp();
         for i in 0..self.enemies.len() {
             if KINDS[self.enemies[i].kind as usize].boss {
@@ -176,8 +183,9 @@ impl Game {
             e.kx *= decay;
             e.ky *= decay;
             let pace = e.status.pace();
-            if e.stun > 0.0 || pace <= 0.0 {
-                // Interrupted or frozen: a wind-up or strike in progress is lost.
+            e.twist.step(dt, &tune);
+            if e.stun > 0.0 || pace <= 0.0 || e.twist.locked(&tune) {
+                // Interrupted, frozen or spinning from a hit: a wind-up or strike in progress is lost.
                 e.stun = (e.stun - dt).max(0.0);
                 if matches!(e.phase, Phase::Windup | Phase::Active) {
                     e.phase = Phase::Recover;
@@ -320,6 +328,7 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         for (i, e) in self.enemies.iter().enumerate() {
             if e.stun > 0.0
+                || e.twist.locked(&self.spin_tune)
                 || e.status.frozen > 0.0
                 || self.boss_of(i).is_some_and(|b| b.down > 0.0)
             {
@@ -612,6 +621,31 @@ impl Game {
             }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
+            // It spins for a second before it is gone, carrying on at the speed it was spinning and faster for
+            // more overkill: the damage past its last HP, which its HP below zero now holds.
+            let overkill = if e.hp.is_finite() { -e.hp } else { 0.0 };
+            let sign = if e.hit.dx.abs() > 0.1 {
+                e.hit.dx
+            } else {
+                e.face
+            };
+            let spin = crate::twist::DeathSpin::new(
+                e.twist.drawn(),
+                e.twist.speed,
+                overkill,
+                k.hp,
+                sign,
+                &self.spin_tune,
+            );
+            self.corpses.push(crate::game::Corpse {
+                kind: e.kind,
+                x: e.x,
+                y: e.y,
+                face: e.face,
+                seed: e.seed,
+                spin,
+                t: 0.0,
+            });
             // An ink stain left where it stood.
             let seed = self.fx_rng.f();
             self.add_fx(Fx {

@@ -19,14 +19,15 @@
 //! | 12, 13 | the last hit's unit direction, from the attacker to this character |
 //! | 14 | the last hit's damage |
 //! | 15 | seconds since the last hit (large when never hit) |
+//! | 16 | twist: how far a hit has spun the sheet round about its vertical axis, radians (`crate::twist`) |
 //!
 //! Hit-stop freezes the simulation but not this buffer; `Game::hitstop` is in the state array at 54.
 
 use crate::defs::*;
 use crate::game::{Act, Game, Phase};
-use crate::player::{DOWN_TIME, GRAB_MAX, HURT_TIME};
+use crate::player::GRAB_MAX;
 
-pub const ANIM_FLOATS: usize = 16;
+pub const ANIM_FLOATS: usize = 17;
 
 pub const A_IDLE: f32 = 0.0;
 pub const A_WALK: f32 = 1.0;
@@ -81,6 +82,7 @@ pub struct Anim {
     pub hit_dy: f32,
     pub hit_dmg: f32,
     pub hit_age: f32,
+    pub twist: f32,
 }
 
 const _: () = assert!(core::mem::size_of::<Anim>() == ANIM_FLOATS * 4);
@@ -136,8 +138,9 @@ impl Game {
                     through(A_RECOVERY, t - a1, d.recovery)
                 }
             }
-            Act::Hurt { t } => through(A_HURT, t, HURT_TIME),
-            Act::Down { t } => through(A_DOWN, t, DOWN_TIME),
+            // Hit or knocked down, it lasts as long as the spin the hit put on it, so it has no set length.
+            Act::Hurt { .. } => (A_HURT, 0.0, 0.0),
+            Act::Down { .. } => (A_DOWN, 0.0, 0.0),
             Act::Grabbed { t, .. } => through(A_GRABBED, t, GRAB_MAX),
         };
         let rec = Anim {
@@ -157,6 +160,7 @@ impl Game {
             hit_dy: p.hit.dy,
             hit_dmg: p.hit.dmg,
             hit_age: self.time - p.hit.at,
+            twist: p.twist.drawn(),
         };
         self.anims.push(rec);
 
@@ -173,11 +177,9 @@ impl Game {
                     crate::elements::FREEZE_TIME,
                 )
             } else if e.stun > 0.0 {
-                through(
-                    A_STUNNED,
-                    crate::enemy::STUN_TIME - e.stun,
-                    crate::enemy::STUN_TIME,
-                )
+                (A_STUNNED, 0.0, 0.0)
+            } else if e.twist.locked(&self.spin_tune) {
+                (A_HURT, 0.0, 0.0)
             } else {
                 match e.phase {
                     Phase::Windup => through(A_STARTUP, e.pt, self.windup_of(&e)),
@@ -208,6 +210,7 @@ impl Game {
                 hit_dy: e.hit.dy,
                 hit_dmg: e.hit.dmg,
                 hit_age: self.time - e.hit.at,
+                twist: e.twist.drawn(),
             });
         }
     }

@@ -162,8 +162,29 @@ fn hits_stagger_and_freeze() {
     g.enemies[i].hp = 1e6;
     run(&mut g, 1, press(0));
     run(&mut g, 8, Input::default());
-    assert!(g.enemies[0].stun > 0.0 || g.enemies[0].stagger > 0.0);
+    // The hit staggers it, or spins it round so it cannot act.
+    assert!(g.enemies[0].twist.locked(&g.spin_tune) || g.enemies[0].stagger > 0.0);
     assert!(g.enemies[0].kx > 0.0, "knocked back away from the player");
+}
+
+#[test]
+fn a_kill_leaves_the_fight_at_once_and_spins_for_a_second() {
+    let mut g = arena();
+    let i = g.add_enemy(K_BLOT, 40.0, 0.0).unwrap();
+    g.enemies[i].hp = 5.0;
+    run(&mut g, 1, press(0));
+    run(&mut g, 8, Input::default());
+    assert!(g.enemies.is_empty(), "the dead enemy is out of the fight");
+    assert_eq!(g.corpses.len(), 1);
+    // The scythe's 10 damage is a third of a blot's 30 HP, so the killing hit already sent it spinning; the death
+    // spin carries on at that speed (faster than the one bare turn a still enemy gets) and ends facing front.
+    let c = g.corpses[0];
+    let tau = core::f32::consts::TAU;
+    assert!(c.spin.speed(0.0).abs() > 2.0 * tau, "{:?}", c.spin);
+    let end = c.spin.from + c.spin.turn;
+    assert!(((end / tau).round() * tau - end).abs() < 1e-3);
+    run(&mut g, 60, Input::default());
+    assert!(g.corpses.is_empty(), "gone after a second");
 }
 
 #[test]
