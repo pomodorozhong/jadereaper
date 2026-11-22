@@ -40,7 +40,9 @@ impl Game {
         e.ky += ky * heavy;
         // The hit spins the sheet round, away from the push; a heavy one, or breaking its poise, sends it spinning.
         let sign = if hx.abs() > 0.1 { hx } else { e.face };
-        e.twist.hit(crate::twist::share(dmg, k.hp), sign, &tune);
+        let resist = if boss { crate::twist::BOSS_RESIST } else { 1.0 };
+        e.twist
+            .hit(crate::twist::share(dmg, k.hp) / resist, sign, &tune);
         e.stagger += if boss { 0.0 } else { stagger };
         if !boss && e.stagger >= k.poise {
             e.stagger = 0.0;

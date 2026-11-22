@@ -44,6 +44,8 @@ pub struct Burst {
     pub fall: f32,
     /// Pieces fade out over their last this many seconds.
     pub fade: f32,
+    /// A velocity every piece shares, on top of its own: a push that throws the burst one way.
+    pub push: (f32, f32),
 }
 
 impl Burst {
@@ -62,6 +64,7 @@ impl Burst {
             z: 0.0,
             fall: 1.0,
             fade: 0.35,
+            push: (0.0, 0.0),
         }
     }
 }
@@ -79,8 +82,8 @@ impl Game {
                 paper: true,
                 fall: b.fall,
                 fade: b.fade,
-                vx: ca * out,
-                vy: sa * out,
+                vx: ca * out + b.push.0,
+                vy: sa * out + b.push.1,
                 vz: r.range(b.up.0, b.up.1),
                 z: b.z + r.range(0.0, 6.0),
                 rot: r.range(-0.6, 0.6),

@@ -22,7 +22,8 @@ const SETTLE_SPEED: f32 = 1.5;
 pub struct Tune {
     /// A hit worth this share of the character's max HP or more spins it; each further share as big adds a turn.
     pub spin_share: f32,
-    /// How far, in radians, a hit just short of a spin swings it; lighter hits swing less, in proportion.
+    /// How far, in radians, a hit just short of a spin would swing it without damping (the damping takes about a
+    /// third off); lighter hits swing less, by `curve`.
     pub kick: f32,
     /// The swing's spring: its natural rate in radians per second, and its damping ratio, so a swing dies away
     /// by about e^(-damping · rate) per second.
@@ -34,17 +35,21 @@ pub struct Tune {
     pub overshoot: f32,
     /// Within this angle of rest (and slow enough) the character can move again: smaller locks it longer.
     pub settle: f32,
+    /// How a light hit's swing grows with its share: swing = kick · (share / spin_share)^curve. 1 is in
+    /// proportion; below 1 small hits still swing visibly (0.5: a hit of 6% of max HP swings about 43°).
+    pub curve: f32,
 }
 
 impl Tune {
     pub const DEFAULT: Tune = Tune {
         spin_share: 0.2,
-        kick: 1.45,
+        kick: 2.0,
         rate: 16.0,
         damping: 0.2,
         decel: 38.0,
         overshoot: 0.5,
         settle: 0.15,
+        curve: 0.5,
     };
 
     /// A number by its index in `TUNE_KEYS`, for the ?debug setter.
@@ -57,6 +62,7 @@ impl Tune {
             4 => &mut self.decel,
             5 => &mut self.overshoot,
             6 => &mut self.settle,
+            7 => &mut self.curve,
             _ => return None,
         })
     }
@@ -69,7 +75,7 @@ impl Default for Tune {
 }
 
 /// `Tune`'s fields in setter order, as `SPIN` in `src/main.js` names them.
-pub const TUNE_KEYS: [&str; 7] = [
+pub const TUNE_KEYS: [&str; 8] = [
     "spin_share",
     "kick",
     "rate",
@@ -77,6 +83,7 @@ pub const TUNE_KEYS: [&str; 7] = [
     "decel",
     "overshoot",
     "settle",
+    "curve",
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -101,7 +108,8 @@ impl Twist {
             self.spin(turns, sign, tune);
         } else if !self.spinning {
             // An undamped swing of `kick` radians needs this speed; the damping takes a little off it.
-            self.speed += sign * tune.kick * tune.rate * share.max(0.0) / at;
+            let k = (share.max(0.0) / at).powf(tune.curve.max(0.05));
+            self.speed += sign * tune.kick * tune.rate * k;
         }
     }
 
@@ -210,6 +218,9 @@ pub fn through(start: Twist, k: f32, tune: &Tune) -> f32 {
     t.drawn()
 }
 
+/// Bosses take a hit's spin as if it were this many times lighter, so they swing less and are rarely held.
+pub const BOSS_RESIST: f32 = 10.0;
+
 /// The share of a character's max HP a hit's damage is, for `Twist::hit`.
 pub fn share(dmg: f32, max_hp: f32) -> f32 {
     if max_hp > 0.0 {
@@ -270,12 +281,21 @@ mod tests {
     }
 
     #[test]
-    fn a_tiny_hit_barely_turns_and_does_not_lock() {
-        // A boss shrugs off a normal hit: 40 damage of 2400 HP.
+    fn a_small_share_still_swings_visibly() {
+        // A blot's hit on the player: about 6 of 100 HP.
         let mut t = Twist::default();
-        t.hit(share(40.0, 2400.0), 1.0, &T);
+        t.hit(0.06, 1.0, &T);
+        let (_, most) = run(&mut t);
+        assert!(most > 0.6, "swung only {most} rad");
+    }
+
+    #[test]
+    fn a_tiny_hit_barely_turns_and_does_not_lock() {
+        // A boss shrugs off a normal hit: 40 damage of 2400 HP, against its resistance.
+        let mut t = Twist::default();
+        t.hit(share(40.0, 2400.0) / BOSS_RESIST, 1.0, &T);
         let (time, _) = run(&mut t);
-        assert!(time < 0.05, "locked {time} s");
+        assert!(time < 0.1, "locked {time} s");
     }
 
     #[test]

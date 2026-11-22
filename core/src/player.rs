@@ -81,6 +81,8 @@ pub const GRAB_DPS: f32 = 6.0;
 /// as a full right-stick tilt).
 const MOVE_AIM: f32 = 0.3;
 const MOVE_AIM_AT: f32 = 200.0;
+/// The robe's green, for the paper torn from it when hit (the player rig's body colour).
+const ROBE: [f32; 4] = [0.20, 0.42, 0.36, 1.0];
 /// Invulnerable for this long after taking a hit.
 pub const HURT_IFRAME: f32 = 0.5;
 pub const WALK_SPEED: f32 = 190.0;
@@ -723,8 +725,20 @@ impl Game {
         }
         self.shake = 1.0;
         self.event(EV_HURT, px, py, dmg);
-        // Torn bits of the robe's paper.
-        self.shred_burst(px, py, 30.0, crate::paper::PUPPET, 6, 7.0);
+        // Thin slivers of the robe's green paper, flung the way the hit pushed.
+        self.paper_burst(
+            px,
+            py,
+            crate::paper::Burst {
+                size: (5.0, 8.0),
+                out: (30.0, 90.0),
+                up: (120.0, 240.0),
+                life: (0.6, 0.9),
+                z: 30.0,
+                push: (kx * 240.0, ky * 240.0),
+                ..crate::paper::Burst::of(P_STRIP, ROBE, 6)
+            },
+        );
         if self.player.hp <= 0.0 {
             self.player.hp = 0.0;
             self.over = true;
