@@ -23,6 +23,9 @@ export function createUI({ onAction }) {
 	document.addEventListener("click", (e) => {
 		const btn = e.target.closest("button[data-action]");
 		if (!btn || performance.now() < lockedUntil) return;
+		// Not ready yet (Begin before three skills are picked). It is marked with aria-disabled rather than
+		// disabled so the pad can still move onto it.
+		if (btn.getAttribute("aria-disabled") === "true") return;
 		onAction(btn.dataset.action, btn.dataset.value);
 	});
 
@@ -75,7 +78,8 @@ export function createUI({ onAction }) {
 		const box = from.getBoundingClientRect();
 		// A button counts as that way only when its centre is past the focused button's edge: a focused card is
 		// lifted and tilted (style.css), so its neighbours in the row sit a little below its centre.
-		const reach = Math.abs(dx) * (box.width / 2) + Math.abs(dy) * (box.height / 2);
+		const reach =
+			Math.abs(dx) * (box.width / 2) + Math.abs(dy) * (box.height / 2);
 		let best = null;
 		let bestScore = Infinity;
 		for (const el of list) {
@@ -95,10 +99,9 @@ export function createUI({ onAction }) {
 	}
 
 	/** Move focus through the open screen's buttons: to the nearest one in the pressed direction, or the next or
-	 * previous in order (wrapping round) when there is none that way. Disabled buttons are skipped. Returns true
-	 * if focus moved. */
+	 * previous in order (wrapping round) when there is none that way. Returns true if focus moved. */
 	function navigate(dx, dy) {
-		const list = buttons().filter((el) => !el.disabled);
+		const list = buttons();
 		if (!list.length) return false;
 		padFocus();
 		const from = focusedButton();
@@ -379,7 +382,7 @@ export function createUI({ onAction }) {
 				return card;
 			}),
 		);
-		$("pickBegin").disabled = picked.length !== 3;
+		$("pickBegin").setAttribute("aria-disabled", String(picked.length !== 3));
 		setText($("pickBegin"), t("pick.begin", { n: picked.length }));
 		if (current !== "skillpick") show("skillpick");
 		else if (focused)
