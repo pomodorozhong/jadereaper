@@ -36,3 +36,8 @@ const P_DRAGON_WING: i32 = 29;
 fn isFlat(part: i32) -> bool {
   return part == P_SLASH || part == P_SPLAT || part == P_GRASS || part == P_STONE || part == P_RING || part == P_SCRAP || part == P_GROUND_SHADOW || part == P_WARN_CIRCLE || part == P_WARN_ARC || part == P_WARN_LINE || part == P_WARN_RING;
 }
+
+// Parts cut from coloured paper: the margin and back are the part's own colour, not white, and the outline is faint.
+fn isTinted(part: i32) -> bool {
+  return part == P_CHIP;
+}

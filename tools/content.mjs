@@ -3,7 +3,7 @@
 //
 //   core/src/content.rs   Rust consts and tables for the simulation
 //   src/content.js        the same ids and tables for the host and UI
-//   src/content.wgsl      part ids and the flat-part test, put in front of src/shader.wgsl by the renderer
+//   src/content.wgsl      part ids and the flat- and tinted-part tests, put in front of src/shader.wgsl by the renderer
 //
 //     node tools/content.mjs           write the three files (./build.sh runs this first)
 //     node tools/content.mjs --check   fail if they are out of date with content/game.json
@@ -255,7 +255,7 @@ export function validate(content) {
 			problems.push(`parts: duplicate id ${p.id} ("${p.name}")`);
 		ids.add(p.id);
 		for (const k of Object.keys(p))
-			if (!["name", "id", "flat"].includes(k))
+			if (!["name", "id", "flat", "tinted"].includes(k))
 				problems.push(`parts: "${p.name}" has unknown field "${k}"`);
 	}
 	unique("events", content.events, null);
@@ -570,6 +570,16 @@ export function generate(content) {
 		"// Parts drawn as flat ink or wash: no outline, margin or shadow.",
 		`fn isFlat(part: i32) -> bool {`,
 		`  return ${flat.join(" || ") || "false"};`,
+		"}",
+	);
+	const tinted = content.parts
+		.filter((p) => p.tinted)
+		.map((p) => `part == P_${upper(p.name)}`);
+	wgsl.push(
+		"",
+		"// Parts cut from coloured paper: the margin and back are the part's own colour, not white, and the outline is faint.",
+		`fn isTinted(part: i32) -> bool {`,
+		`  return ${tinted.join(" || ") || "false"};`,
 		"}",
 	);
 

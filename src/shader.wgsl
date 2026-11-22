@@ -492,7 +492,7 @@ fn fs(i: VOut) -> @location(0) vec4f {
     }
     if (!flat_part) {
       margin = smoothstep(aa, -aa, s.d - G.margin);
-      let outline = smoothstep(-3.2, -1.2, s.d) * 0.7;
+      let outline = smoothstep(-3.2, -1.2, s.d) * select(0.7, 0.15, isTinted(part));
       col = col * (0.9 + 0.2 * grain);
       col = mix(col, INK, outline);   // ink outline
       col = mix(col, PAPER, s.light);
@@ -510,7 +510,8 @@ fn fs(i: VOut) -> @location(0) vec4f {
     return vec4f(col, a);
   }
 
-  let paper = PAPER * (0.95 + 0.07 * grain);
+  // White paper, or for a tinted part (a chip of the ground) paper of its own colour, front margin and back alike.
+  let paper = select(PAPER, i.color.rgb, isTinted(part)) * (0.95 + 0.07 * grain);
   var rgb = mix(paper, mix(col, vec3f(1.0), flash * 0.85), fill);
   if (i.side.x < 0.0) {
     // The back: plain paper, with the front's ink showing through. The sheet is seen from behind, so it shows
