@@ -259,6 +259,13 @@ async function boot() {
 		ui.skillPick(picked);
 	}
 
+	/** Back to the skill pick after a run (Restart, Try again), with the last picks still chosen. The run behind
+	 * the menu is reset, as on the title, so the old one does not play on under it. */
+	function pickAgain() {
+		core.jr_reset(seed());
+		pickSkills();
+	}
+
 	function startRun() {
 		if (picked.length !== 3) {
 			pickSkills();
@@ -312,13 +319,13 @@ async function boot() {
 				startRun();
 				break;
 			case "again":
-				startRun();
+				pickAgain();
 				break;
 			case "resume":
 				setPaused(false);
 				break;
 			case "restart":
-				startRun();
+				pickAgain();
 				break;
 			case "quit":
 				toTitle();
@@ -445,6 +452,7 @@ async function boot() {
 		core.jr_set_view(view.w, view.h);
 
 		const pad = input.poll(dt);
+		ui.setDevice(pad.device);
 		if (pad.pause) onKey({ pause: true });
 		if (pad.back) back();
 		if (ui.screen) {

@@ -1,5 +1,12 @@
 // Paper UI: screens, HUD and menu focus. All DOM work lives here.
-import { SKILLS, SLOT_KEYS, CARDS, ELEMENTS, KINDS } from "./data.js";
+import {
+	SKILLS,
+	SLOT_KEYS,
+	PAD_SLOT_KEYS,
+	CARDS,
+	ELEMENTS,
+	KINDS,
+} from "./data.js";
 import { formatTime } from "./save.js";
 import { t, getLang, setText } from "./i18n.js";
 
@@ -23,11 +30,35 @@ export function createUI({ onAction }) {
 	document.addEventListener("click", (e) => {
 		const btn = e.target.closest("button[data-action]");
 		if (!btn || performance.now() < lockedUntil) return;
+		// Not ready yet (Begin before three skills are picked). It is marked with aria-disabled rather than
+		// disabled so the pad can still move onto it.
+		if (btn.getAttribute("aria-disabled") === "true") return;
 		onAction(btn.dataset.action, btn.dataset.value);
 	});
 
 	function buttons() {
 		return current ? Array.from($(current).querySelectorAll("button")) : [];
+	}
+
+	// The screen button that last had focus, so the pad can take focus back after something outside the screen
+	// (a ?debug slider) took it.
+	let lastFocused = null;
+	// While the gamepad moves focus, show the highlight (style.css `.pad-focus`); the mouse turns it off again.
+	const padFocus = () => document.body.classList.add("pad-focus");
+	window.addEventListener("pointermove", () =>
+		document.body.classList.remove("pad-focus"),
+	);
+	document.addEventListener("focusin", (e) => {
+		if (current && $(current).contains(e.target)) lastFocused = e.target;
+	});
+	/** The focused button of the open screen, taking focus back from outside the screen if needed. */
+	function focusedButton() {
+		const list = buttons();
+		const el = document.activeElement;
+		if (list.includes(el)) return el;
+		const back = list.includes(lastFocused) ? lastFocused : list[0];
+		back?.focus({ preventScroll: true });
+		return back ?? null;
 	}
 
 	/** Show one screen (or none). A short lock stops a held button from picking something by accident. */
@@ -43,21 +74,59 @@ export function createUI({ onAction }) {
 		}
 	}
 
-	/** Move focus through the open screen's buttons. Returns true if focus moved. */
+	/** The nearest button from `from` in direction (dx, dy) on screen, so the pad moves through a grid by rows
+	 * and columns. Null when there is none that way. */
+	function nearestToward(from, list, dx, dy) {
+		const centre = (el) => {
+			const r = el.getBoundingClientRect();
+			return [r.left + r.width / 2, r.top + r.height / 2];
+		};
+		const [fx, fy] = centre(from);
+		const box = from.getBoundingClientRect();
+		// A button counts as that way only when its centre is past the focused button's edge: a focused card is
+		// lifted and tilted (style.css), so its neighbours in the row sit a little below its centre.
+		const reach =
+			Math.abs(dx) * (box.width / 2) + Math.abs(dy) * (box.height / 2);
+		let best = null;
+		let bestScore = Infinity;
+		for (const el of list) {
+			if (el === from) continue;
+			const [x, y] = centre(el);
+			// Distance along the pressed direction, and across it; buttons off to the side count for less.
+			const along = (x - fx) * dx + (y - fy) * dy;
+			const across = Math.abs((x - fx) * dy - (y - fy) * dx);
+			if (along <= reach) continue;
+			const score = along + across * 2;
+			if (score < bestScore) {
+				bestScore = score;
+				best = el;
+			}
+		}
+		return best;
+	}
+
+	/** Move focus through the open screen's buttons: to the nearest one in the pressed direction, or the next or
+	 * previous in order (wrapping round) when there is none that way. Returns true if focus moved. */
 	function navigate(dx, dy) {
 		const list = buttons();
 		if (!list.length) return false;
-		const i = list.indexOf(document.activeElement);
-		const step = dx > 0 || dy > 0 ? 1 : -1;
-		const next = i < 0 ? 0 : (i + step + list.length) % list.length;
-		list[next].focus({ preventScroll: true });
+		padFocus();
+		const from = focusedButton();
+		const i = list.indexOf(from);
+		let next = i < 0 ? list[0] : nearestToward(from, list, dx, dy);
+		if (!next) {
+			const step = dx > 0 || dy > 0 ? 1 : -1;
+			next = list[(i + step + list.length) % list.length];
+		}
+		next.focus({ preventScroll: true });
 		return true;
 	}
 
 	/** Click the focused button (gamepad confirm). */
 	function confirm() {
-		const el = document.activeElement;
-		if (current && el instanceof HTMLButtonElement && $(current).contains(el)) {
+		if (current) padFocus();
+		const el = current ? focusedButton() : null;
+		if (el instanceof HTMLButtonElement) {
 			el.click();
 			return true;
 		}
@@ -73,6 +142,18 @@ export function createUI({ onAction }) {
 	}
 
 	const rgb = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")})`;
+
+	// The device last used ("keys" or "pad", input.js), so the skills name the buttons it has.
+	let device = "keys";
+	const slotKeys = () => (device === "pad" ? PAD_SLOT_KEYS : SLOT_KEYS);
+	// The picks the skill pick screen last showed, to redraw it when the device changes.
+	let shownPicks = [];
+	/** Name the skill buttons of `next` ("keys" or "pad"), redrawing the skill pick if it is open. */
+	function setDevice(next) {
+		if (next === device) return;
+		device = next;
+		if (current === "skillpick") skillPick(shownPicks);
+	}
 
 	/** A skill button chip: the skill's glyph, its element's glyph in the element's colour, and the button. */
 	function skillChip(id, element, slot) {
@@ -93,7 +174,7 @@ export function createUI({ onAction }) {
 			chip.append(mark);
 		}
 		const key = document.createElement("small");
-		key.textContent = SLOT_KEYS[slot];
+		key.textContent = slotKeys()[slot];
 		chip.append(key);
 		return chip;
 	}
@@ -150,7 +231,8 @@ export function createUI({ onAction }) {
 			$("finisherPrompt").hidden = true;
 		}
 		$("grabPrompt").hidden = !grabbed;
-		const skillSig = getLang() + loadout.join(",") + elements.join(",");
+		const skillSig =
+			getLang() + device + loadout.join(",") + elements.join(",");
 		if (cache.skills !== skillSig) {
 			cache.skills = skillSig;
 			$("skills").replaceChildren(
@@ -295,6 +377,7 @@ export function createUI({ onAction }) {
 
 	/** The skill pick: every skill as a card; the picked ones show which button they go on, in pick order. */
 	function skillPick(picked) {
+		shownPicks = [...picked];
 		const focused = document.activeElement?.dataset?.value;
 		$("skillCards").replaceChildren(
 			...SKILLS.map((sk) => {
@@ -305,7 +388,7 @@ export function createUI({ onAction }) {
 				const slot = picked.indexOf(sk.id);
 				if (slot >= 0) card.classList.add("picked");
 				const parts = [
-					["key", slot >= 0 ? SLOT_KEYS[slot] : ""],
+					["key", slot >= 0 ? slotKeys()[slot] : ""],
 					["glyph", sk.glyph],
 					["name", t(`skill.${sk.name}.name`)],
 					["weight", t(`weight.${sk.weight}`)],
@@ -320,7 +403,7 @@ export function createUI({ onAction }) {
 				return card;
 			}),
 		);
-		$("pickBegin").disabled = picked.length !== 3;
+		$("pickBegin").setAttribute("aria-disabled", String(picked.length !== 3));
 		setText($("pickBegin"), t("pick.begin", { n: picked.length }));
 		if (current !== "skillpick") show("skillpick");
 		else if (focused)
@@ -395,6 +478,7 @@ export function createUI({ onAction }) {
 		damage,
 		reaction,
 		skillPick,
+		setDevice,
 		cards,
 		gameOver,
 		records,

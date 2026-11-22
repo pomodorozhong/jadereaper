@@ -12,6 +12,8 @@ export {
 
 /** Which input reaches each skill slot, for the HUD. */
 export const SLOT_KEYS = ["LMB", "RMB", "Q"];
+/** The same buttons on a gamepad (input.js `PAD_BUTTONS`), shown while the pad is the last thing used. */
+export const PAD_SLOT_KEYS = ["X", "Y", "RB"];
 
 /** Button bits sent to jr_input. Match B_* in core/src/defs.rs. */
 export const BUTTON = { SKILL1: 1, SKILL2: 2, SKILL3: 4, ROLL: 8 };
