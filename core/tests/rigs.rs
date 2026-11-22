@@ -62,6 +62,7 @@ fn poses_come_from_the_rig() {
         hit_dy: 0.0,
         hit_dmg: 0.0,
         hit_age: 1e6,
+        twist: 0.0,
     };
     let at = |phase, k| pose(rig, &rig.sheet, &rec(phase, k), Gait::default()).flat;
     assert_eq!(at(A_STARTUP, 1.0), rig.windup);

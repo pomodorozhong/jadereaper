@@ -30,6 +30,7 @@ pub mod reactions;
 pub mod rigs;
 pub mod rooms;
 pub mod skills;
+pub mod twist;
 
 use game::Game;
 

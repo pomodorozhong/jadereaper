@@ -178,11 +178,11 @@ Poses are built from the animation record the core exports (`core/src/anim.rs`):
 | Startup (charging) | The sheet turns to face the skill's direction on the ground, in any direction rather than only left or right, and leans back as the startup runs. Over the last fifth it holds still and trembles, so "about to fire" reads |
 | Active | Snaps forward, past upright, in a few frames |
 | Recovery | Sags forward and a little crumpled. At the cancel point it pops upright with a small overshoot, so the moment a roll can cut in is seen on the body |
-| Hurt | Snaps away from the hit's direction, leaning and bending by the hit's damage, then springs back over the hurt time |
-| Down | Falls flat onto the ground, face up, and stands back up |
+| Hurt | Spins about its vertical axis, away from the push. A hit worth less than a fifth of its max HP twists it, then it swings back and forth and the swing dies away; a heavier one spins it whole turns (one more per further fifth, up to three) before it wobbles to rest facing front. It cannot move or act until the swing settles, so the hit's damage sets how long it is stopped (`core/src/twist.rs`). Bosses have so much HP that they barely swing |
+| Down | Spins two whole turns, then wobbles to rest; locked the same way |
 | Grabbed | Pinned flat and shaking |
 | Roll | Spins once about its vertical axis while tucking low, instead of turning in the screen plane |
-| Stunned | Wobbles on its edge |
+| Stunned | A broken poise or a shatter spins it one whole turn, locked the same way |
 
 Turning to face left or right becomes a quick turn through edge-on instead of an instant mirror. It is drawing only and never delays an action.
 

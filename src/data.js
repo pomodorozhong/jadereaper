@@ -60,7 +60,7 @@ export const STATE = {
 };
 
 /** Floats per character in the animation buffer (ANIM_FLOATS in core/src/anim.rs). */
-export const ANIM_FLOATS = 16;
+export const ANIM_FLOATS = 17;
 
 /** Field offsets in one animation record, as documented in core/src/anim.rs. */
 export const ANIM = {
@@ -80,6 +80,7 @@ export const ANIM = {
 	HIT_Y: 13,
 	HIT_DMG: 14,
 	HIT_AGE: 15,
+	TWIST: 16,
 };
 
 /** Animation phases (A_* in core/src/anim.rs). */

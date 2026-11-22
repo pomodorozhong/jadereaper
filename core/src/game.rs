@@ -68,6 +68,8 @@ pub struct Enemy {
     pub status: Status,
     /// The last hit it took.
     pub hit: crate::anim::Hit,
+    /// The spin hits put on its sheet; it cannot move or act while this is locked.
+    pub twist: crate::twist::Twist,
 }
 
 /// An enemy's attack cycle.

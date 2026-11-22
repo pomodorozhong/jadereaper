@@ -8,9 +8,6 @@ use crate::moves::*;
 use crate::player::PLAYER_R;
 use crate::skills::AreaKind;
 
-/// How long an enemy is interrupted when its stagger passes its poise.
-pub const STUN_TIME: f32 = 0.45;
-
 fn cell_key(cx: i32, cy: i32) -> usize {
     (((cy & 63) as usize) << 6) | ((cx & 63) as usize)
 }
@@ -40,10 +37,15 @@ impl Game {
         let heavy = if e.kind >= K_BRUTE { 0.35 } else { 1.0 };
         e.kx += kx * heavy;
         e.ky += ky * heavy;
+        // The hit spins the sheet round, away from the push; a heavy one, or breaking its poise, sends it spinning.
+        let sign = if hx.abs() > 0.1 { hx } else { e.face };
+        e.twist.hit(crate::twist::share(dmg, k.hp), sign);
         e.stagger += if boss { 0.0 } else { stagger };
         if !boss && e.stagger >= k.poise {
             e.stagger = 0.0;
-            e.stun = STUN_TIME;
+            if !e.twist.spinning {
+                e.twist.spin(crate::twist::STUN_TURNS, sign);
+            }
         }
         let (x, y) = (e.x, e.y);
         self.event(EV_HIT, x, y, dmg);
@@ -86,6 +88,7 @@ impl Game {
             age: 0.0,
             status: Status::default(),
             hit: crate::anim::Hit::NONE,
+            twist: crate::twist::Twist::default(),
         });
         if k.boss {
             self.boss = Some(crate::boss::BossState::new(id));
@@ -176,8 +179,9 @@ impl Game {
             e.kx *= decay;
             e.ky *= decay;
             let pace = e.status.pace();
-            if e.stun > 0.0 || pace <= 0.0 {
-                // Interrupted or frozen: a wind-up or strike in progress is lost.
+            e.twist.step(dt);
+            if e.stun > 0.0 || pace <= 0.0 || e.twist.locked() {
+                // Interrupted, frozen or spinning from a hit: a wind-up or strike in progress is lost.
                 e.stun = (e.stun - dt).max(0.0);
                 if matches!(e.phase, Phase::Windup | Phase::Active) {
                     e.phase = Phase::Recover;
@@ -320,6 +324,7 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         for (i, e) in self.enemies.iter().enumerate() {
             if e.stun > 0.0
+                || e.twist.locked()
                 || e.status.frozen > 0.0
                 || self.boss_of(i).is_some_and(|b| b.down > 0.0)
             {
