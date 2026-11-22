@@ -133,6 +133,20 @@ pub struct Shot {
     pub element: u8,
 }
 
+/// An enemy that has just died, spinning for `twist::DEATH_TIME` before it is gone. Looks only: it has left the
+/// fight, so nothing hits it, it hits nothing, and the room does not wait for it.
+#[derive(Clone, Copy, Debug)]
+pub struct Corpse {
+    pub kind: u8,
+    pub x: f32,
+    pub y: f32,
+    pub face: f32,
+    pub seed: f32,
+    pub spin: crate::twist::DeathSpin,
+    /// Seconds since it died.
+    pub t: f32,
+}
+
 pub struct Fx {
     pub x: f32,
     pub y: f32,
@@ -242,6 +256,7 @@ pub struct Game {
     /// The shortest warning any hit on the player has had, for tests.
     pub min_warned: f32,
     pub fx: Vec<Fx>,
+    pub corpses: Vec<Corpse>,
     pub choices: [i32; 3],
     pub kills: u32,
     /// The room being fought (an index into `ROOMS`), its current wave, and where it stands.
@@ -349,6 +364,7 @@ impl Game {
             hazards: Vec::with_capacity(64),
             min_warned: f32::INFINITY,
             fx: Vec::with_capacity(MAX_FX),
+            corpses: Vec::with_capacity(16),
             mods: [SkillMods::default(); 3],
             stats: Stats::default(),
             owned: [0; N_CARDS],
@@ -525,6 +541,10 @@ impl Game {
         self.move_elements(dt);
         self.reap();
         self.move_fx(dt);
+        for c in self.corpses.iter_mut() {
+            c.t += dt;
+        }
+        self.corpses.retain(|c| c.t < crate::twist::DEATH_TIME);
     }
 
     pub(crate) fn add_fx(&mut self, f: Fx) {

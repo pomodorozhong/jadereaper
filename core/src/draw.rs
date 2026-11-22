@@ -15,6 +15,8 @@ use core::f32::consts::TAU;
 const FLIP_TIME: f32 = 0.12;
 const WARN: [f32; 4] = [0.17, 0.15, 0.13, 0.55];
 const WARN_BOSS: [f32; 4] = [0.62, 0.16, 0.12, 0.6];
+/// Draw-order index of the first corpse; enemies are numbered below it and the player is `u16::MAX`.
+const CORPSE: u16 = 0x8000;
 /// The paper stones along the arena's edge.
 const WALL_STONE: [f32; 4] = [0.66, 0.62, 0.55, 1.0];
 
@@ -327,12 +329,17 @@ impl Game {
             self.order.push((e.y, i as u16));
         }
         self.order.push((self.player.y, u16::MAX));
+        for (i, c) in self.corpses.iter().enumerate() {
+            self.order.push((c.y, CORPSE + i as u16));
+        }
         self.order
             .sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(core::cmp::Ordering::Equal));
         for n in 0..self.order.len() {
             let idx = self.order[n].1;
             if idx == u16::MAX {
                 self.draw_player();
+            } else if idx >= CORPSE {
+                self.draw_corpse((idx - CORPSE) as usize);
             } else {
                 self.draw_enemy(idx as usize);
             }
@@ -691,6 +698,77 @@ impl Game {
                 );
             }
         }
+    }
+
+    /// A dead enemy spinning about its vertical axis before it is gone, posed as if hit.
+    fn draw_corpse(&mut self, i: usize) {
+        let c = self.corpses[i];
+        let k = &KINDS[c.kind as usize];
+        let rig = &RIGS[k.rig];
+        let s = if c.kind < 4 {
+            self.draw_scale[1 + c.kind as usize]
+        } else {
+            1.0
+        };
+        let a = Anim {
+            who: 1.0 + c.kind as f32,
+            id: 0.0,
+            x: c.x,
+            y: c.y,
+            face: c.face,
+            phase: crate::anim::A_HURT,
+            k: 0.0,
+            len: 0.0,
+            cancel: -1.0,
+            dx: c.face,
+            dy: 0.0,
+            step: 0.0,
+            hit_dx: 0.0,
+            hit_dy: 0.0,
+            hit_dmg: 0.0,
+            hit_age: 1e6,
+            twist: c.spin.at(c.t),
+        };
+        let p3 = pose(
+            rig,
+            &self.sheet_pose[k.rig],
+            &a,
+            Gait {
+                clock: self.anim + c.seed * 7.0,
+                ..Gait::default()
+            },
+        );
+        self.put(
+            c.x,
+            c.y,
+            k.r * 0.95 * s,
+            k.r * 0.36 * s,
+            0.0,
+            P_GROUND_SHADOW,
+            0.0,
+            0.0,
+            [INK[0], INK[1], INK[2], 0.2],
+        );
+        self.draw_rig(
+            rig,
+            p3,
+            Look {
+                x: c.x,
+                y: c.y,
+                face: c.face,
+                scale: s,
+                flash: 0.0,
+                alpha: 1.0,
+                seed: c.seed,
+                swing: None,
+                tint: if c.kind == K_DRAGON {
+                    Some(self.stance_color())
+                } else {
+                    None
+                },
+                sheet: Sheet::FLAT,
+            },
+        );
     }
 
     fn draw_enemy(&mut self, i: usize) {

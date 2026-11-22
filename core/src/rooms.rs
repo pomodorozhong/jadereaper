@@ -57,6 +57,7 @@ impl Game {
         self.patches.clear();
         self.orbit = None;
         self.fx.clear();
+        self.corpses.clear();
         self.focus = None;
         self.boss = None;
         self.stance = crate::moves::Stance::Any;

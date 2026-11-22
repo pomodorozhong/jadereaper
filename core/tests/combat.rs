@@ -168,6 +168,32 @@ fn hits_stagger_and_freeze() {
 }
 
 #[test]
+fn a_kill_leaves_the_fight_at_once_and_spins_for_a_second() {
+    let mut g = arena();
+    let i = g.add_enemy(K_BLOT, 40.0, 0.0).unwrap();
+    g.enemies[i].hp = 5.0;
+    run(&mut g, 1, press(0));
+    run(&mut g, 8, Input::default());
+    assert!(g.enemies.is_empty(), "the dead enemy is out of the fight");
+    assert_eq!(g.corpses.len(), 1);
+    // The scythe's 10 damage on 5 HP is 5 of overkill, under a fifth of a blot's 30 HP: about one whole turn,
+    // carrying on from wherever the hit's own spin had got to, and ending facing front.
+    let c = g.corpses[0];
+    let tau = core::f32::consts::TAU;
+    assert!(
+        (c.spin.turn.abs() - tau).abs() < core::f32::consts::PI,
+        "{:?}",
+        c.spin
+    );
+    assert!(
+        (((c.spin.from + c.spin.turn) / tau).round() * tau - (c.spin.from + c.spin.turn)).abs()
+            < 1e-3
+    );
+    run(&mut g, 60, Input::default());
+    assert!(g.corpses.is_empty(), "gone after a second");
+}
+
+#[test]
 fn with_no_aim_skills_go_the_way_it_moves_or_last_moved() {
     let mut g = arena();
     // Aim right with the mouse or stick, then let go of it.

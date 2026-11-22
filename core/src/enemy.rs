@@ -619,6 +619,30 @@ impl Game {
             }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
+            // It spins for a second before it is gone, faster for more overkill: the damage past its last HP,
+            // which its HP below zero now holds.
+            let overkill = if e.hp.is_finite() { -e.hp } else { 0.0 };
+            let sign = if e.hit.dx.abs() > 0.1 {
+                e.hit.dx
+            } else {
+                e.face
+            };
+            let spin = crate::twist::DeathSpin::new(
+                e.twist.drawn(),
+                overkill,
+                k.hp,
+                sign,
+                &self.spin_tune,
+            );
+            self.corpses.push(crate::game::Corpse {
+                kind: e.kind,
+                x: e.x,
+                y: e.y,
+                face: e.face,
+                seed: e.seed,
+                spin,
+                t: 0.0,
+            });
             // An ink stain left where it stood.
             let seed = self.fx_rng.f();
             self.add_fx(Fx {
