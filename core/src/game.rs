@@ -197,6 +197,8 @@ impl Fx {
 
 pub struct Game {
     pub rng: Rng,
+    /// The hit spin's numbers (`crate::twist::Tune`), tuned live from ?debug.
+    pub spin_tune: crate::twist::Tune,
     /// Random numbers for looks only (flying paper), kept apart from `rng` so effects never change the run.
     pub(crate) fx_rng: Rng,
     pub running: bool,
@@ -310,6 +312,7 @@ impl Game {
         Game {
             rng: Rng(seed | 1),
             fx_rng: Rng((seed ^ 0x9e37_79b9) | 1),
+            spin_tune: crate::twist::Tune::DEFAULT,
             running: false,
             choosing: false,
             over: false,

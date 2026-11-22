@@ -18,6 +18,7 @@ impl Game {
         let dmg = self.boss_hit(i, dmg, stagger);
         let boss = KINDS[self.enemies[i].kind as usize].boss;
         let now = self.time;
+        let tune = self.spin_tune;
         let e = &mut self.enemies[i];
         let k = &KINDS[e.kind as usize];
         e.hp -= dmg;
@@ -39,12 +40,12 @@ impl Game {
         e.ky += ky * heavy;
         // The hit spins the sheet round, away from the push; a heavy one, or breaking its poise, sends it spinning.
         let sign = if hx.abs() > 0.1 { hx } else { e.face };
-        e.twist.hit(crate::twist::share(dmg, k.hp), sign);
+        e.twist.hit(crate::twist::share(dmg, k.hp), sign, &tune);
         e.stagger += if boss { 0.0 } else { stagger };
         if !boss && e.stagger >= k.poise {
             e.stagger = 0.0;
             if !e.twist.spinning {
-                e.twist.spin(crate::twist::STUN_TURNS, sign);
+                e.twist.spin(crate::twist::STUN_TURNS, sign, &tune);
             }
         }
         let (x, y) = (e.x, e.y);
@@ -163,6 +164,7 @@ impl Game {
 
     pub(crate) fn move_enemies(&mut self, dt: f32) {
         let (px, py) = (self.player.x, self.player.y);
+        let tune = self.spin_tune;
         let decay = (-8.0 * dt).exp();
         for i in 0..self.enemies.len() {
             if KINDS[self.enemies[i].kind as usize].boss {
@@ -179,8 +181,8 @@ impl Game {
             e.kx *= decay;
             e.ky *= decay;
             let pace = e.status.pace();
-            e.twist.step(dt);
-            if e.stun > 0.0 || pace <= 0.0 || e.twist.locked() {
+            e.twist.step(dt, &tune);
+            if e.stun > 0.0 || pace <= 0.0 || e.twist.locked(&tune) {
                 // Interrupted, frozen or spinning from a hit: a wind-up or strike in progress is lost.
                 e.stun = (e.stun - dt).max(0.0);
                 if matches!(e.phase, Phase::Windup | Phase::Active) {
@@ -324,7 +326,7 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         for (i, e) in self.enemies.iter().enumerate() {
             if e.stun > 0.0
-                || e.twist.locked()
+                || e.twist.locked(&self.spin_tune)
                 || e.status.frozen > 0.0
                 || self.boss_of(i).is_some_and(|b| b.down > 0.0)
             {

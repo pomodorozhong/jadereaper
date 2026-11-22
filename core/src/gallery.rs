@@ -50,6 +50,7 @@ impl Game {
     /// The record, gait, held part's swing and extra turn for one rig in one gallery column.
     fn gallery_cell(&self, rig: usize, col: usize) -> (Anim, Gait, Option<f32>, f32) {
         let v = self.gallery_view;
+        let tune = self.spin_tune;
         let k = v.progress.clamp(0.0, 1.0);
         let (dx, dy) = (v.angle.cos(), v.angle.sin());
         let mut a = Anim {
@@ -123,22 +124,22 @@ impl Game {
                 a.phase = A_HURT;
                 (a.hit_dx, a.hit_dy, a.hit_dmg) = (dx, dy, v.damage);
                 let mut t = Twist::default();
-                t.hit(v.damage / 100.0, dx);
-                a.twist = twist::through(t, k);
+                t.hit(v.damage / 100.0, dx, &tune);
+                a.twist = twist::through(t, k, &tune);
             }
             6 => {
                 a.phase = A_DOWN;
                 let mut t = Twist::default();
-                t.spin(twist::DOWN_TURNS, 1.0);
-                a.twist = twist::through(t, k);
+                t.spin(twist::DOWN_TURNS, 1.0, &tune);
+                a.twist = twist::through(t, k, &tune);
             }
             7 => (a.phase, a.len) = (A_GRABBED, 3.0),
             8 => (a.phase, a.len) = (A_ROLL, ROLL_TIME + ROLL_RECOVER),
             9 => {
                 a.phase = A_STUNNED;
                 let mut t = Twist::default();
-                t.spin(twist::STUN_TURNS, 1.0);
-                a.twist = twist::through(t, k);
+                t.spin(twist::STUN_TURNS, 1.0, &tune);
+                a.twist = twist::through(t, k, &tune);
             }
             _ => {
                 // Turning round from facing right to facing left, through edge-on.

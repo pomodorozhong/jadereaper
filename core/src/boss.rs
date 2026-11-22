@@ -145,6 +145,7 @@ impl Game {
     pub(crate) fn move_boss(&mut self, i: usize, dt: f32) {
         let Some(mut b) = self.boss_of(i) else { return };
         let (px, py) = (self.player.x, self.player.y);
+        let tune = self.spin_tune;
         let max_hp = KINDS[self.enemies[i].kind as usize].hp;
         let poise = KINDS[self.enemies[i].kind as usize].poise;
         for c in b.cooldowns.iter_mut() {
@@ -161,7 +162,7 @@ impl Game {
             e.kx *= decay;
             e.ky *= decay;
             e.stun = 0.0;
-            e.twist.step(dt);
+            e.twist.step(dt, &tune);
         }
         self.focus = Some((self.enemies[i].x, self.enemies[i].y));
 
@@ -201,7 +202,9 @@ impl Game {
         if b.meter >= poise {
             b.meter = 0.0;
             b.down = DOWN_TIME;
-            self.enemies[i].twist.spin(crate::twist::DOWN_TURNS, 1.0);
+            self.enemies[i]
+                .twist
+                .spin(crate::twist::DOWN_TURNS, 1.0, &tune);
             b.holding = false;
             self.release_grab();
             let e = &mut self.enemies[i];
@@ -218,7 +221,7 @@ impl Game {
         }
         // Spinning from a hit (after the knockdowns, which win): it cannot act, and a wind-up or strike in progress is lost. Bosses have so much HP
         // that this takes a very heavy hit.
-        if self.enemies[i].twist.locked() {
+        if self.enemies[i].twist.locked(&tune) {
             let e = &mut self.enemies[i];
             if matches!(e.phase, Phase::Windup | Phase::Active) {
                 e.phase = Phase::Recover;
@@ -348,7 +351,9 @@ impl Game {
                                 self.event(EV_GRAB, px, py, 0.0);
                             } else if m.knockdown {
                                 let sign = if px >= ex { 1.0 } else { -1.0 };
-                                self.player.twist.spin(crate::twist::DOWN_TURNS, sign);
+                                self.player
+                                    .twist
+                                    .spin(crate::twist::DOWN_TURNS, sign, &tune);
                                 self.player.act = Act::Down { t: 0.0 };
                             }
                         }

@@ -163,7 +163,7 @@ fn hits_stagger_and_freeze() {
     run(&mut g, 1, press(0));
     run(&mut g, 8, Input::default());
     // The hit staggers it, or spins it round so it cannot act.
-    assert!(g.enemies[0].twist.locked() || g.enemies[0].stagger > 0.0);
+    assert!(g.enemies[0].twist.locked(&g.spin_tune) || g.enemies[0].stagger > 0.0);
     assert!(g.enemies[0].kx > 0.0, "knocked back away from the player");
 }
 

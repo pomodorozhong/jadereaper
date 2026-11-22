@@ -178,7 +178,7 @@ impl Game {
                 )
             } else if e.stun > 0.0 {
                 (A_STUNNED, 0.0, 0.0)
-            } else if e.twist.locked() {
+            } else if e.twist.locked(&self.spin_tune) {
                 (A_HURT, 0.0, 0.0)
             } else {
                 match e.phase {

@@ -179,8 +179,9 @@ impl Game {
         let inp = self.input;
         let pressed = inp.buttons & !self.prev_buttons;
         self.prev_buttons = inp.buttons;
+        let tune = self.spin_tune;
         let p = &mut self.player;
-        p.twist.step(dt);
+        p.twist.step(dt, &tune);
         for (b, t) in p.buffer.iter_mut().enumerate() {
             *t = if pressed & (1 << b) != 0 {
                 BUFFER
@@ -250,7 +251,7 @@ impl Game {
             // Hit or knocked down: it cannot move until the spin the hit put on it settles.
             Act::Hurt { t } => {
                 let t = t + dt;
-                self.player.act = if self.player.twist.locked() {
+                self.player.act = if self.player.twist.locked(&tune) {
                     Act::Hurt { t }
                 } else {
                     Act::Free
@@ -258,7 +259,7 @@ impl Game {
             }
             Act::Down { t } => {
                 let t = t + dt;
-                self.player.act = if self.player.twist.locked() {
+                self.player.act = if self.player.twist.locked(&tune) {
                     Act::Down { t }
                 } else {
                     Act::Free
@@ -700,6 +701,7 @@ impl Game {
         let (px, py) = (self.player.x, self.player.y);
         let (kx, ky) = dir_to(from.0, from.1, px, py);
         let armored = self.player.armored() && !boss;
+        let tune = self.spin_tune;
         let dmg = dmg * (1.0 - self.stats.armor);
         let now = self.time;
         let p = &mut self.player;
@@ -714,7 +716,7 @@ impl Game {
         if !armored {
             // The hit spins the sheet round, away from the push; a heavy one sends it spinning.
             let sign = if kx.abs() > 0.1 { kx } else { p.face };
-            p.twist.hit(crate::twist::share(dmg, p.max_hp), sign);
+            p.twist.hit(crate::twist::share(dmg, p.max_hp), sign, &tune);
             p.act = Act::Hurt { t: 0.0 };
             p.kx = kx * 260.0;
             p.ky = ky * 260.0;

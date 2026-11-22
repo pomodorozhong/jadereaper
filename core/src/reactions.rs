@@ -183,7 +183,10 @@ impl Game {
                 if i < self.enemies.len() {
                     self.hurt_enemy(i, dmg * 2.0 + 10.0, 50.0, 0.0, 0.0);
                     if !boss {
-                        self.enemies[i].twist.spin(crate::twist::STUN_TURNS, 1.0);
+                        let tune = self.spin_tune;
+                        self.enemies[i]
+                            .twist
+                            .spin(crate::twist::STUN_TURNS, 1.0, &tune);
                     }
                 }
             }
