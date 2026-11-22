@@ -72,6 +72,10 @@ export function createUI({ onAction }) {
 			return [r.left + r.width / 2, r.top + r.height / 2];
 		};
 		const [fx, fy] = centre(from);
+		const box = from.getBoundingClientRect();
+		// A button counts as that way only when its centre is past the focused button's edge: a focused card is
+		// lifted and tilted (style.css), so its neighbours in the row sit a little below its centre.
+		const reach = Math.abs(dx) * (box.width / 2) + Math.abs(dy) * (box.height / 2);
 		let best = null;
 		let bestScore = Infinity;
 		for (const el of list) {
@@ -80,7 +84,7 @@ export function createUI({ onAction }) {
 			// Distance along the pressed direction, and across it; buttons off to the side count for less.
 			const along = (x - fx) * dx + (y - fy) * dy;
 			const across = Math.abs((x - fx) * dy - (y - fy) * dx);
-			if (along < 4) continue;
+			if (along <= reach) continue;
 			const score = along + across * 2;
 			if (score < bestScore) {
 				bestScore = score;
