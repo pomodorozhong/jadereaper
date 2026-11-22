@@ -44,6 +44,8 @@ export function createInput({ onKey, canvas }) {
 	let navHeld = 0;
 	let navDir = "";
 	let padName = "";
+	// The last device used: "keys" (keyboard and mouse) or "pad". The skill chips name the buttons of this one.
+	let device = "keys";
 	// Where the aim comes from: the mouse (a screen point) or the right stick (a direction).
 	let aim = { kind: "mouse", x: 0, y: 0 };
 	let mouse = null;
@@ -58,6 +60,7 @@ export function createInput({ onKey, canvas }) {
 
 	window.addEventListener("keydown", (e) => {
 		if (e.metaKey || e.ctrlKey || e.altKey) return;
+		device = "keys";
 		if (e.code in MOVE_KEYS) {
 			held.add(e.code);
 			e.preventDefault();
@@ -103,6 +106,9 @@ export function createInput({ onKey, canvas }) {
 		});
 		canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 	}
+	window.addEventListener("pointerdown", () => {
+		device = "keys";
+	});
 	window.addEventListener("gamepadconnected", (e) => {
 		padName = e.gamepad.id;
 	});
@@ -129,6 +135,7 @@ export function createInput({ onKey, canvas }) {
 			back: false,
 			pause: false,
 			pad: padName,
+			device: "keys",
 		};
 
 		const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -147,14 +154,23 @@ export function createInput({ onKey, canvas }) {
 				mx += ax + dx;
 				my += ay + dy;
 			}
+			const rx = pad.axes[2] || 0,
+				ry = pad.axes[3] || 0;
+			if (
+				ax ||
+				ay ||
+				dx ||
+				dy ||
+				Math.hypot(rx, ry) > AIM_DEADZONE ||
+				pad.buttons.some((x) => x.pressed)
+			)
+				device = "pad";
 			const pressed = (i) => b(i) && !prevButtons[i];
 			out.confirm = pressed(0);
 			out.back = pressed(1);
 			out.pause = pressed(9);
 			for (const [i, bit] of PAD_BUTTONS) if (b(i)) buttons |= bit;
 
-			const rx = pad.axes[2] || 0,
-				ry = pad.axes[3] || 0;
 			if (Math.hypot(rx, ry) > AIM_DEADZONE)
 				aim = { kind: "stick", x: rx, y: ry };
 			else if (aim.kind === "stick") aim = { kind: "stick", x: 0, y: 0 };
@@ -197,6 +213,7 @@ export function createInput({ onKey, canvas }) {
 			mx /= len;
 			my /= len;
 		}
+		out.device = device;
 		out.mx = mx;
 		out.my = my;
 		out.buttons = buttons;

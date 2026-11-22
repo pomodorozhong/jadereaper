@@ -1,5 +1,12 @@
 // Paper UI: screens, HUD and menu focus. All DOM work lives here.
-import { SKILLS, SLOT_KEYS, CARDS, ELEMENTS, KINDS } from "./data.js";
+import {
+	SKILLS,
+	SLOT_KEYS,
+	PAD_SLOT_KEYS,
+	CARDS,
+	ELEMENTS,
+	KINDS,
+} from "./data.js";
 import { formatTime } from "./save.js";
 import { t, getLang, setText } from "./i18n.js";
 
@@ -136,6 +143,18 @@ export function createUI({ onAction }) {
 
 	const rgb = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")})`;
 
+	// The device last used ("keys" or "pad", input.js), so the skills name the buttons it has.
+	let device = "keys";
+	const slotKeys = () => (device === "pad" ? PAD_SLOT_KEYS : SLOT_KEYS);
+	// The picks the skill pick screen last showed, to redraw it when the device changes.
+	let shownPicks = [];
+	/** Name the skill buttons of `next` ("keys" or "pad"), redrawing the skill pick if it is open. */
+	function setDevice(next) {
+		if (next === device) return;
+		device = next;
+		if (current === "skillpick") skillPick(shownPicks);
+	}
+
 	/** A skill button chip: the skill's glyph, its element's glyph in the element's colour, and the button. */
 	function skillChip(id, element, slot) {
 		const chip = document.createElement("div");
@@ -155,7 +174,7 @@ export function createUI({ onAction }) {
 			chip.append(mark);
 		}
 		const key = document.createElement("small");
-		key.textContent = SLOT_KEYS[slot];
+		key.textContent = slotKeys()[slot];
 		chip.append(key);
 		return chip;
 	}
@@ -212,7 +231,8 @@ export function createUI({ onAction }) {
 			$("finisherPrompt").hidden = true;
 		}
 		$("grabPrompt").hidden = !grabbed;
-		const skillSig = getLang() + loadout.join(",") + elements.join(",");
+		const skillSig =
+			getLang() + device + loadout.join(",") + elements.join(",");
 		if (cache.skills !== skillSig) {
 			cache.skills = skillSig;
 			$("skills").replaceChildren(
@@ -357,6 +377,7 @@ export function createUI({ onAction }) {
 
 	/** The skill pick: every skill as a card; the picked ones show which button they go on, in pick order. */
 	function skillPick(picked) {
+		shownPicks = [...picked];
 		const focused = document.activeElement?.dataset?.value;
 		$("skillCards").replaceChildren(
 			...SKILLS.map((sk) => {
@@ -367,7 +388,7 @@ export function createUI({ onAction }) {
 				const slot = picked.indexOf(sk.id);
 				if (slot >= 0) card.classList.add("picked");
 				const parts = [
-					["key", slot >= 0 ? SLOT_KEYS[slot] : ""],
+					["key", slot >= 0 ? slotKeys()[slot] : ""],
 					["glyph", sk.glyph],
 					["name", t(`skill.${sk.name}.name`)],
 					["weight", t(`weight.${sk.weight}`)],
@@ -457,6 +478,7 @@ export function createUI({ onAction }) {
 		damage,
 		reaction,
 		skillPick,
+		setDevice,
 		cards,
 		gameOver,
 		records,

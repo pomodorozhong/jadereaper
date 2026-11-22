@@ -452,6 +452,7 @@ async function boot() {
 		core.jr_set_view(view.w, view.h);
 
 		const pad = input.poll(dt);
+		ui.setDevice(pad.device);
 		if (pad.pause) onKey({ pause: true });
 		if (pad.back) back();
 		if (ui.screen) {
