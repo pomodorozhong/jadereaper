@@ -612,13 +612,7 @@ impl Game {
             }
             self.kills += 1;
             self.event(EV_KILL, e.x, e.y, e.kind as f32);
-            // The puppet tears into shreds of its own paper, with an ink stain left where it stood.
-            let (n, size) = if e.kind >= K_BRUTE {
-                (16, k.r * 0.35)
-            } else {
-                (8, k.r * 0.6)
-            };
-            self.shred_burst(e.x, e.y, k.r * 0.8, crate::paper::PUPPET, n, size);
+            // An ink stain left where it stood.
             let seed = self.fx_rng.f();
             self.add_fx(Fx {
                 grow: 8.0,

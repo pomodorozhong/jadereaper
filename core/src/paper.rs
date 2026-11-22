@@ -16,6 +16,9 @@ const BOUNCE_SPEED: f32 = 140.0;
 pub const GROUND_CHIP: [f32; 4] = [0.9, 0.86, 0.76, 1.0];
 /// The puppets' paper (`PAPER` in the shader): shreds torn from a character.
 pub const PUPPET: [f32; 3] = [0.965, 0.94, 0.875];
+/// The crescent leap's landing throws the white shreds a blot used to tear into when it died: this many, this
+/// big (half size), from this high.
+pub const LEAP_SHREDS: (usize, f32, f32) = (8, 9.6, 12.8);
 /// Paper dust: the colour of a cut paper edge (`EDGE` in the shader).
 const DUST: [f32; 4] = [0.74, 0.69, 0.6, 1.0];
 /// The torn patch: the paper's darker underside showing through.
@@ -125,6 +128,12 @@ impl Game {
                 ..Burst::of(P_CHIP, DUST, (10.0 * power).round() as usize)
             },
         );
+        self.ground_marks(x, y, reach, k);
+    }
+
+    /// The marks a heavy landing leaves at (x, y): a torn patch of the ground and ink cracks, about `reach`
+    /// across, scaled by `k`.
+    pub(crate) fn ground_marks(&mut self, x: f32, y: f32, reach: f32, k: f32) {
         let seed = self.fx_rng.f();
         self.add_fx(Fx {
             grow: reach * 0.15,

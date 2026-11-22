@@ -557,7 +557,10 @@ impl Game {
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Leap => {
-                self.ground_burst(px, py, area.reach(), 1.0);
+                // White paper shreds burst up from the landing, and the ground is torn and cracked.
+                let (n, size, z) = crate::paper::LEAP_SHREDS;
+                self.shred_burst(px, py, z, crate::paper::PUPPET, n, size);
+                self.ground_marks(px, py, area.reach(), 1.0);
                 self.shake = self.shake.max(0.6);
                 self.event(EV_PULSE, px, py, 0.0);
             }
