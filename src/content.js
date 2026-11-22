@@ -56,6 +56,9 @@ export const EVENT = {
   "REACTION": 20
 };
 
+/** A rig's 3D pose numbers by name, in the order jr_set_pose numbers them. */
+export const SHEET_KEYS = ["aim","charge","tremble","strike","sag","sag_bend","pop","hit","hit_bend","hit_max","down","grab","shake","roll","wobble","wobble_rate","bob","sway","flex","walk_curl"];
+
 /** rigs, indexed by id. */
 export const RIGS = [
   {
@@ -132,6 +135,28 @@ export const RIGS = [
       "tilt": 0,
       "sx": 0.75,
       "sy": 0.75
+    },
+    "sheet": {
+      "aim": 0.7,
+      "charge": 0.35,
+      "tremble": 0.05,
+      "strike": -0.3,
+      "sag": -0.25,
+      "sag_bend": 0.5,
+      "pop": 6,
+      "hit": 0.012,
+      "hit_bend": 0.02,
+      "hit_max": 0.6,
+      "down": 1.57,
+      "grab": 1.45,
+      "shake": 0.12,
+      "roll": 1,
+      "wobble": 1.1,
+      "wobble_rate": 2.5,
+      "bob": 3,
+      "sway": 0.15,
+      "flex": 0.6,
+      "walk_curl": 0.12
     }
   },
   {
@@ -180,6 +205,28 @@ export const RIGS = [
       "tilt": 0,
       "sx": 1,
       "sy": 1
+    },
+    "sheet": {
+      "aim": 0.6,
+      "charge": 0.4,
+      "tremble": 0.05,
+      "strike": -0.35,
+      "sag": -0.25,
+      "sag_bend": 0.5,
+      "pop": 6,
+      "hit": 0.02,
+      "hit_bend": 0.02,
+      "hit_max": 0.6,
+      "down": 1.57,
+      "grab": 1.45,
+      "shake": 0.12,
+      "roll": 0,
+      "wobble": 1.1,
+      "wobble_rate": 2.5,
+      "bob": 2,
+      "sway": 0.12,
+      "flex": 0.7,
+      "walk_curl": 0.2
     }
   },
   {
@@ -228,6 +275,28 @@ export const RIGS = [
       "tilt": 0,
       "sx": 1,
       "sy": 1
+    },
+    "sheet": {
+      "aim": 0.8,
+      "charge": 0.3,
+      "tremble": 0.05,
+      "strike": -0.25,
+      "sag": -0.25,
+      "sag_bend": 0.5,
+      "pop": 6,
+      "hit": 0.025,
+      "hit_bend": 0.02,
+      "hit_max": 0.6,
+      "down": 1.57,
+      "grab": 1.45,
+      "shake": 0.12,
+      "roll": 0,
+      "wobble": 1.1,
+      "wobble_rate": 2.5,
+      "bob": 4,
+      "sway": 0.2,
+      "flex": 0.75,
+      "walk_curl": 0.25
     }
   },
   {
@@ -276,6 +345,28 @@ export const RIGS = [
       "tilt": 0,
       "sx": 1,
       "sy": 1
+    },
+    "sheet": {
+      "aim": 0.5,
+      "charge": 0.3,
+      "tremble": 0.05,
+      "strike": -0.35,
+      "sag": -0.25,
+      "sag_bend": 0.5,
+      "pop": 6,
+      "hit": 0.006,
+      "hit_bend": 0.01,
+      "hit_max": 0.6,
+      "down": 1.57,
+      "grab": 1.45,
+      "shake": 0.12,
+      "roll": 0,
+      "wobble": 0.8,
+      "wobble_rate": 2.5,
+      "bob": 2,
+      "sway": 0.1,
+      "flex": 0.5,
+      "walk_curl": 0.1
     }
   },
   {
@@ -324,6 +415,28 @@ export const RIGS = [
       "tilt": 0,
       "sx": 1,
       "sy": 1
+    },
+    "sheet": {
+      "aim": 0.45,
+      "charge": 0.25,
+      "tremble": 0.05,
+      "strike": -0.3,
+      "sag": -0.25,
+      "sag_bend": 0.5,
+      "pop": 6,
+      "hit": 0.004,
+      "hit_bend": 0.006,
+      "hit_max": 0.4,
+      "down": 1.57,
+      "grab": 1.45,
+      "shake": 0.12,
+      "roll": 0,
+      "wobble": 0.7,
+      "wobble_rate": 2,
+      "bob": 2,
+      "sway": 0.08,
+      "flex": 0.45,
+      "walk_curl": 0.08
     }
   },
   {

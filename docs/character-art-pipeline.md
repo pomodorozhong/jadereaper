@@ -9,7 +9,7 @@ How a character goes from the artist's paper drawing to the screen. Why it works
 | 1. Draw | On paper, outside the repository | Once per drawing | A photo or scan (PNG, JPG or WebP) |
 | 2. Trace | The Lightbox, `tools/lightbox.html`, by hand | Once per character, again when the art changes | `assets/characters/<name>.json` and `<name>.preset.json`, committed |
 | 3. Bake | `src/characters.js` and `src/renderer.js`, at page load | Once per start-up | Atlas texture and rect table: one cell per part per boil pose |
-| 4. Simulate | Rust core, `core/` | Every frame | Instance buffer, 16 floats per part, with the pose in the part id and the part's turn, lean, lift and bend in 3D |
+| 4. Simulate | Rust core, `core/` | Every frame | Instance buffer, 18 floats per part, with the pose in the part id, the part's turn, lean, lift and bend in 3D, and its depth in its puppet |
 | 5. Draw | WebGPU, `src/shader.wgsl` | Every frame | The frame on screen: one quad per part, plus margin and shadow |
 
 ## Tracing in the Lightbox

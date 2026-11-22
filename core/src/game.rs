@@ -10,6 +10,7 @@ use crate::cards::{Pick, SkillMods, Stats, NO_SLOT};
 use crate::defs::*;
 use crate::elements::{Patch, Status, Well};
 pub use crate::player::{Act, Input, Player};
+use crate::rigs::SheetPose;
 use crate::rooms::Stage;
 
 /// Enemies at once. Fights are about reading a few attackers, not hordes.
@@ -186,6 +187,16 @@ pub struct Game {
     pub boil_poses: u32,
     /// The ?debug toggle that spins every puppet in 3D. Drawing only; not in `state_hash`.
     pub debug_spin: bool,
+    /// Each rig's 3D pose numbers, from `RIGS`; the ?debug sliders change them. Drawing only.
+    pub sheet_pose: [SheetPose; N_RIGS],
+    /// Each character's drawn facing mid-turn, by (who, id) from its animation record: -1..1, edge-on at 0.
+    /// Drawing only; not in `state_hash`.
+    pub(crate) flips: Vec<((f32, f32), f32)>,
+    /// The pose gallery (`?gallery`) is shown instead of the run, which is frozen. Drawing only.
+    pub gallery: bool,
+    pub gallery_view: crate::gallery::GalleryView,
+    /// The animation clock when the facings last moved.
+    pub(crate) flip_clock: f32,
     /// How big each character is drawn: the player, then each enemy kind. Hit areas do not change.
     pub draw_scale: [f32; 5],
     /// Each enemy kind's waddle: (tilt each way in radians, pose changes per second). Starts from `KINDS`.
@@ -282,6 +293,11 @@ impl Game {
             boil_fps: 4.0,
             boil_poses: MAX_POSES,
             debug_spin: false,
+            sheet_pose: core::array::from_fn(|i| RIGS[i].sheet),
+            flips: Vec::new(),
+            flip_clock: 0.0,
+            gallery: false,
+            gallery_view: Default::default(),
             draw_scale: [1.0; 5],
             waddle: [
                 (KINDS[0].tilt.to_radians(), KINDS[0].rate),
@@ -363,6 +379,11 @@ impl Game {
         };
         self.events.clear();
         self.anim += dt;
+        if self.gallery {
+            self.build_gallery();
+            self.write_state();
+            return;
+        }
         if self.running && !self.choosing && !self.over {
             self.acc += dt;
             let mut n = 0;
@@ -380,8 +401,9 @@ impl Game {
             self.acc = 0.0;
         }
         self.move_camera(dt);
-        self.build();
+        // The poses are drawn from the animation records, so they are built first.
         self.build_anims();
+        self.build();
         self.write_state();
     }
 

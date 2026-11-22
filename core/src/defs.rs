@@ -5,7 +5,7 @@
 
 pub use crate::content::*;
 
-/// One paper cutout drawn by the renderer. 16 floats, 64 bytes.
+/// One paper cutout drawn by the renderer. 18 floats, 72 bytes.
 ///
 /// Each part is a sheet of paper oriented in 3D around its centre (`x`, `y`): `rot` turns it in its own plane,
 /// then `turn`, `lean` and `bend` (see `Sheet`) set it in 3D, and the renderer projects it with the fixed camera.
@@ -29,9 +29,15 @@ pub struct Inst {
     pub lean: f32,
     pub lift: f32,
     pub bend: f32,
+    /// How far the part's centre is towards the camera from its puppet's ground point, in world units, after the
+    /// puppet's turn and lean (negative is further away). The shader fades far paper into the ground with it.
+    pub depth: f32,
+    /// The puppet's drawn height in world units, so the shader can fade by depth in puppet heights; 0 for parts
+    /// that are not in a puppet, which never fade.
+    pub reach: f32,
 }
 
-pub const INST_FLOATS: usize = 16;
+pub const INST_FLOATS: usize = 18;
 
 /// How a paper sheet is held in 3D, on top of its in-plane rotation. All zero is a sheet standing flat to the
 /// camera, which is how every part was drawn before. The renderer's shader (`src/shader.wgsl`) applies them.
@@ -62,6 +68,11 @@ impl Sheet {
 /// it lies away from the camera. Standing sheets are drawn at full height; one lying on its back shows at this
 /// fraction of its height. `PITCH` in `src/shader.wgsl` must match.
 pub const PITCH: f32 = 0.5;
+
+/// How far the shader grows each part's quad past its half size, in world units, for the margin and shadow. A
+/// sheet's bend is the angle from its middle to the quad's edge, so bending a part by a curvature needs it.
+/// `PAD` in `src/shader.wgsl` must match.
+pub const SHEET_PAD: f32 = 10.0;
 
 /// Place a point given relative to a sheet's anchor (x right, y down, z towards the camera) by turning it by
 /// `turn` about the vertical axis and leaning it by `lean`, then project it onto the screen. Matches `orient` and
