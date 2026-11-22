@@ -43,6 +43,7 @@ const SPIN = {
 	decel: 38,
 	overshoot: 0.5,
 	settle: 0.15,
+	player_hold: 1,
 	curve: 0.5,
 };
 const SPIN_KEYS = Object.keys(SPIN);
@@ -99,6 +100,7 @@ const DEBUG_SLIDERS = [
 	["spin", "decel", "Spin slowdown (rad/s²)", 5, 120, 1],
 	["spin", "overshoot", "Spin overshoot (rad)", 0, 2, 0.05],
 	["spin", "settle", "Moves again within (rad)", 0.02, 0.8, 0.01],
+	["spin", "player_hold", "Player held past (rad)", 0, 3, 0.05],
 	["spin", "curve", "Small-hit curve (1 = in proportion)", 0.1, 1, 0.05],
 ];
 /** ?debug pose sliders: each rig's 3D pose numbers (`sheet` in content/game.json), sent with jr_set_pose. Each

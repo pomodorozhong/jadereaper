@@ -66,7 +66,9 @@ fn poses_come_from_the_rig() {
     };
     let at = |phase, k| pose(rig, &rig.sheet, &rec(phase, k), Gait::default()).flat;
     assert_eq!(at(A_STARTUP, 1.0), rig.windup);
-    assert_eq!(at(A_HURT, 0.5), rig.hurt);
+    // A hit is only a spin: no lean, shift or squash. Being grabbed still shows the hurt pose.
+    assert_eq!(at(A_HURT, 0.5), Pose::REST);
+    assert_eq!(at(A_GRABBED, 0.5), rig.hurt);
     let walk = pose(
         rig,
         &rig.sheet,

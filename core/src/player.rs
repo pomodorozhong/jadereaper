@@ -250,10 +250,11 @@ impl Game {
                 };
             }
             Act::Skill { .. } => walk = self.run_skill(dt),
-            // Hit or knocked down: it cannot move until the spin the hit put on it settles.
+            // Hit or knocked down: held while the hit's spin is strong (whole turns, or a wide swing). A gentler
+            // swing lets it move and act at once, still spinning.
             Act::Hurt { t } => {
                 let t = t + dt;
-                self.player.act = if self.player.twist.locked(&tune) {
+                self.player.act = if self.player.twist.holds_player(&tune) {
                     Act::Hurt { t }
                 } else {
                     Act::Free
@@ -261,7 +262,7 @@ impl Game {
             }
             Act::Down { t } => {
                 let t = t + dt;
-                self.player.act = if self.player.twist.locked(&tune) {
+                self.player.act = if self.player.twist.holds_player(&tune) {
                     Act::Down { t }
                 } else {
                     Act::Free

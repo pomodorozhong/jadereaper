@@ -253,7 +253,8 @@ pub fn pose(rig: &Rig, n: &SheetPose, a: &Anim, g: Gait) -> Pose3 {
             Pose::REST.mix(&rig.roll, (m * PI).sin())
         }
         // Hit, knocked down or stunned: the hit's spin (`a.twist`, below) shows it.
-        A_DOWN | A_STUNNED | A_HURT => rig.hurt,
+        // Only the spin: no lean, shift or squash.
+        A_DOWN | A_STUNNED | A_HURT => Pose::REST,
         A_GRABBED => {
             sheet.lean = n.grab * smooth(t / 0.1);
             sheet.turn = n.shake * jitter(g.clock, 30.0);

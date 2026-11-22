@@ -29,7 +29,7 @@ test("the panel's hit spin defaults match the core's, in the core's order", asyn
 			.matchAll(/"(\w+)"/g),
 	].map((m) => m[1]);
 	const panel = pairs(js, "const SPIN = {", "};");
-	assert.equal(core.length, 8);
+	assert.equal(core.length, 9);
 	assert.deepEqual(
 		keys,
 		core.map(([k]) => k),

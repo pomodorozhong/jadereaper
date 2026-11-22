@@ -35,6 +35,9 @@ pub struct Tune {
     pub overshoot: f32,
     /// Within this angle of rest (and slow enough) the character can move again: smaller locks it longer.
     pub settle: f32,
+    /// The player is held only while it spins whole turns or swings further than this from rest, in radians;
+    /// under it the player can move and act while the swing carries on.
+    pub player_hold: f32,
     /// How a light hit's swing grows with its share: swing = kick · (share / spin_share)^curve. 1 is in
     /// proportion; below 1 small hits still swing visibly (0.5: a hit of 6% of max HP swings about 43°).
     pub curve: f32,
@@ -49,6 +52,7 @@ impl Tune {
         decel: 38.0,
         overshoot: 0.5,
         settle: 0.15,
+        player_hold: 1.0,
         curve: 0.5,
     };
 
@@ -62,7 +66,8 @@ impl Tune {
             4 => &mut self.decel,
             5 => &mut self.overshoot,
             6 => &mut self.settle,
-            7 => &mut self.curve,
+            7 => &mut self.player_hold,
+            8 => &mut self.curve,
             _ => return None,
         })
     }
@@ -75,7 +80,7 @@ impl Default for Tune {
 }
 
 /// `Tune`'s fields in setter order, as `SPIN` in `src/main.js` names them.
-pub const TUNE_KEYS: [&str; 8] = [
+pub const TUNE_KEYS: [&str; 9] = [
     "spin_share",
     "kick",
     "rate",
@@ -83,6 +88,7 @@ pub const TUNE_KEYS: [&str; 8] = [
     "decel",
     "overshoot",
     "settle",
+    "player_hold",
     "curve",
 ];
 
@@ -154,6 +160,12 @@ impl Twist {
         self.spinning
             || (self.angle - self.rest).abs() > tune.settle
             || self.speed.abs() > SETTLE_SPEED
+    }
+
+    /// True while it holds the player: spinning whole turns, or swung further than `Tune::player_hold`. A
+    /// gentler swing lets the player move and act while it carries on.
+    pub fn holds_player(&self, tune: &Tune) -> bool {
+        self.spinning || (self.angle - self.rest).abs() > tune.player_hold
     }
 
     /// Stop at once, facing front (a roll out of a knockdown).
@@ -290,6 +302,31 @@ mod tests {
     }
 
     #[test]
+    fn the_player_is_held_only_by_a_strong_spin() {
+        // A light hit swings it but never holds it; a spin holds it until the turns are done.
+        let mut light = Twist::default();
+        light.hit(0.06, 1.0, &T);
+        let mut swung = false;
+        for _ in 0..60 {
+            light.step(DT, &T);
+            assert!(!light.holds_player(&T));
+            swung |= light.locked(&T);
+        }
+        assert!(swung, "it still swings while the player moves");
+        let mut heavy = Twist::default();
+        heavy.hit(0.3, 1.0, &T);
+        assert!(heavy.holds_player(&T));
+        let mut held = 0.0;
+        while heavy.holds_player(&T) && held < 5.0 {
+            heavy.step(DT, &T);
+            held += DT;
+        }
+        // Free once the spin's turns are done, while it still wobbles back to rest.
+        assert!(held > 0.3 && held < 1.5, "held {held} s");
+        assert!(heavy.locked(&T));
+    }
+
+    #[test]
     fn a_tiny_hit_barely_turns_and_does_not_lock() {
         // A boss shrugs off a normal hit: 40 damage of 2400 HP, against its resistance.
         let mut t = Twist::default();
@@ -348,6 +385,8 @@ mod tests {
         }
         assert_eq!(t.spin_share, 100.0);
         assert_eq!(t.settle, 106.0);
+        assert_eq!(t.player_hold, 107.0);
+        assert_eq!(t.curve, 108.0);
         assert!(t.field_mut(TUNE_KEYS.len()).is_none());
     }
 

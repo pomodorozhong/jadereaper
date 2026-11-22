@@ -96,14 +96,21 @@ fn every_character_has_a_record_and_hits_record_their_direction() {
     );
     assert!(e.hit_age < 0.2);
 
+    // A light hit swings the player but does not hold it: it can move at once, still turning.
     assert!(g.hurt_player(5.0, false, (g.player.x, g.player.y - 30.0), 1.0));
     run(&mut g, 1, Input::default());
     let p = g.anims[0];
-    assert_eq!(p.phase, A_HURT);
+    assert_ne!(p.phase, A_HURT);
+    assert!(p.twist.abs() > 0.0, "it still spins");
     assert!(
         p.hit_dy > 0.9 && p.hit_dmg == 5.0,
         "pushed away from an attacker above"
     );
+    // A heavy one spins it whole turns and holds it.
+    g.player.iframe = 0.0;
+    assert!(g.hurt_player(40.0, false, (g.player.x - 30.0, g.player.y), 1.0));
+    run(&mut g, 1, Input::default());
+    assert_eq!(g.anims[0].phase, A_HURT);
 }
 
 #[test]
