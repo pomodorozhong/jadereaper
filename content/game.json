@@ -17,6 +17,7 @@
     { "name": "heart", "id": 14 },
     { "name": "ring", "id": 15, "flat": true },
     { "name": "scrap", "id": 16, "flat": true },
+    { "name": "chip", "id": 17 },
     { "name": "ground_shadow", "id": 18, "flat": true },
     { "name": "elite", "id": 19 },
     { "name": "warn_circle", "id": 20, "flat": true },

@@ -18,6 +18,7 @@ const P_STONE: i32 = 13;
 const P_HEART: i32 = 14;
 const P_RING: i32 = 15;
 const P_SCRAP: i32 = 16;
+const P_CHIP: i32 = 17;
 const P_GROUND_SHADOW: i32 = 18;
 const P_ELITE: i32 = 19;
 const P_WARN_CIRCLE: i32 = 20;

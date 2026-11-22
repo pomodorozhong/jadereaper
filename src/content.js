@@ -19,6 +19,7 @@ export const PART_IDS = {
   "heart": 14,
   "ring": 15,
   "scrap": 16,
+  "chip": 17,
   "ground_shadow": 18,
   "elite": 19,
   "warn_circle": 20,

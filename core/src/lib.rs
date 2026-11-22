@@ -15,6 +15,7 @@ pub mod bot;
 pub mod cards;
 #[rustfmt::skip] // written by tools/content.mjs, which owns its layout
 pub mod content;
+pub mod debris;
 pub mod defs;
 pub mod dragon;
 pub mod draw;

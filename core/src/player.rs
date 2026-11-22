@@ -551,6 +551,7 @@ impl Game {
                 self.event(EV_SLASH, px, py, 0.0);
             }
             SkillKind::Leap => {
+                self.ground_burst(px, py, area.reach(), 1.0);
                 self.add_fx(Fx {
                     grow: (area.reach() - 30.0) / 0.25,
                     seed: 0.4,

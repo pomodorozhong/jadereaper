@@ -547,9 +547,24 @@ impl Game {
         let f = &self.fx[i];
         let t = (f.life / f.max).clamp(0.0, 1.0);
         let mut c = f.color;
-        c[3] *= t.sqrt();
+        // Flying paper stays solid and fades only at the end; flat marks fade all along.
+        c[3] *= if f.paper {
+            (f.life / 0.35).min(1.0)
+        } else {
+            t.sqrt()
+        };
         let (x, y, hw, hh, rot, part, seed) = (f.x, f.y, f.hw, f.hh, f.rot, f.part, f.seed);
-        self.put(x, y, hw, hh, rot, part, 0.0, seed, c);
+        if f.paper {
+            let sheet = Sheet {
+                turn: f.turn,
+                lean: f.lean,
+                lift: f.z,
+                bend: 0.0,
+            };
+            self.put_sheet(x, y, hw, hh, rot, part, 0.0, seed, c, sheet, (0.0, 0.0));
+        } else {
+            self.put(x, y, hw, hh, rot, part, 0.0, seed, c);
+        }
     }
 
     /// Sparse ink strokes and stones so movement reads against the paper.

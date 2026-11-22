@@ -148,6 +148,17 @@ pub struct Fx {
     pub seed: f32,
     /// Drawn above characters instead of on the ground.
     pub top: bool,
+    /// A piece of paper flying in 3D (`crate::debris`): it falls under gravity, bounces once, tumbles about
+    /// `turn` and `lean`, and settles flat. Without it the effect is a flat mark that glides and fades.
+    pub paper: bool,
+    /// Height off the ground, and its speed, in world units.
+    pub z: f32,
+    pub vz: f32,
+    /// The paper's 3D orientation (see `Sheet`) and how fast it tumbles, in radians per second.
+    pub turn: f32,
+    pub vturn: f32,
+    pub lean: f32,
+    pub vlean: f32,
 }
 
 impl Fx {
@@ -169,12 +180,21 @@ impl Fx {
             color,
             seed: 0.5,
             top: true,
+            paper: false,
+            z: 0.0,
+            vz: 0.0,
+            turn: 0.0,
+            vturn: 0.0,
+            lean: 0.0,
+            vlean: 0.0,
         }
     }
 }
 
 pub struct Game {
     pub rng: Rng,
+    /// Random numbers for looks only (flying paper), kept apart from `rng` so effects never change the run.
+    pub(crate) fx_rng: Rng,
     pub running: bool,
     pub choosing: bool,
     pub over: bool,
@@ -285,6 +305,7 @@ impl Game {
     pub fn new(seed: u32) -> Game {
         Game {
             rng: Rng(seed | 1),
+            fx_rng: Rng((seed ^ 0x9e37_79b9) | 1),
             running: false,
             choosing: false,
             over: false,
@@ -505,13 +526,18 @@ impl Game {
         }
     }
 
-    fn move_fx(&mut self, dt: f32) {
+    pub(crate) fn move_fx(&mut self, dt: f32) {
         let mut i = 0;
         while i < self.fx.len() {
             let f = &mut self.fx[i];
             f.life -= dt;
             if f.life <= 0.0 {
                 self.fx.swap_remove(i);
+                continue;
+            }
+            if f.paper {
+                crate::debris::fly(f, dt);
+                i += 1;
                 continue;
             }
             f.x += f.vx * dt;
